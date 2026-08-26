@@ -17,4 +17,8 @@ export default defineConfig({
   // does NOT produce dist/server/server.js — breaking Node hosts like Railway. Disabling
   // it makes `vite build` use TanStack Start's native Node/srvx output instead.
   nitro: false,
+  // Force an absolute asset base. Without nitro, the client build was emitting relative
+  // asset paths (e.g. "assets/x.js" instead of "/assets/x.js"), which 404s on any route
+  // other than "/" because the browser resolves them against the current path.
+  vite: { base: "/" },
 });
