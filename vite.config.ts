@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Disable the nitro build plugin. Without this, @lovable.dev/vite-tanstack-config
+  // defaults to a Cloudflare Workers build target outside Lovable's own sandbox, which
+  // does NOT produce dist/server/server.js — breaking Node hosts like Railway. Disabling
+  // it makes `vite build` use TanStack Start's native Node/srvx output instead.
+  nitro: false,
 });
