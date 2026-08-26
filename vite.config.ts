@@ -12,13 +12,11 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
-  // Disable the nitro build plugin. Without this, @lovable.dev/vite-tanstack-config
-  // defaults to a Cloudflare Workers build target outside Lovable's own sandbox, which
-  // does NOT produce dist/server/server.js — breaking Node hosts like Railway. Disabling
-  // it makes `vite build` use TanStack Start's native Node/srvx output instead.
-  nitro: false,
-  // Force an absolute asset base. Without nitro, the client build was emitting relative
-  // asset paths (e.g. "assets/x.js" instead of "/assets/x.js"), which 404s on any route
-  // other than "/" because the browser resolves them against the current path.
-  vite: { base: "/" },
+  // Build a plain Node.js server instead of the default Cloudflare Workers target.
+  // Nitro's node-server preset bundles the server AND correctly serves the built
+  // client assets (JS/CSS/images) itself — no manual static-file wiring needed.
+  // Output lands at .output/server/index.mjs (see the "start" script in package.json).
+  nitro: {
+    preset: "node-server",
+  },
 });
