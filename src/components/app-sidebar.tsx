@@ -11,7 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 
-import logoAsset from "@/assets/tgo-logo-light.png.asset.json";
+import logoLight from "@/assets/tgo-logo-light.png";
 import logoDark from "@/assets/tgo-logo-dark.png";
 
 import {
@@ -77,7 +77,7 @@ export function AppSidebar() {
       <SidebarHeader className="gap-3 border-b border-sidebar-border px-3 py-4">
         <div className="flex items-center gap-3">
           <img
-            src={logoAsset.url}
+            src={logoLight}
             alt="Torero Global Outsourcing logo"
             width={1000}
             height={521}
