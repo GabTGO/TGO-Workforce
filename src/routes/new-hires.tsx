@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Building2, Globe2, UserCheck, UserPlus } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { NewHireDialog } from "@/components/new-hire-dialog";
+import { MetricCard } from "@/components/metric-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -34,13 +36,40 @@ export const Route = createFileRoute("/new-hires")({
 
 function NewHiresPage() {
   const list = metrics().newHireList;
+  const active = list.filter((e) => e.status === "Active").length;
+  const eastwood = list.filter((e) => e.office === "PH Eastwood").length;
+  const medellin = list.filter((e) => e.office === "CO Medellin").length;
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="New Hires"
         description="Everyone who joined in the last twelve months."
         action={<NewHireDialog />}
       />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="New Hires"
+          value={list.length}
+          hint="Joined in last 12 months"
+          icon={UserPlus}
+        />
+        <MetricCard title="Still Active" value={active} hint="Currently employed" icon={UserCheck} />
+        <MetricCard
+          title="PH Eastwood"
+          value={eastwood}
+          hint="Manila delivery hub"
+          icon={Building2}
+        />
+        <MetricCard
+          title="CO Medellin"
+          value={medellin}
+          hint="LATAM delivery hub"
+          icon={Globe2}
+        />
+      </div>
+
       <Card>
         <CardContent className="overflow-x-auto p-0">
           <Table>

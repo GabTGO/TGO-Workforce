@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { AlertCircle, AlertTriangle, Info, Search, ScrollText } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { MetricCard } from "@/components/metric-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -161,12 +162,28 @@ function ActivityLogsPage() {
     });
   }, [query, category, severity]);
 
+  const critical = ACTIVITY_LOGS.filter((l) => l.severity === "critical").length;
+  const warning = ACTIVITY_LOGS.filter((l) => l.severity === "warning").length;
+  const info = ACTIVITY_LOGS.filter((l) => l.severity === "info").length;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Activity Logs"
         description="Audit trail of record changes, access events, data exports and system jobs."
       />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Total Events"
+          value={ACTIVITY_LOGS.length}
+          hint="Last 7 days"
+          icon={ScrollText}
+        />
+        <MetricCard title="Critical" value={critical} hint="Needs immediate review" icon={AlertCircle} />
+        <MetricCard title="Warning" value={warning} hint="Worth a second look" icon={AlertTriangle} />
+        <MetricCard title="Info" value={info} hint="Routine activity" icon={Info} />
+      </div>
 
       <Card>
         <CardHeader>

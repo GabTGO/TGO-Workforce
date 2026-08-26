@@ -6,6 +6,7 @@ export interface Employee {
   office: string;
   department: string;
   position: string;
+  jobOfferDate?: string; // ISO
   startDate: string; // ISO
   status: EmployeeStatus;
   exitDate?: string;
@@ -15,12 +16,38 @@ export interface Employee {
 export const OFFICES = ["PH Eastwood", "CO Medellin"] as const;
 
 export const DEPARTMENTS = [
-  "Automation",
-  "AI Engineering",
-  "Operations",
-  "People Ops",
-  "Finance",
-  "Customer Success",
+  "Dispatch",
+  "Business Admin",
+  "Recruitment",
+  "Management",
+  "Sales",
+  "FHP",
+  "Projects",
+  "Payroll",
+] as const;
+
+export const POSITIONS = [
+  "L1 - Dispatcher",
+  "L2 - Dispatcher",
+  "Spanish Dispatcher",
+  "Dispatch Lead",
+  "Dispatch Supervisor",
+  "Business Associate",
+  "Recruitment Associate",
+  "Talent Acquisition Lead",
+  "Sales Representative",
+  "US Payroll Specialists",
+  "Payroll Associate",
+  "FHP - VA",
+  "FHP - Bid Coordinator",
+  "Chief of Staff",
+  "HR Transport",
+  "Onboarding & Offboarding Specialist",
+  "AI & Automations Lead",
+  "Head of BA",
+  "Head of Dispatch",
+  "Head of HR",
+  "Head of Projects & Payroll",
 ] as const;
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];

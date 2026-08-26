@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Cake } from "lucide-react";
+import { Building2, Cake, CalendarClock, Globe2 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { MetricCard } from "@/components/metric-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,10 @@ function initials(name: string) {
 function BirthdaysPage() {
   const list = upcomingBirthdays();
   const months = [...new Set(list.map((e) => e.monthName))];
+  const currentMonthName = new Date().toLocaleString("en-US", { month: "long" });
+  const thisMonth = list.filter((e) => e.monthName === currentMonthName).length;
+  const eastwood = list.filter((e) => e.office === "PH Eastwood").length;
+  const medellin = list.filter((e) => e.office === "CO Medellin").length;
 
   return (
     <div className="space-y-6">
@@ -43,6 +48,18 @@ function BirthdaysPage() {
         title="Birthdays"
         description="Birthday calendar for active employees across all hubs."
       />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Total Birthdays" value={list.length} hint="Active employees tracked" icon={Cake} />
+        <MetricCard
+          title="This Month"
+          value={thisMonth}
+          hint={`Celebrations in ${currentMonthName}`}
+          icon={CalendarClock}
+        />
+        <MetricCard title="PH Eastwood" value={eastwood} hint="Manila delivery hub" icon={Building2} />
+        <MetricCard title="CO Medellin" value={medellin} hint="LATAM delivery hub" icon={Globe2} />
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {months.map((month) => (
           <Card key={month}>

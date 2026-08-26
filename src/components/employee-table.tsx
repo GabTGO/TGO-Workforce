@@ -6,7 +6,6 @@ import {
   Download,
   Search,
   Upload,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ManageEmployeesDialog } from "@/components/manage-employees-dialog";
 import { NewHireDialog } from "@/components/new-hire-dialog";
 import {
   DEPARTMENTS,
@@ -132,9 +132,7 @@ export function EmployeeTable() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => toast.info("Manage Employees workspace")}>
-          <Users className="mr-2 h-4 w-4" /> Manage Employees
-        </Button>
+        <ManageEmployeesDialog />
         <NewHireDialog />
         <Button variant="outline" size="sm" onClick={() => toast.info("Bulk upload template ready")}>
           <Upload className="mr-2 h-4 w-4" /> Bulk Upload
