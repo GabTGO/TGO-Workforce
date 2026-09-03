@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { OFFICES } from "@/data/employees";
+import { OFFICES, type Employee } from "@/data/employees";
 import { useCreateEmployee } from "@/data/employee-store";
 import { useCurrentAccount } from "@/lib/session";
 
@@ -29,7 +29,15 @@ const SOURCE_TYPES = [
   "Internal Transfer",
 ] as const;
 
-export function NewHireDialog() {
+export function NewHireDialog({
+  onCreated,
+}: {
+  /** Called with the freshly-created record right after the API confirms
+   * it — callers use this to bring the new row into view immediately
+   * (reset sort/filters/page) instead of leaving someone to go hunt for it
+   * in an alphabetized, possibly-filtered table. */
+  onCreated?: (employee: Employee) => void;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -61,7 +69,7 @@ export function NewHireDialog() {
       return;
     }
     try {
-      await createMutation.mutateAsync({
+      const created = await createMutation.mutateAsync({
         name: fullName,
         birthday: birthday || undefined,
         startDate,
@@ -71,6 +79,7 @@ export function NewHireDialog() {
       setOpen(false);
       toast.success(`New hire submitted: ${fullName}`);
       reset();
+      onCreated?.(created);
     } catch (error) {
       console.error(error);
       toast.error("Couldn't submit this new hire. Please try again.");

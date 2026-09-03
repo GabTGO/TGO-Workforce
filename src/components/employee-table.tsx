@@ -152,6 +152,20 @@ export function EmployeeTable() {
     }));
   };
 
+  // A brand-new hire otherwise lands wherever alphabetical order (the
+  // default sort) puts them, possibly several pages deep or hidden behind
+  // whatever filters happened to be set — so surface it immediately: sort
+  // newest-first, clear anything that could be hiding the row just added,
+  // and jump back to page 1.
+  function handleNewHireCreated() {
+    setSort({ key: "startDate", dir: "desc" });
+    setQuery("");
+    setOffice("all");
+    setStatus("all");
+    setDepartment("all");
+    setPage(1);
+  }
+
   const allOnPageSelected =
     rows.length > 0 && rows.every((e) => selected.has(e.id));
   const someOnPageSelected = rows.some((e) => selected.has(e.id));
@@ -355,7 +369,7 @@ export function EmployeeTable() {
 
       <div className="flex flex-wrap items-center gap-2">
         <ManageEmployeesDialog />
-        <NewHireDialog />
+        <NewHireDialog onCreated={handleNewHireCreated} />
         <ImportEmployeesDialog />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

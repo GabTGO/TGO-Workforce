@@ -98,12 +98,24 @@ function NewHiresPage() {
     currentPage * PAGE_SIZE,
   );
 
+  // `list` is already newest-first, so a brand-new hire is first in it — the
+  // only things that could still bury it are a stale filter or being stuck
+  // on a later page, so clear both instead of making someone click back to
+  // page 1 and reset filters themselves.
+  function handleNewHireCreated() {
+    setQuery("");
+    setOffice("all");
+    setStatus("all");
+    setDepartment("all");
+    setPage(1);
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="New Hires"
         description="Everyone who joined in the last twelve months."
-        action={<NewHireDialog />}
+        action={<NewHireDialog onCreated={handleNewHireCreated} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

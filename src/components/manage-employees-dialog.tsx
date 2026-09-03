@@ -271,7 +271,7 @@ export function ManageEmployeesDialog() {
             </DialogFooter>
           </DialogContent>
         ) : (
-          <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col overflow-hidden p-0 sm:max-w-6xl">
+          <DialogContent className="flex max-h-[92vh] w-[98vw] max-w-[1800px] flex-col overflow-hidden p-0">
             <div className="space-y-3 border-b px-6 py-4">
               <div>
                 <h2 className="text-base font-semibold">Manage Employees</h2>
@@ -314,7 +314,9 @@ export function ManageEmployeesDialog() {
                     <TableHead>
                       <SortHeader label="Status" sortKey="status" />
                     </TableHead>
-                    <TableHead className="text-primary">Actions</TableHead>
+                    <TableHead className="sticky right-0 bg-primary/5 text-primary shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -353,7 +355,7 @@ export function ManageEmployeesDialog() {
                           {e.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="sticky right-0 bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                         <div className="flex items-center gap-1.5">
                           <Button
                             size="icon"
@@ -514,13 +516,13 @@ function EditEmployeeDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-3xl">
-        <div className="pb-2">
+      <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col overflow-hidden p-0 sm:max-w-3xl">
+        <div className="border-b px-6 py-4">
           <h2 className="text-base font-semibold">Edit Employee Record</h2>
           <p className="text-sm text-muted-foreground">{employee.name}</p>
         </div>
 
-        <div className="space-y-6 py-2">
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-4">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-primary">
               Basic Information
@@ -686,7 +688,7 @@ function EditEmployeeDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
