@@ -1,9 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BarChart3, ScrollText, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { isSignedIn, signIn } from "@/lib/session";
 import tgoLogoOnDark from "@/assets/tgo-logo-ondark.png";
 
 export const Route = createFileRoute("/login")({
@@ -29,10 +31,22 @@ const HIGHLIGHTS = [
 ];
 
 function LoginPage() {
-  // Zoho SSO isn't wired up yet — the real auth flow lands once the Python/Postgres
-  // backend is in place. For now this just tells the person it's not live.
+  const navigate = useNavigate();
+
+  // Already signed in (placeholder session) — no reason to show the login screen.
+  useEffect(() => {
+    if (isSignedIn()) {
+      navigate({ to: "/" });
+    }
+  }, [navigate]);
+
+  // Zoho SSO isn't wired up yet — the real auth flow lands once the backend's
+  // OAuth callback is in place. For now this sets a placeholder signed-in flag
+  // so the rest of the app (which gates on it) is reachable for testing.
   function handleZohoSignIn() {
-    toast.info("Zoho sign-in isn't connected yet — check back soon.");
+    signIn();
+    toast.success("Signed in. (Zoho SSO isn't connected yet — this is a placeholder session.)");
+    navigate({ to: "/" });
   }
 
   return (

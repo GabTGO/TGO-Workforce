@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, LogOut, User, LifeBuoy } from "lucide-react";
 
 import { AppSidebar, NAV_ITEMS } from "@/components/app-sidebar";
@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SupportChat } from "@/components/support-chat";
 import { Button } from "@/components/ui/button";
+import { isSignedIn, signOut } from "@/lib/session";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,6 +30,31 @@ import {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const current = NAV_ITEMS.find((i) => i.url === pathname);
+  const navigate = useNavigate();
+
+  // Placeholder auth guard — runs client-side only (TanStack Start's
+  // beforeLoad executes during SSR, where localStorage doesn't exist, so we
+  // check post-mount here instead). Bounces to /login until a real session
+  // is issued by the backend. Render nothing until the check has run so a
+  // signed-out visitor never sees a flash of the dashboard.
+  const [checkedAuth, setCheckedAuth] = useState(false);
+
+  useEffect(() => {
+    if (!isSignedIn()) {
+      navigate({ to: "/login" });
+      return;
+    }
+    setCheckedAuth(true);
+  }, [navigate]);
+
+  function handleSignOut() {
+    signOut();
+    navigate({ to: "/login" });
+  }
+
+  if (!checkedAuth) {
+    return null;
+  }
 
   return (
     <SidebarProvider>
@@ -77,7 +103,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <LifeBuoy className="mr-2 h-4 w-4" /> Support
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" /> Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
