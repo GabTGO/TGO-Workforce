@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, LogOut, User, LifeBuoy } from "lucide-react";
+import { ChevronDown, LogOut, User, LifeBuoy, ShieldCheck } from "lucide-react";
 
 import { AppSidebar, NAV_ITEMS } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SupportChat } from "@/components/support-chat";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   signOut,
   type AccountProfile,
 } from "@/lib/session";
+import { ROLE_LABELS } from "@/lib/roles";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -138,6 +140,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <p className="text-xs font-normal text-muted-foreground">
                       {account.email}
                     </p>
+                    <Badge
+                      variant="secondary"
+                      className="mt-1.5 gap-1 font-normal"
+                    >
+                      <ShieldCheck className="h-3 w-3" />
+                      {ROLE_LABELS[account.role]}
+                    </Badge>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

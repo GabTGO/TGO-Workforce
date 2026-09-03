@@ -28,17 +28,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { FilterSelect } from "@/components/filter-select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -59,13 +55,16 @@ import {
   STATUSES,
   formatDate,
   tenure,
+  tenureDays,
   type Employee,
   type EmployeeStatus,
 } from "@/data/employees";
 import {
   exportEmployeesCsv,
+  exportEmployeesDetailedXlsx,
   exportEmployeesPdf,
   exportEmployeesXlsx,
+  exportWorkforceSummaryXlsx,
 } from "@/lib/export";
 import { MANAGE_PASSWORD } from "@/lib/manage-password";
 
@@ -238,6 +237,57 @@ export function EmployeeTable() {
     }
   }
 
+  // The three reference-format exports (Filtered / Detailed / Summary) — see
+  // src/lib/export.ts for the column layout each one matches. "Filtered"
+  // follows the same selection-then-filters scope as the CSV/Excel/PDF
+  // exports above; "Detailed" always covers every employee in the directory
+  // regardless of filters, since it's meant as the full-roster record;
+  // "Summary" is a grouped rollup of whatever the current filters show.
+  async function handleDetailedExport(scope: "filtered" | "all") {
+    const rows = scope === "filtered" ? exportRows : employees;
+    if (rows.length === 0) {
+      toast.error("No employees to export.");
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportEmployeesDetailedXlsx(
+        rows,
+        scope === "filtered"
+          ? "TGO_Workforce_Filtered_Export"
+          : "TGO_Workforce_Detailed_Export",
+      );
+      toast.success(
+        `Exported ${rows.length} employee${rows.length === 1 ? "" : "s"}`,
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleSummaryExport() {
+    if (filtered.length === 0) {
+      toast.error("No employees to summarize.");
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportWorkforceSummaryXlsx(
+        filtered,
+        "TGO_Workforce_Summary_Export",
+      );
+      toast.success("Exported workforce summary");
+    } catch (error) {
+      console.error(error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const SortButton = ({
     label,
     sortKey,
@@ -336,6 +386,28 @@ export function EmployeeTable() {
               onSelect={() => handleExport("pdf")}
             >
               Export {exportScopeLabel} as PDF
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Reference report formats
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={exporting}
+              onSelect={() => handleDetailedExport("filtered")}
+            >
+              Filtered Export ({exportScopeLabel})
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={exporting}
+              onSelect={() => handleDetailedExport("all")}
+            >
+              Detailed Export (All {employees.length})
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={exporting}
+              onSelect={handleSummaryExport}
+            >
+              Summary Export (by Team &amp; Office)
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -451,7 +523,10 @@ export function EmployeeTable() {
                       {formatDate(e.startDate)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {tenure(e.startDate, e.exitDate)}
+                      <div>{tenure(e.startDate, e.exitDate)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {tenureDays(e.startDate, e.exitDate)} days
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusVariant[e.status]}>
@@ -559,35 +634,5 @@ export function EmployeeTable() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function FilterSelect({
-  value,
-  onChange,
-  placeholder,
-  allLabel,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  allLabel: string;
-  options: string[];
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[170px]">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">{allLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o} value={o}>
-            {o}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

@@ -37,6 +37,8 @@ function fromBackend(row: BackendEmployee): Employee {
     exitDate: row.exit_date ?? undefined,
     birthday: row.birthday ?? "",
     sourceType: row.source_type ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

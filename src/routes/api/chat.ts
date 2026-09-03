@@ -1,92 +1,77 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createOpenAI } from "@ai-sdk/openai";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
-
 import {
-  departmentDistribution,
-  metrics,
-  officeDistribution,
-  statusDistribution,
-  tenureDistribution,
-  type Employee,
-} from "@/data/employees";
-import { fetchEmployees } from "@/data/employee-api";
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  type UIMessage,
+} from "ai";
 
-function workforceContext(employees: Employee[]) {
-  const m = metrics(employees);
-  return [
-    `Active: ${m.active}, Inactive: ${m.inactive}, New hires (12m): ${m.newHires}, Exits (12m): ${m.exits}.`,
-    `Offices: ${JSON.stringify(officeDistribution(employees))}`,
-    `Statuses: ${JSON.stringify(statusDistribution(employees))}`,
-    `Departments: ${JSON.stringify(departmentDistribution(employees))}`,
-    `Tenure bands: ${JSON.stringify(tenureDistribution(employees))}`,
-    `Employees: ${JSON.stringify(
-      employees.map((e) => ({
-        id: e.id,
-        name: e.name,
-        office: e.office,
-        department: e.department,
-        position: e.position,
-        startDate: e.startDate,
-        status: e.status,
-        exitDate: e.exitDate ?? null,
-      })),
-    )}`,
-  ].join("\n");
+import type { Employee } from "@/data/employees";
+import { fetchEmployees } from "@/data/employee-api";
+import { answerWorkforceQuestion } from "@/lib/workforce-assistant";
+
+/** Pulls the text out of the most recent user message — that's the only
+ * input the rule-based engine needs (see @/lib/workforce-assistant). */
+function lastUserText(messages: UIMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role === "user") {
+      return message.parts
+        .map((part) => (part.type === "text" ? part.text : ""))
+        .join(" ")
+        .trim();
+    }
+  }
+  return "";
 }
 
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = (await request.json()) as { messages?: UIMessage[] };
+        const { messages } = (await request.json()) as {
+          messages?: UIMessage[];
+        };
         if (!Array.isArray(messages)) {
           return new Response("Messages are required", { status: 400 });
         }
-
-        const apiKey = process.env["LOVABLE_API_KEY"];
-        if (!apiKey) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
         let employees: Employee[] = [];
         try {
           employees = await fetchEmployees();
         } catch {
-          // Fall back to an empty roster rather than failing the chat request —
-          // the assistant will just say it doesn't have workforce data available.
+          // Answer from an empty roster rather than failing the whole
+          // request — the engine below just says it has no data.
         }
 
-        const lovable = createOpenAI({
-          baseURL: "https://ai.gateway.lovable.dev/v1",
-          apiKey,
-          headers: {
-            "Lovable-API-Key": apiKey,
-            "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+        const answer = answerWorkforceQuestion(
+          lastUserText(messages),
+          employees,
+        );
+
+        // Hand-write the UI-message-stream protocol the frontend already
+        // expects (useChat + DefaultChatTransport in support-chat.tsx) —
+        // this used to come from streamText() against an external model
+        // gateway that isn't configured in this deployment. Now it's a
+        // deterministic answer computed from the real roster, streamed
+        // word-by-word for the same typing effect, with no model or API
+        // key involved.
+        const stream = createUIMessageStream({
+          originalMessages: messages,
+          execute: async ({ writer }) => {
+            const id = crypto.randomUUID();
+            writer.write({ type: "start" });
+            writer.write({ type: "text-start", id });
+            const words = answer.split(/(?<=\s)/);
+            for (const word of words) {
+              writer.write({ type: "text-delta", id, delta: word });
+              await new Promise((resolve) => setTimeout(resolve, 12));
+            }
+            writer.write({ type: "text-end", id });
+            writer.write({ type: "finish" });
           },
         });
 
-        const result = streamText({
-          model: lovable.responses("openai/gpt-5.6-sol"),
-          abortSignal: request.signal,
-          system: [
-            "You are the TGO Workforce support assistant for an internal HR operations portal.",
-            "Answer questions about employees, headcount, hiring, tenure, anniversaries, birthdays and how to use the portal (Dashboard, Directory, Analytics, New Hires, Anniversaries, Birthdays, Activity Logs, Settings).",
-            "Be concise, use markdown lists or short tables when helpful, and only use the data below. If something is unknown, say so.",
-            "Current workforce data:",
-            workforceContext(employees),
-          ].join("\n"),
-          messages: await convertToModelMessages(messages),
-          providerOptions: {
-            openai: {
-              forceReasoning: true,
-              reasoningEffort: "low",
-              reasoningSummary: "auto",
-              store: false,
-              include: ["reasoning.encrypted_content"],
-            },
-          },
-        });
-
-        return result.toUIMessageStreamResponse({ originalMessages: messages });
+        return createUIMessageStreamResponse({ stream });
       },
     },
   },

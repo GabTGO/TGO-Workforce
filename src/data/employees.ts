@@ -12,6 +12,8 @@ export interface Employee {
   exitDate?: string;
   birthday: string; // ISO (year may be birth year); "" when unknown
   sourceType?: string;
+  createdAt?: string; // ISO timestamp — when the record was added to TGO Workforce
+  updatedAt?: string; // ISO timestamp — last edit to the record
 }
 
 export const OFFICES = ["PH Eastwood", "CO Medellin"] as const;
@@ -53,15 +55,33 @@ export const POSITIONS = [
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
 
+/** Raw day count between start and (exit or today) — the source of truth for
+ * every "how long has this person been here" display and export column. */
+export function tenureDays(startDate: string, exitDate?: string) {
+  const start = new Date(startDate);
+  const end = exitDate ? new Date(exitDate) : new Date();
+  return Math.max(
+    0,
+    Math.round((end.getTime() - start.getTime()) / 86_400_000),
+  );
+}
+
 export function tenure(startDate: string, exitDate?: string) {
   const start = new Date(startDate);
   const end = exitDate ? new Date(exitDate) : new Date();
   let months =
-    (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
   if (end.getDate() < start.getDate()) months -= 1;
   months = Math.max(months, 0);
   const y = Math.floor(months / 12);
   const m = months % 12;
+  // Under a month, "0y 0m" reads as broken rather than "brand new" — fall
+  // back to a day count for anyone hired inside the current month.
+  if (y === 0 && m === 0) {
+    const days = tenureDays(startDate, exitDate);
+    return days <= 1 ? "1 day" : `${days} days`;
+  }
   return `${y}y ${m}m`;
 }
 
@@ -88,7 +108,9 @@ export function metrics(employees: Employee[]) {
   const oneYearAgo = new Date(REFERENCE_NOW);
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
   const newHires = employees.filter((e) => new Date(e.startDate) >= oneYearAgo);
-  const exits = employees.filter((e) => e.exitDate && new Date(e.exitDate) >= oneYearAgo);
+  const exits = employees.filter(
+    (e) => e.exitDate && new Date(e.exitDate) >= oneYearAgo,
+  );
   return {
     active: active.length,
     inactive: inactive.length,
@@ -96,15 +118,21 @@ export function metrics(employees: Employee[]) {
     exits: exits.length,
     eastwood: active.filter((e) => e.office === "PH Eastwood").length,
     medellin: active.filter((e) => e.office === "CO Medellin").length,
-    newHireList: newHires.sort((a, b) => b.startDate.localeCompare(a.startDate)),
+    newHireList: newHires.sort((a, b) =>
+      b.startDate.localeCompare(a.startDate),
+    ),
   };
 }
 
 export function officeDistribution(employees: Employee[]) {
   return OFFICES.map((office) => ({
     office,
-    active: employees.filter((e) => e.office === office && e.status === "Active").length,
-    inactive: employees.filter((e) => e.office === office && e.status !== "Active").length,
+    active: employees.filter(
+      (e) => e.office === office && e.status === "Active",
+    ).length,
+    inactive: employees.filter(
+      (e) => e.office === office && e.status !== "Active",
+    ).length,
   }));
 }
 
@@ -122,8 +150,18 @@ export function headcountTrend(employees: Employee[]) {
 }
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 export function upcomingBirthdays(employees: Employee[]) {
@@ -134,7 +172,14 @@ export function upcomingBirthdays(employees: Employee[]) {
       // Skip rows with an unparsable or missing birthday (e.g. blank cells from
       // an Excel import) instead of producing a NaN month that crashes the page.
       if (Number.isNaN(d.getTime())) return [];
-      return [{ ...e, monthIndex: d.getMonth(), day: d.getDate(), monthName: MONTH_NAMES[d.getMonth()]! }];
+      return [
+        {
+          ...e,
+          monthIndex: d.getMonth(),
+          day: d.getDate(),
+          monthName: MONTH_NAMES[d.getMonth()]!,
+        },
+      ];
     })
     .sort((a, b) => a.monthIndex - b.monthIndex || a.day - b.day);
 }
@@ -162,14 +207,20 @@ export function anniversaries(employees: Employee[]) {
 export function departmentDistribution(employees: Employee[]) {
   return DEPARTMENTS.map((department) => ({
     department,
-    active: employees.filter((e) => e.department === department && e.status === "Active").length,
-    inactive: employees.filter((e) => e.department === department && e.status !== "Active").length,
+    active: employees.filter(
+      (e) => e.department === department && e.status === "Active",
+    ).length,
+    inactive: employees.filter(
+      (e) => e.department === department && e.status !== "Active",
+    ).length,
   }));
 }
 
 function monthsBetween(startDate: string, end: Date) {
   const start = new Date(startDate);
-  let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  let months =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
   if (end.getDate() < start.getDate()) months -= 1;
   return Math.max(months, 0);
 }
@@ -196,7 +247,11 @@ export function tenureDistribution(employees: Employee[]) {
 export function monthlyHiringTrend(employees: Employee[]) {
   const out: { month: string; hires: number; exits: number }[] = [];
   for (let i = 11; i >= 0; i--) {
-    const d = new Date(REFERENCE_NOW.getFullYear(), REFERENCE_NOW.getMonth() - i, 1);
+    const d = new Date(
+      REFERENCE_NOW.getFullYear(),
+      REFERENCE_NOW.getMonth() - i,
+      1,
+    );
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     out.push({
       month: `${MONTH_NAMES[d.getMonth()]!.slice(0, 3)} ${String(d.getFullYear()).slice(2)}`,
@@ -211,7 +266,11 @@ export function monthlyHiringTrend(employees: Employee[]) {
 export function headcountGrowth(employees: Employee[]) {
   const out: { month: string; headcount: number }[] = [];
   for (let i = 11; i >= 0; i--) {
-    const end = new Date(REFERENCE_NOW.getFullYear(), REFERENCE_NOW.getMonth() - i + 1, 0);
+    const end = new Date(
+      REFERENCE_NOW.getFullYear(),
+      REFERENCE_NOW.getMonth() - i + 1,
+      0,
+    );
     const headcount = employees.filter((e) => {
       if (new Date(e.startDate) > end) return false;
       if (e.exitDate && new Date(e.exitDate) <= end) return false;
