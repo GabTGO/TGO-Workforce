@@ -49,6 +49,8 @@ import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { ManageEmployeesDialog } from "@/components/manage-employees-dialog";
 import { NewHireDialog } from "@/components/new-hire-dialog";
 import { useBulkDeleteEmployees, useEmployees } from "@/data/employee-store";
+import { useCurrentAccount } from "@/lib/session";
+import { canManageEmployees } from "@/lib/permissions";
 import {
   DEPARTMENTS,
   OFFICES,
@@ -85,6 +87,14 @@ const PAGE_SIZE = 8;
 export function EmployeeTable() {
   const employees = useEmployees();
   const bulkDeleteMutation = useBulkDeleteEmployees();
+  const { data: account } = useCurrentAccount();
+  // A viewer can search/filter/sort/paginate/export like everyone else, but
+  // every button that creates/edits/deletes/imports employee records — and
+  // the row-selection checkboxes that only exist to feed bulk-delete — are
+  // hidden for them. The backend enforces the same rule on every write
+  // route (see backend/app/core/auth.py's require_employee_writer), so this
+  // is a UX nicety, not the actual security boundary.
+  const canManage = canManageEmployees(account?.role);
   const [query, setQuery] = useState("");
   const [office, setOffice] = useState("all");
   const [status, setStatus] = useState("all");
@@ -368,9 +378,13 @@ export function EmployeeTable() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <ManageEmployeesDialog />
-        <NewHireDialog onCreated={handleNewHireCreated} />
-        <ImportEmployeesDialog />
+        {canManage && (
+          <>
+            <ManageEmployeesDialog />
+            <NewHireDialog onCreated={handleNewHireCreated} />
+            <ImportEmployeesDialog />
+          </>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" disabled={exporting}>
@@ -427,7 +441,7 @@ export function EmployeeTable() {
         </DropdownMenu>
       </div>
 
-      {selected.size > 0 && (
+      {canManage && selected.size > 0 && (
         <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5">
           <p className="text-sm font-medium">
             {selected.size} employee{selected.size === 1 ? "" : "s"} selected
@@ -455,21 +469,23 @@ export function EmployeeTable() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={
-                        allOnPageSelected
-                          ? true
-                          : someOnPageSelected
-                            ? "indeterminate"
-                            : false
-                      }
-                      onCheckedChange={(checked) =>
-                        togglePage(checked === true)
-                      }
-                      aria-label="Select all rows on this page"
-                    />
-                  </TableHead>
+                  {canManage && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          allOnPageSelected
+                            ? true
+                            : someOnPageSelected
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(checked) =>
+                          togglePage(checked === true)
+                        }
+                        aria-label="Select all rows on this page"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>
                     <SortButton label="Employee ID" sortKey="id" />
                   </TableHead>
@@ -499,7 +515,7 @@ export function EmployeeTable() {
                 {rows.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={canManage ? 10 : 9}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No employees match the current filters.
@@ -511,15 +527,17 @@ export function EmployeeTable() {
                     key={e.id}
                     data-state={selected.has(e.id) ? "selected" : undefined}
                   >
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(e.id)}
-                        onCheckedChange={(checked) =>
-                          toggleRow(e.id, checked === true)
-                        }
-                        aria-label={`Select ${e.name}`}
-                      />
-                    </TableCell>
+                    {canManage && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.has(e.id)}
+                          onCheckedChange={(checked) =>
+                            toggleRow(e.id, checked === true)
+                          }
+                          aria-label={`Select ${e.name}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono text-xs">{e.id}</TableCell>
                     <TableCell className="font-medium whitespace-nowrap">
                       {e.name}

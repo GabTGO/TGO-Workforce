@@ -52,3 +52,26 @@ async def require_admin(
     if account.role != AccountRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return account
+
+
+# Roles allowed to create/edit/delete/import employee records (RBAC policy
+# agreed 2026-09-03). Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts
+# on the frontend — keep the two in sync. Viewer is deliberately excluded:
+# read (list/get) and export stay open to every signed-in role, but any
+# mutation to the employee roster requires one of these three.
+EMPLOYEE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS, AccountRole.HUB_LEAD}
+
+
+async def require_employee_writer(
+    account: Account = Depends(require_account),
+) -> Account:
+    """Same as require_account, but also rejects a signed-in viewer with 403.
+    Used to gate the write routes in app/api/routes/employees.py (create,
+    update, delete, bulk-delete, import) — the read routes stay on plain
+    require_account so viewers can still search/filter/export."""
+    if account.role not in EMPLOYEE_WRITE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify employee records",
+        )
+    return account

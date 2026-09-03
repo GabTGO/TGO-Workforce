@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_account, require_account
+from app.core.auth import get_current_account, require_account, require_employee_writer
 from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivitySeverity
@@ -24,13 +24,16 @@ from app.services.employee import next_employee_id
 
 # Router-level dependency: every route here requires a signed-in account
 # (401 otherwise) — these used to be reachable by anyone, signed in or not.
-# Individual routes still take their own `account: CurrentAccount` param
-# below for activity-log attribution; that's now guaranteed non-None, but is
-# kept Optional in type so record_activity's actor_label fallback stays
-# harmless rather than because it's still reachable anonymously.
+# The two read routes (list/get) stop there, so every signed-in role
+# including viewer can search/filter/export. The five write routes below
+# additionally depend on require_employee_writer, which rejects a signed-in
+# viewer with 403 — see app/core/auth.py's EMPLOYEE_WRITE_ROLES.
 router = APIRouter(prefix="/employees", tags=["employees"], dependencies=[Depends(require_account)])
 
 CurrentAccount = Annotated[Account | None, Depends(get_current_account)]
+# Guaranteed non-None (require_employee_writer 403s otherwise) — used by the
+# five write routes below for activity-log attribution.
+WriterAccount = Annotated[Account, Depends(require_employee_writer)]
 
 
 @router.get("", response_model=list[EmployeeRead])
@@ -75,7 +78,7 @@ async def get_employee(employee_id: str, db: Annotated[AsyncSession, Depends(get
 async def create_employee(
     payload: EmployeeCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    account: CurrentAccount = None,
+    account: WriterAccount,
 ) -> Employee:
     """Backs the New Hire form — currently a UI-only stub on the frontend that
     just shows a toast; this is what it should call once wired up."""
@@ -88,7 +91,6 @@ async def create_employee(
         action="Created employee record",
         category=ActivityCategory.EMPLOYEE,
         account=account,
-        actor_label=None if account else "System",
         target=f"{employee.id} · {employee.name}",
         commit=False,
     )
@@ -101,7 +103,7 @@ async def create_employee(
 async def import_employees(
     rows: list[EmployeeImportRow],
     db: Annotated[AsyncSession, Depends(get_db)],
-    account: CurrentAccount = None,
+    account: WriterAccount,
 ) -> EmployeeImportResult:
     """Backs Import from Excel. Mirrors the frontend's addEmployees(): a row
     with no name is skipped, everything else falls back to the same defaults
@@ -137,7 +139,6 @@ async def import_employees(
             action="Bulk upload processed",
             category=ActivityCategory.DATA,
             account=account,
-            actor_label=None if account else "System",
             target=f"{added} row{'s' if added != 1 else ''} imported",
             commit=False,
         )
@@ -150,7 +151,7 @@ async def update_employee(
     employee_id: str,
     payload: EmployeeUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    account: CurrentAccount = None,
+    account: WriterAccount,
 ) -> Employee:
     """Backs the Manage Employees edit dialog — including renaming the
     Employee ID itself, which doubles as the primary key (see
@@ -198,7 +199,6 @@ async def update_employee(
             action="Updated employee record",
             category=ActivityCategory.EMPLOYEE,
             account=account,
-            actor_label=None if account else "System",
             target=f"{employee.id} · {employee.name}",
             details=details,
             commit=False,
@@ -212,7 +212,7 @@ async def update_employee(
 async def bulk_delete_employees(
     payload: EmployeeBulkDeleteRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    account: CurrentAccount = None,
+    account: WriterAccount,
 ) -> EmployeeBulkDeleteResult:
     """Backs the Employee Directory's checkbox multi-select delete. One
     activity-log entry for the whole batch (not one per row) so a 40-row
@@ -235,7 +235,6 @@ async def bulk_delete_employees(
             action="Bulk removed employee records",
             category=ActivityCategory.EMPLOYEE,
             account=account,
-            actor_label=None if account else "System",
             severity=ActivitySeverity.WARNING,
             target=f"{len(found)} record{'s' if len(found) != 1 else ''}",
             details={"ids": sorted(found_ids)},
@@ -247,7 +246,7 @@ async def bulk_delete_employees(
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_employee(
-    employee_id: str, db: Annotated[AsyncSession, Depends(get_db)], account: CurrentAccount = None
+    employee_id: str, db: Annotated[AsyncSession, Depends(get_db)], account: WriterAccount
 ) -> None:
     """Backs the Manage Employees delete confirmation."""
     employee = await db.get(Employee, employee_id)
@@ -261,7 +260,6 @@ async def delete_employee(
         action="Removed employee record",
         category=ActivityCategory.EMPLOYEE,
         account=account,
-        actor_label=None if account else "System",
         severity=ActivitySeverity.WARNING,
         target=target,
         commit=False,

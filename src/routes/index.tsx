@@ -34,6 +34,7 @@ import {
   upcomingBirthdays,
 } from "@/data/employees";
 import { useCurrentAccount } from "@/lib/session";
+import { canManageEmployees } from "@/lib/permissions";
 
 // Whether a month/day (as returned by upcomingBirthdays) falls within the
 // next 7 days, wrapping into next year for a birthday that's already passed
@@ -75,6 +76,7 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const employees = useEmployees();
   const { data: account } = useCurrentAccount();
+  const canManage = canManageEmployees(account?.role);
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
@@ -98,7 +100,7 @@ function Dashboard() {
         description="Operational snapshot across all TGO delivery hubs."
         action={
           <div className="flex items-center gap-2">
-            <ImportEmployeesDialog />
+            {canManage && <ImportEmployeesDialog />}
             <Button asChild size="sm" variant="outline">
               <Link to="/directory">
                 Open directory <ArrowRight className="ml-2 h-4 w-4" />

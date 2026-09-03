@@ -36,6 +36,8 @@ import {
   tenureDays,
 } from "@/data/employees";
 import { useEmployees } from "@/data/employee-store";
+import { useCurrentAccount } from "@/lib/session";
+import { canManageEmployees } from "@/lib/permissions";
 
 export const Route = createFileRoute("/new-hires")({
   head: () => ({
@@ -60,6 +62,8 @@ const PAGE_SIZE = 8;
 
 function NewHiresPage() {
   const employees = useEmployees();
+  const { data: account } = useCurrentAccount();
+  const canManage = canManageEmployees(account?.role);
   const list = metrics(employees).newHireList;
   const active = list.filter((e) => e.status === "Active").length;
   const eastwood = list.filter((e) => e.office === "PH Eastwood").length;
@@ -115,7 +119,11 @@ function NewHiresPage() {
       <PageHeader
         title="New Hires"
         description="Everyone who joined in the last twelve months."
-        action={<NewHireDialog onCreated={handleNewHireCreated} />}
+        action={
+          canManage ? (
+            <NewHireDialog onCreated={handleNewHireCreated} />
+          ) : undefined
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

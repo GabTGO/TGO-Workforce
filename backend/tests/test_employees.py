@@ -223,3 +223,104 @@ async def test_import_defaults_missing_fields(admin_client) -> None:
     row = directory.json()[0]
     assert row["office"] == "PH Eastwood"
     assert row["status"] == EmployeeStatus.ACTIVE.value
+
+
+# --- RBAC: viewer is read-only, people_ops/hub_lead have full employee CRUD ---
+# Policy agreed 2026-09-03 — see app/core/auth.py's EMPLOYEE_WRITE_ROLES and
+# src/lib/permissions.ts on the frontend.
+
+
+@pytest.mark.asyncio
+async def test_viewer_can_read_employees(viewer_client) -> None:
+    """Read routes stay open to every signed-in role, including viewer."""
+    response = await viewer_client.get("/employees")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_create_employee(viewer_client) -> None:
+    response = await viewer_client.post(
+        "/employees", json={"name": "Blocked Hire", "start_date": "2026-01-01"}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_import_employees(viewer_client) -> None:
+    response = await viewer_client.post(
+        "/employees/import", json=[{"name": "Blocked Import", "start_date": "2026-01-01"}]
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_update_employee(admin_client, viewer_client) -> None:
+    create = await admin_client.post(
+        "/employees", json={"name": "Update Target", "start_date": "2026-01-01"}
+    )
+    employee_id = create.json()["id"]
+
+    response = await viewer_client.patch(f"/employees/{employee_id}", json={"status": "Resigned"})
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_delete_employee(admin_client, viewer_client) -> None:
+    create = await admin_client.post(
+        "/employees", json={"name": "Delete Target", "start_date": "2026-01-01"}
+    )
+    employee_id = create.json()["id"]
+
+    response = await viewer_client.delete(f"/employees/{employee_id}")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_bulk_delete_employees(admin_client, viewer_client) -> None:
+    create = await admin_client.post(
+        "/employees", json={"name": "Bulk Target", "start_date": "2026-01-01"}
+    )
+    employee_id = create.json()["id"]
+
+    response = await viewer_client.post("/employees/bulk-delete", json={"ids": [employee_id]})
+    assert response.status_code == 403
+
+
+async def _assert_full_employee_crud(writer_client) -> None:
+    """Shared body for the people_ops/hub_lead RBAC tests below — both roles
+    should behave exactly like admin for every employee write route: create,
+    update, delete, bulk-delete, import."""
+    create = await writer_client.post(
+        "/employees", json={"name": "Writer Created", "start_date": "2026-01-01"}
+    )
+    assert create.status_code == 201
+    employee_id = create.json()["id"]
+
+    update = await writer_client.patch(f"/employees/{employee_id}", json={"status": "Resigned"})
+    assert update.status_code == 200
+
+    delete = await writer_client.delete(f"/employees/{employee_id}")
+    assert delete.status_code == 204
+
+    import_response = await writer_client.post(
+        "/employees/import", json=[{"name": "Writer Imported", "start_date": "2026-01-01"}]
+    )
+    assert import_response.status_code == 200
+    assert import_response.json()["added"] == 1
+
+    directory = await writer_client.get("/employees", params={"q": "Writer Imported"})
+    imported_id = directory.json()[0]["id"]
+
+    bulk = await writer_client.post("/employees/bulk-delete", json={"ids": [imported_id]})
+    assert bulk.status_code == 200
+    assert bulk.json() == {"deleted": 1, "not_found": []}
+
+
+@pytest.mark.asyncio
+async def test_people_ops_has_full_employee_crud(people_ops_client) -> None:
+    await _assert_full_employee_crud(people_ops_client)
+
+
+@pytest.mark.asyncio
+async def test_hub_lead_has_full_employee_crud(hub_lead_client) -> None:
+    await _assert_full_employee_crud(hub_lead_client)
