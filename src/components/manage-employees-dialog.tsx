@@ -516,175 +516,158 @@ function EditEmployeeDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col overflow-hidden p-0 sm:max-w-3xl">
+      <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col overflow-hidden p-0 sm:max-w-md">
         <div className="border-b px-6 py-4">
           <h2 className="text-base font-semibold">Edit Employee Record</h2>
           <p className="text-sm text-muted-foreground">{employee.name}</p>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-4">
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">
-              Basic Information
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-id">Employee ID</Label>
-                <Input
-                  id="edit-id"
-                  value={form.id}
-                  onChange={(e) => setForm({ ...form, id: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Used as this record's identifier in Activity Logs and
-                  Excel/CSV imports — change it only to fix a mistake. Must be
-                  unique.
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">Full Name</Label>
-                <Input
-                  id="edit-name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-birthday">Birthday</Label>
-                <Input
-                  id="edit-birthday"
-                  type="date"
-                  value={form.birthday}
-                  onChange={(e) =>
-                    setForm({ ...form, birthday: e.target.value })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-start">Start Date</Label>
-                <Input
-                  id="edit-start"
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) =>
-                    setForm({ ...form, startDate: e.target.value })
-                  }
-                />
-              </div>
-            </div>
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="edit-id">Employee ID</Label>
+            <Input
+              id="edit-id"
+              value={form.id}
+              onChange={(e) => setForm({ ...form, id: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Used as this record's identifier in Activity Logs and Excel/CSV
+              imports — change it only to fix a mistake. Must be unique.
+            </p>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">
-              Employment Information
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>Office Location</Label>
-                <Select
-                  value={form.office}
-                  onValueChange={(v) => setForm({ ...form, office: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {OFFICES.map((o) => (
-                      <SelectItem key={o} value={o}>
-                        {o}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Department</Label>
-                <Select
-                  value={form.department}
-                  onValueChange={(v) => setForm({ ...form, department: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Position</Label>
-                <Select
-                  value={form.position}
-                  onValueChange={(v) => setForm({ ...form, position: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {POSITIONS.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-job-offer-date">Job Offer Date</Label>
-                <Input
-                  id="edit-job-offer-date"
-                  type="date"
-                  value={form.jobOfferDate ?? ""}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      jobOfferDate: e.target.value || undefined,
-                    })
-                  }
-                />
-              </div>
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-name">Full Name</Label>
+            <Input
+              id="edit-name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">Status</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) =>
-                    setForm({ ...form, status: v as EmployeeStatus })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-exit">Date Resigned</Label>
-                <Input
-                  id="edit-exit"
-                  type="date"
-                  value={form.exitDate ?? ""}
-                  onChange={(e) =>
-                    setForm({ ...form, exitDate: e.target.value || undefined })
-                  }
-                />
-              </div>
-            </div>
+          <div className="grid gap-2">
+            <Label>Office Location</Label>
+            <Select
+              value={form.office}
+              onValueChange={(v) => setForm({ ...form, office: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OFFICES.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Departments</Label>
+            <Select
+              value={form.department}
+              onValueChange={(v) => setForm({ ...form, department: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEPARTMENTS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Position</Label>
+            <Select
+              value={form.position}
+              onValueChange={(v) => setForm({ ...form, position: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select position" />
+              </SelectTrigger>
+              <SelectContent>
+                {POSITIONS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-job-offer-date">Job Offer Date</Label>
+            <Input
+              id="edit-job-offer-date"
+              type="date"
+              value={form.jobOfferDate ?? ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  jobOfferDate: e.target.value || undefined,
+                })
+              }
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-start">Start Date</Label>
+            <Input
+              id="edit-start"
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-birthday">Birthday</Label>
+            <Input
+              id="edit-birthday"
+              type="date"
+              value={form.birthday}
+              onChange={(e) => setForm({ ...form, birthday: e.target.value })}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select
+              value={form.status}
+              onValueChange={(v) =>
+                setForm({ ...form, status: v as EmployeeStatus })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="edit-exit">Exit Date</Label>
+            <Input
+              id="edit-exit"
+              type="date"
+              value={form.exitDate ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, exitDate: e.target.value || undefined })
+              }
+            />
           </div>
         </div>
 
