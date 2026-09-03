@@ -58,42 +58,8 @@ jobs:
       - run: ruff check .
       - run: pytest
 
-  # Both deploy jobs only run for a push to main (never for a PR), and only
-  # after both CI jobs pass — that's the "gate" in front of Railway. Railway's
-  # own GitHub auto-deploy should stay OFF for these two services so this
-  # workflow is the only thing that ships a deploy; otherwise a broken commit
-  # could still deploy straight from Railway's side before CI even finishes.
-  #
-  # Repo setup required once, in GitHub → Settings → Secrets and variables:
-  #   Secrets:   RAILWAY_TOKEN               (Railway → Project Settings → Tokens)
-  #   Variables: RAILWAY_FRONTEND_SERVICE     (exact service name in Railway)
-  #              RAILWAY_BACKEND_SERVICE      (exact service name in Railway)
-
-  deploy-frontend:
-    name: Deploy frontend to Railway
-    needs: [frontend-ci, backend-ci]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @railway/cli
-      - name: Deploy
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service "${{ vars.RAILWAY_FRONTEND_SERVICE }}" --detach
-
-  deploy-backend:
-    name: Deploy backend to Railway
-    needs: [frontend-ci, backend-ci]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @railway/cli
-      - name: Deploy
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service "${{ vars.RAILWAY_BACKEND_SERVICE }}" --detach
+  # No deploy jobs here on purpose. Railway's own "Wait for CI" setting (per
+  # service, in its dashboard) makes Railway's native GitHub auto-deploy wait
+  # for these two jobs to succeed before it builds and ships — same gate,
+  # without needing a Railway API token or CLI calls in this workflow.
+  # See backend/README.md → Deployment for the one-time setup.
