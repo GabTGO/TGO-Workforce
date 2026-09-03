@@ -90,6 +90,28 @@ export async function fetchEmployees(): Promise<Employee[]> {
   return rows.map(fromBackend);
 }
 
+/** Same data as fetchEmployees(), but for server-side callers — the support
+ * chat's `/api/chat` route (src/routes/api/chat.ts) runs in Node, not a
+ * browser, so `credentials: "include"` above is a no-op there: there's no
+ * cookie jar, the request to /employees goes out with no session cookie,
+ * `require_account` 401s it, and the caller was silently falling back to an
+ * empty roster — every chat answer came back as if there were zero
+ * employees. Forward the *incoming* request's Cookie header explicitly
+ * instead, so the backend sees the same signed-in account the browser did. */
+export async function fetchEmployeesForCookie(
+  cookieHeader: string | null,
+): Promise<Employee[]> {
+  const response = await fetch(
+    apiUrl("/employees?limit=1000"),
+    cookieHeader ? { headers: { Cookie: cookieHeader } } : {},
+  );
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "/employees"));
+  }
+  const rows = (await response.json()) as BackendEmployee[];
+  return rows.map(fromBackend);
+}
+
 export type NewEmployeeInput = {
   name: string;
   office?: string;

@@ -6,7 +6,7 @@ import {
 } from "ai";
 
 import type { Employee } from "@/data/employees";
-import { fetchEmployees } from "@/data/employee-api";
+import { fetchEmployeesForCookie } from "@/data/employee-api";
 import { answerWorkforceQuestion } from "@/lib/workforce-assistant";
 
 /** Pulls the text out of the most recent user message — that's the only
@@ -36,17 +36,29 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         let employees: Employee[] = [];
+        let rosterUnavailable = false;
         try {
-          employees = await fetchEmployees();
+          // Forward the browser's session cookie along with this
+          // server-to-server call — see fetchEmployeesForCookie's doc
+          // comment for why the plain browser-oriented fetchEmployees()
+          // silently returned nothing here.
+          employees = await fetchEmployeesForCookie(
+            request.headers.get("cookie"),
+          );
         } catch {
           // Answer from an empty roster rather than failing the whole
-          // request — the engine below just says it has no data.
+          // request, but flag it — otherwise a real fetch failure looks
+          // identical to "the company genuinely has zero employees" and the
+          // engine confidently reports wrong numbers instead of admitting it
+          // couldn't load anything.
+          rosterUnavailable = true;
         }
 
-        const answer = answerWorkforceQuestion(
-          lastUserText(messages),
-          employees,
-        );
+        let answer = answerWorkforceQuestion(lastUserText(messages), employees);
+        if (rosterUnavailable) {
+          answer +=
+            "\n\n(I couldn't reach the employee directory just now, so the numbers above may be off — try again in a moment.)";
+        }
 
         // Hand-write the UI-message-stream protocol the frontend already
         // expects (useChat + DefaultChatTransport in support-chat.tsx) —
