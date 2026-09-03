@@ -4,11 +4,12 @@
 // every check here just asks the backend "who is this cookie for, if
 // anyone."
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiUrl } from "@/lib/api";
 
 export type AccountRole = "admin" | "people_ops" | "hub_lead" | "viewer";
+export type Theme = "light" | "dark";
 
 export type AccountProfile = {
   id: string;
@@ -19,7 +20,27 @@ export type AccountProfile = {
   photo_url: string | null;
   role: AccountRole;
   is_active: boolean;
+  last_login_at: string | null;
+  // Personalization — see backend/app/schemas/account.py's
+  // AccountPreferencesUpdate. Set by the signed-in person themselves (Profile
+  // and Settings pages), never by an admin editing someone else's account.
+  theme: Theme;
+  default_office: string | null;
+  notify_anniversaries: boolean;
+  notify_birthdays: boolean;
+  notify_new_hires: boolean;
 };
+
+export type PreferencesPatch = Partial<
+  Pick<
+    AccountProfile,
+    | "theme"
+    | "default_office"
+    | "notify_anniversaries"
+    | "notify_birthdays"
+    | "notify_new_hires"
+  >
+>;
 
 // Sends the browser to the backend, which redirects to Zoho and then back to
 // this app once sign-in completes. Deliberately a full navigation rather than
@@ -54,6 +75,35 @@ export function useCurrentAccount() {
     queryKey: CURRENT_ACCOUNT_KEY,
     queryFn: fetchCurrentAccount,
     staleTime: 60_000,
+  });
+}
+
+async function updateMyPreferences(
+  patch: PreferencesPatch,
+): Promise<AccountProfile> {
+  const response = await fetch(apiUrl("/auth/me/preferences"), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Couldn't save preferences (${response.status})`);
+  }
+  return (await response.json()) as AccountProfile;
+}
+
+/** Backs the Profile and Settings pages' personalization controls, plus the
+ * header ThemeToggle — every write here is "change my own preferences", so
+ * it always targets the signed-in account, never one picked by id. */
+export function useUpdateMyPreferences() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateMyPreferences,
+    onSuccess: (account) => {
+      queryClient.setQueryData(CURRENT_ACCOUNT_KEY, account);
+    },
   });
 }
 

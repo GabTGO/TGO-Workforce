@@ -70,6 +70,28 @@ class Account(Base):
     )
 
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # --- Personalization -------------------------------------------------------
+    # Self-service preferences (see PATCH /auth/me/preferences) — every field
+    # here is something the signed-in person sets for themselves, distinct
+    # from AccountUpdate's role/is_active which only an admin can change.
+    # Persisted server-side (not just localStorage) so it follows the person
+    # across devices — the theme picked on one machine should still be there
+    # when they sign in on another.
+    theme: Mapped[str] = mapped_column(
+        String(10), default="light", server_default="light", nullable=False
+    )
+    default_office: Mapped[str | None] = mapped_column(String(100))
+    notify_anniversaries: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    notify_birthdays: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    notify_new_hires: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

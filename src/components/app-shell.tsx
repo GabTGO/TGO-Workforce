@@ -9,7 +9,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SupportChat } from "@/components/support-chat";
 import { Button } from "@/components/ui/button";
-import { fetchCurrentAccount, signOut, type AccountProfile } from "@/lib/session";
+import {
+  fetchCurrentAccount,
+  signOut,
+  type AccountProfile,
+} from "@/lib/session";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -27,9 +31,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// Pages reachable from the header (not the sidebar), so they're not in
+// NAV_ITEMS — kept here just so the breadcrumb has a title for them too.
+const EXTRA_PAGE_TITLES: Record<string, string> = {
+  "/profile": "Profile",
+};
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const current = NAV_ITEMS.find((i) => i.url === pathname);
+  const currentTitle = current?.title ?? EXTRA_PAGE_TITLES[pathname];
   const navigate = useNavigate();
 
   // Auth guard — runs client-side only (TanStack Start's beforeLoad executes
@@ -94,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden sm:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{current?.title ?? "Overview"}</BreadcrumbPage>
+                  <BreadcrumbPage>{currentTitle ?? "Overview"}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
@@ -105,20 +116,33 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-9 gap-2 px-2">
                     <Avatar className="size-7">
-                      {account.photo_url && <AvatarImage src={account.photo_url} alt={displayName} />}
-                      <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                      {account.photo_url && (
+                        <AvatarImage
+                          src={account.photo_url}
+                          alt={displayName}
+                        />
+                      )}
+                      <AvatarFallback className="text-xs">
+                        {initials}
+                      </AvatarFallback>
                     </Avatar>
-                    <span className="hidden text-sm sm:inline">{displayName}</span>
+                    <span className="hidden text-sm sm:inline">
+                      {displayName}
+                    </span>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                     <p className="text-sm font-medium">{displayName}</p>
-                    <p className="text-xs font-normal text-muted-foreground">{account.email}</p>
+                    <p className="text-xs font-normal text-muted-foreground">
+                      {account.email}
+                    </p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate({ to: "/profile" })}
+                  >
                     <User className="mr-2 h-4 w-4" /> Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem>

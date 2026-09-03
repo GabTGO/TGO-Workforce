@@ -170,6 +170,52 @@ async def test_zoho_login_promotes_admin_allowlisted_email(
 
 
 @pytest.mark.asyncio
+async def test_preferences_default_on_a_fresh_account(viewer_client) -> None:
+    me = (await viewer_client.get("/auth/me")).json()
+    assert me["theme"] == "light"
+    assert me["default_office"] is None
+    assert me["notify_anniversaries"] is True
+    assert me["notify_birthdays"] is True
+    assert me["notify_new_hires"] is True
+
+
+@pytest.mark.asyncio
+async def test_update_my_preferences_requires_auth(client) -> None:
+    response = await client.patch("/auth/me/preferences", json={"theme": "dark"})
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_my_preferences_saves_only_the_fields_sent(viewer_client) -> None:
+    response = await viewer_client.patch(
+        "/auth/me/preferences",
+        json={"theme": "dark", "notify_birthdays": False},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["theme"] == "dark"
+    assert body["notify_birthdays"] is False
+    # Untouched fields keep their previous values rather than resetting.
+    assert body["notify_anniversaries"] is True
+    assert body["notify_new_hires"] is True
+
+    response_2 = await viewer_client.patch(
+        "/auth/me/preferences", json={"default_office": "PH Eastwood"}
+    )
+    assert response_2.status_code == 200
+    body_2 = response_2.json()
+    assert body_2["default_office"] == "PH Eastwood"
+    # The theme set in the previous request is still there.
+    assert body_2["theme"] == "dark"
+
+
+@pytest.mark.asyncio
+async def test_update_my_preferences_rejects_invalid_theme(viewer_client) -> None:
+    response = await viewer_client.patch("/auth/me/preferences", json={"theme": "neon"})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_logout_clears_session(client, db_session, zoho_configured, monkeypatch) -> None:
     async def fake_exchange_code_for_token(settings, code):
         return {"access_token": "fake-access-token"}

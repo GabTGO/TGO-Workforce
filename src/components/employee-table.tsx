@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Loader2,
   Search,
   Trash2,
   X,
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -60,6 +62,12 @@ import {
   type Employee,
   type EmployeeStatus,
 } from "@/data/employees";
+import {
+  exportEmployeesCsv,
+  exportEmployeesPdf,
+  exportEmployeesXlsx,
+} from "@/lib/export";
+import { MANAGE_PASSWORD } from "@/lib/manage-password";
 
 type SortKey =
   "id" | "name" | "office" | "department" | "position" | "startDate" | "status";
@@ -89,6 +97,9 @@ export function EmployeeTable() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  const [bulkDeletePassword, setBulkDeletePassword] = useState("");
+  const [bulkDeletePasswordError, setBulkDeletePasswordError] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Filters, sort, employees (create/delete/import/edit) and even a manual
   // refetch (the 15s realtime poll) all need to recompute this — leaving any
@@ -167,6 +178,13 @@ export function EmployeeTable() {
   }
 
   async function confirmBulkDelete() {
+    // A password prompt before any delete — see src/lib/manage-password.ts —
+    // so a bulk removal from the Directory table always requires a
+    // deliberate second step, the same as it does inside Manage Employees.
+    if (bulkDeletePassword !== MANAGE_PASSWORD) {
+      setBulkDeletePasswordError(true);
+      return;
+    }
     const ids = [...selected];
     try {
       const result = await bulkDeleteMutation.mutateAsync(ids);
@@ -184,6 +202,39 @@ export function EmployeeTable() {
       toast.error("Couldn't delete the selected employees. Please try again.");
     } finally {
       setConfirmingBulkDelete(false);
+      setBulkDeletePassword("");
+      setBulkDeletePasswordError(false);
+    }
+  }
+
+  // "Export Options" respects the checkbox selection: with rows checked, it
+  // exports just those; with nothing checked, it exports everything the
+  // current filters match — same selection semantics as bulk delete.
+  const exportRows =
+    selected.size > 0 ? filtered.filter((e) => selected.has(e.id)) : filtered;
+  const exportScopeLabel =
+    selected.size > 0
+      ? `Selected (${selected.size})`
+      : `All (${filtered.length})`;
+
+  async function handleExport(format: "csv" | "xlsx" | "pdf") {
+    if (exportRows.length === 0) {
+      toast.error("No employees to export.");
+      return;
+    }
+    setExporting(true);
+    try {
+      if (format === "csv") exportEmployeesCsv(exportRows);
+      else if (format === "xlsx") await exportEmployeesXlsx(exportRows);
+      else await exportEmployeesPdf(exportRows);
+      toast.success(
+        `Exported ${exportRows.length} employee${exportRows.length === 1 ? "" : "s"} as ${format.toUpperCase()}`,
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -258,19 +309,33 @@ export function EmployeeTable() {
         <ImportEmployeesDialog />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" /> Export Options
+            <Button variant="outline" size="sm" disabled={exporting}>
+              {exporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Export Options
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => toast.success("Exporting CSV")}>
-              Export as CSV
+            <DropdownMenuItem
+              disabled={exporting}
+              onSelect={() => handleExport("csv")}
+            >
+              Export {exportScopeLabel} as CSV
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => toast.success("Exporting XLSX")}>
-              Export as Excel
+            <DropdownMenuItem
+              disabled={exporting}
+              onSelect={() => handleExport("xlsx")}
+            >
+              Export {exportScopeLabel} as Excel
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => toast.success("Exporting PDF")}>
-              Export as PDF
+            <DropdownMenuItem
+              disabled={exporting}
+              onSelect={() => handleExport("pdf")}
+            >
+              Export {exportScopeLabel} as PDF
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -433,7 +498,13 @@ export function EmployeeTable() {
 
       <AlertDialog
         open={confirmingBulkDelete}
-        onOpenChange={setConfirmingBulkDelete}
+        onOpenChange={(next) => {
+          setConfirmingBulkDelete(next);
+          if (!next) {
+            setBulkDeletePassword("");
+            setBulkDeletePasswordError(false);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -449,10 +520,34 @@ export function EmployeeTable() {
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="grid gap-2 py-1">
+            <Label htmlFor="bulk-delete-password">Confirm with password</Label>
+            <Input
+              id="bulk-delete-password"
+              type="password"
+              value={bulkDeletePassword}
+              onChange={(e) => {
+                setBulkDeletePassword(e.target.value);
+                setBulkDeletePasswordError(false);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && confirmBulkDelete()}
+              autoFocus
+            />
+            {bulkDeletePasswordError && (
+              <p className="text-xs text-destructive">Incorrect password.</p>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmBulkDelete}
+              onClick={(e) => {
+                // The default Action behavior closes the dialog on click —
+                // prevent that so a wrong password re-shows the error
+                // instead of dismissing; confirmBulkDelete closes it itself
+                // once the password checks out and the delete finishes.
+                e.preventDefault();
+                confirmBulkDelete();
+              }}
               disabled={bulkDeleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

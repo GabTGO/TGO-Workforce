@@ -3,7 +3,12 @@ import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -15,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { OFFICES } from "@/data/employees";
 import { useCreateEmployee } from "@/data/employee-store";
+import { useCurrentAccount } from "@/lib/session";
 
 const SOURCE_TYPES = [
   "Direct Applicant",
@@ -32,6 +38,7 @@ export function NewHireDialog() {
   const [office, setOffice] = useState("");
   const [sourceType, setSourceType] = useState("");
   const createMutation = useCreateEmployee();
+  const { data: account } = useCurrentAccount();
 
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
 
@@ -71,7 +78,20 @@ export function NewHireDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          // Pre-fill from the signed-in person's default office (Settings)
+          // rather than always starting blank — only when the field hasn't
+          // already been touched, so reopening mid-edit doesn't clobber it.
+          setOffice((prev) => prev || account?.default_office || "");
+        } else {
+          reset();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm">
           <UserPlus className="mr-2 h-4 w-4" /> New Hire Form
@@ -79,15 +99,20 @@ export function NewHireDialog() {
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-2xl">
         <div className="pb-2">
-          <h2 className="text-lg font-semibold">New Hire Employee Information Form</h2>
+          <h2 className="text-lg font-semibold">
+            New Hire Employee Information Form
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Submit onboarding details. Records sync to the directory on approval.
+            Submit onboarding details. Records sync to the directory on
+            approval.
           </p>
         </div>
 
         <div className="space-y-6 py-2">
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">Basic Information</h3>
+            <h3 className="text-sm font-semibold text-primary">
+              Basic Information
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="nh-first-name">First Name</Label>
@@ -127,7 +152,9 @@ export function NewHireDialog() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">Employment Information</h3>
+            <h3 className="text-sm font-semibold text-primary">
+              Employment Information
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Office</Label>
@@ -163,7 +190,8 @@ export function NewHireDialog() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Department and position assignment are handled internally after onboarding.
+            Department and position assignment are handled internally after
+            onboarding.
           </p>
         </div>
 
@@ -172,7 +200,9 @@ export function NewHireDialog() {
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={createMutation.isPending}>
-            {createMutation.isPending ? "Submitting..." : "Submit New Hire Form"}
+            {createMutation.isPending
+              ? "Submitting..."
+              : "Submit New Hire Form"}
           </Button>
         </DialogFooter>
       </DialogContent>

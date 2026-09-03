@@ -6,6 +6,11 @@
                      row (matched on Zoho's stable ZUID), and sets the session
                      cookie.
 /auth/me           tells the frontend who (if anyone) is currently signed in.
+/auth/me/preferences lets that same person update their own personalization
+                     (theme, default office, notification toggles) — see
+                     AccountPreferencesUpdate. Nothing here needs admin rights;
+                     it's always "change my own preferences", never someone
+                     else's (that's PATCH /accounts/{id}, admin-only).
 /auth/logout       clears the session cookie.
 """
 
@@ -18,11 +23,11 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_account
+from app.core.auth import get_current_account, require_account
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
-from app.schemas.account import AccountRead
+from app.schemas.account import AccountPreferencesUpdate, AccountRead
 from app.services import zoho
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -112,6 +117,25 @@ async def zoho_callback(
 
 @router.get("/me", response_model=AccountRead | None)
 async def me(account: Account | None = Depends(get_current_account)):
+    return account
+
+
+@router.patch("/me/preferences", response_model=AccountRead)
+async def update_my_preferences(
+    payload: AccountPreferencesUpdate,
+    account: Account = Depends(require_account),
+    db: AsyncSession = Depends(get_db),
+) -> Account:
+    """Backs the Profile and Settings pages' personalization controls (theme,
+    default office, notification toggles). Deliberately not routed through
+    the admin-only /accounts router — anyone signed in can change their own
+    preferences, same as they could always toggle their own theme."""
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        setattr(account, field, value)
+    if changes:
+        await db.commit()
+        await db.refresh(account)
     return account
 
 

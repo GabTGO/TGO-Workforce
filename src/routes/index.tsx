@@ -7,12 +7,14 @@ import {
   Building2,
   Globe2,
   ArrowRight,
+  Cake,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { MetricCard } from "@/components/metric-card";
 import { HeadcountTrendChart } from "@/components/workforce-charts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +26,31 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useEmployees } from "@/data/employee-store";
-import { anniversaries, formatDate, metrics, officeDistribution } from "@/data/employees";
+import {
+  anniversaries,
+  formatDate,
+  metrics,
+  officeDistribution,
+  upcomingBirthdays,
+} from "@/data/employees";
+import { useCurrentAccount } from "@/lib/session";
+
+// Whether a month/day (as returned by upcomingBirthdays) falls within the
+// next 7 days, wrapping into next year for a birthday that's already passed
+// this year's date — backs the "Birthday reminders" toggle on Settings.
+function isWithinNextWeek(monthIndex: number, day: number): boolean {
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  let next = new Date(now.getFullYear(), monthIndex, day);
+  if (next < startOfToday)
+    next = new Date(now.getFullYear() + 1, monthIndex, day);
+  const diffDays = (next.getTime() - startOfToday.getTime()) / 86_400_000;
+  return diffDays >= 0 && diffDays < 7;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -38,7 +64,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Dashboard — TGO Workforce Portal" },
       {
         property: "og:description",
-        content: "Live workforce metrics for TGO automation and AI operations teams.",
+        content:
+          "Live workforce metrics for TGO automation and AI operations teams.",
       },
     ],
   }),
@@ -47,10 +74,22 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   const employees = useEmployees();
+  const { data: account } = useCurrentAccount();
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
   const upcoming = anniversaries(employees).slice(0, 5);
+  const birthdaysThisWeek = upcomingBirthdays(employees).filter((e) =>
+    isWithinNextWeek(e.monthIndex, e.day),
+  );
+
+  // Personalization from Settings — each person's Dashboard only shows the
+  // cards they've asked to see. Default to shown while the account is still
+  // loading, so there's no flash of an empty dashboard.
+  const showNewHires = account?.notify_new_hires ?? true;
+  const showAnniversaries = account?.notify_anniversaries ?? true;
+  const showBirthdayBanner =
+    (account?.notify_birthdays ?? true) && birthdaysThisWeek.length > 0;
 
   return (
     <div className="space-y-6">
@@ -69,13 +108,62 @@ function Dashboard() {
         }
       />
 
+      {showBirthdayBanner && (
+        <Alert>
+          <Cake className="h-4 w-4" />
+          <AlertTitle>
+            {birthdaysThisWeek.length} birthday
+            {birthdaysThisWeek.length === 1 ? "" : "s"} this week
+          </AlertTitle>
+          <AlertDescription>
+            {birthdaysThisWeek
+              .slice(0, 4)
+              .map((e) => `${e.name} (${e.monthName} ${e.day})`)
+              .join(", ")}
+            {birthdaysThisWeek.length > 4 &&
+              ` and ${birthdaysThisWeek.length - 4} more`}
+            . Turn this off on the Settings page.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard title="Active Employees" value={m.active} hint="Currently employed" icon={Users} />
-        <MetricCard title="Inactive Employees" value={m.inactive} hint="Resigned or terminated" icon={UserMinus} />
-        <MetricCard title="New Hires" value={m.newHires} hint="Started in last 12 months" icon={UserPlus} />
-        <MetricCard title="Exits" value={m.exits} hint="Departures in last 12 months" icon={LogOut} />
-        <MetricCard title="PH Eastwood (Active)" value={m.eastwood} hint="Manila delivery hub" icon={Building2} />
-        <MetricCard title="CO Medellin (Active)" value={m.medellin} hint="LATAM delivery hub" icon={Globe2} />
+        <MetricCard
+          title="Active Employees"
+          value={m.active}
+          hint="Currently employed"
+          icon={Users}
+        />
+        <MetricCard
+          title="Inactive Employees"
+          value={m.inactive}
+          hint="Resigned or terminated"
+          icon={UserMinus}
+        />
+        <MetricCard
+          title="New Hires"
+          value={m.newHires}
+          hint="Started in last 12 months"
+          icon={UserPlus}
+        />
+        <MetricCard
+          title="Exits"
+          value={m.exits}
+          hint="Departures in last 12 months"
+          icon={LogOut}
+        />
+        <MetricCard
+          title="PH Eastwood (Active)"
+          value={m.eastwood}
+          hint="Manila delivery hub"
+          icon={Building2}
+        />
+        <MetricCard
+          title="CO Medellin (Active)"
+          value={m.medellin}
+          hint="LATAM delivery hub"
+          icon={Globe2}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -86,11 +174,15 @@ function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Hub Utilisation</CardTitle>
-            <CardDescription>Share of total workforce per office</CardDescription>
+            <CardDescription>
+              Share of total workforce per office
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {dist.map((d) => {
-              const pct = total ? Math.round(((d.active + d.inactive) / total) * 100) : 0;
+              const pct = total
+                ? Math.round(((d.active + d.inactive) / total) * 100)
+                : 0;
               return (
                 <div key={d.office} className="space-y-1.5">
                   <div className="flex items-center justify-between text-sm">
@@ -105,49 +197,65 @@ function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent New Hires</CardTitle>
-            <CardDescription>Latest additions to the workforce</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {m.newHireList.slice(0, 5).map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-3 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{e.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {e.position} · {e.office}
-                  </p>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatDate(e.startDate)}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {(showNewHires || showAnniversaries) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {showNewHires && (
+            <Card className={showAnniversaries ? undefined : "lg:col-span-2"}>
+              <CardHeader>
+                <CardTitle>Recent New Hires</CardTitle>
+                <CardDescription>
+                  Latest additions to the workforce
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {m.newHireList.slice(0, 5).map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between gap-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{e.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {e.position} · {e.office}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatDate(e.startDate)}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Milestones</CardTitle>
-            <CardDescription>Work anniversaries to recognise</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {upcoming.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-3 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{e.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {e.monthName} {e.day} · {e.department}
-                  </p>
-                </div>
-                <Badge variant="secondary">{e.years} yrs</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+          {showAnniversaries && (
+            <Card className={showNewHires ? undefined : "lg:col-span-2"}>
+              <CardHeader>
+                <CardTitle>Upcoming Milestones</CardTitle>
+                <CardDescription>
+                  Work anniversaries to recognise
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {upcoming.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between gap-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{e.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {e.monthName} {e.day} · {e.department}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{e.years} yrs</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }

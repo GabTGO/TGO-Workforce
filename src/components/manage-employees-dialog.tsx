@@ -60,10 +60,7 @@ import {
   type Employee,
   type EmployeeStatus,
 } from "@/data/employees";
-
-// Not real security — a lightweight gate so casual visitors don't stumble into
-// bulk-edit tools. Swap for a real auth check once the app is backed by a database.
-const MANAGE_PASSWORD = "Gemma";
+import { MANAGE_PASSWORD } from "@/lib/manage-password";
 
 type SortKey =
   "id" | "name" | "office" | "department" | "position" | "birthday" | "status";
@@ -102,6 +99,8 @@ export function ManageEmployeesDialog() {
   );
   const [pendingSave, setPendingSave] = useState<Employee | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Employee | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordError, setDeletePasswordError] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -147,6 +146,9 @@ export function ManageEmployeesDialog() {
       setQuery("");
       setEditing(null);
       setEditingOriginalId(null);
+      setPendingDelete(null);
+      setDeletePassword("");
+      setDeletePasswordError(false);
     }
   }
 
@@ -183,6 +185,12 @@ export function ManageEmployeesDialog() {
 
   async function confirmDelete() {
     if (!pendingDelete) return;
+    // A password prompt on every delete, not just once to unlock this whole
+    // screen — see src/lib/manage-password.ts.
+    if (deletePassword !== MANAGE_PASSWORD) {
+      setDeletePasswordError(true);
+      return;
+    }
     try {
       await deleteMutation.mutateAsync(pendingDelete.id);
       toast.success(`${pendingDelete.name} removed`);
@@ -191,6 +199,8 @@ export function ManageEmployeesDialog() {
       toast.error(`Couldn't remove ${pendingDelete.name}. Please try again.`);
     } finally {
       setPendingDelete(null);
+      setDeletePassword("");
+      setDeletePasswordError(false);
     }
   }
 
@@ -433,7 +443,13 @@ export function ManageEmployeesDialog() {
 
       <AlertDialog
         open={!!pendingDelete}
-        onOpenChange={(o) => !o && setPendingDelete(null)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPendingDelete(null);
+            setDeletePassword("");
+            setDeletePasswordError(false);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -446,10 +462,33 @@ export function ManageEmployeesDialog() {
               This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="grid gap-2 py-1">
+            <Label htmlFor="delete-password">Confirm with password</Label>
+            <Input
+              id="delete-password"
+              type="password"
+              value={deletePassword}
+              onChange={(e) => {
+                setDeletePassword(e.target.value);
+                setDeletePasswordError(false);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && confirmDelete()}
+              autoFocus
+            />
+            {deletePasswordError && (
+              <p className="text-xs text-destructive">Incorrect password.</p>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              onClick={(e) => {
+                // Prevent the default auto-close so a wrong password
+                // re-shows the error instead of dismissing the dialog —
+                // confirmDelete closes it once the password checks out.
+                e.preventDefault();
+                confirmDelete();
+              }}
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

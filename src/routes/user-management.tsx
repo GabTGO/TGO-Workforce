@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { useAccountsQuery, useUpdateAccount } from "@/data/account-store";
 import { useCurrentAccount, type AccountRole } from "@/lib/session";
+import { ROLE_LABELS, ROLE_OPTIONS } from "@/lib/roles";
 
 export const Route = createFileRoute("/user-management")({
   head: () => ({
@@ -50,20 +51,6 @@ export const Route = createFileRoute("/user-management")({
   }),
   component: UserManagementPage,
 });
-
-const ROLE_LABELS: Record<AccountRole, string> = {
-  admin: "Admin",
-  people_ops: "People Ops",
-  hub_lead: "Hub Lead",
-  viewer: "Viewer",
-};
-
-const ROLE_OPTIONS: AccountRole[] = [
-  "admin",
-  "people_ops",
-  "hub_lead",
-  "viewer",
-];
 
 function initials(name: string) {
   return (
