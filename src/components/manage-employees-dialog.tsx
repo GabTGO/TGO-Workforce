@@ -25,12 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useEmployees, updateEmployeeInStore, removeEmployeeFromStore } from "@/data/employee-store";
 import {
   DEPARTMENTS,
   OFFICES,
   POSITIONS,
   STATUSES,
-  employees as seedEmployees,
   formatDate,
   type Employee,
   type EmployeeStatus,
@@ -54,7 +54,7 @@ export function ManageEmployeesDialog() {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState(false);
 
-  const [rows, setRows] = useState<Employee[]>(seedEmployees);
+  const rows = useEmployees();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "name",
@@ -116,14 +116,14 @@ export function ManageEmployeesDialog() {
 
   function confirmSave() {
     if (!pendingSave) return;
-    setRows((prev) => prev.map((e) => (e.id === pendingSave.id ? pendingSave : e)));
+    updateEmployeeInStore(pendingSave);
     toast.success(`${pendingSave.name} updated`);
     setPendingSave(null);
   }
 
   function confirmDelete() {
     if (!pendingDelete) return;
-    setRows((prev) => prev.filter((e) => e.id !== pendingDelete.id));
+    removeEmployeeFromStore(pendingDelete.id);
     toast.success(`${pendingDelete.name} removed`);
     setPendingDelete(null);
   }

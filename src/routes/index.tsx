@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { MetricCard } from "@/components/metric-card";
 import { HeadcountTrendChart } from "@/components/workforce-charts";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useEmployees } from "@/data/employee-store";
 import { anniversaries, formatDate, metrics, officeDistribution } from "@/data/employees";
 
 export const Route = createFileRoute("/")({
@@ -44,6 +46,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
+  useEmployees(); // subscribe so metrics()/officeDistribution() below re-run after an import here
   const m = metrics();
   const dist = officeDistribution();
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
@@ -55,11 +58,14 @@ function Dashboard() {
         title="Dashboard"
         description="Operational snapshot across all TGO delivery hubs."
         action={
-          <Button asChild size="sm" variant="outline">
-            <Link to="/directory">
-              Open directory <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ImportEmployeesDialog />
+            <Button asChild size="sm" variant="outline">
+              <Link to="/directory">
+                Open directory <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         }
       />
 

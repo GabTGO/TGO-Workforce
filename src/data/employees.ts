@@ -11,6 +11,7 @@ export interface Employee {
   status: EmployeeStatus;
   exitDate?: string;
   birthday: string; // ISO (year may be birth year)
+  sourceType?: string;
 }
 
 export const OFFICES = ["PH Eastwood", "CO Medellin"] as const;
@@ -52,7 +53,10 @@ export const POSITIONS = [
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
 
-export const employees: Employee[] = [
+// `let`, not `const` — this binding is reassigned by replaceEmployees() below so
+// imports/edits from the Employee Store propagate to every page that reads it
+// (metrics(), officeDistribution(), etc. all re-read this live binding on each call).
+export let employees: Employee[] = [
   { id: "TGO-1001", name: "Maria Santos", office: "PH Eastwood", department: "Automation", position: "RPA Developer", startDate: "2021-03-15", status: "Active", birthday: "1993-08-29" },
   { id: "TGO-1002", name: "Juan Dela Cruz", office: "PH Eastwood", department: "Operations", position: "Operations Lead", startDate: "2019-07-01", status: "Active", birthday: "1988-09-02" },
   { id: "TGO-1003", name: "Camila Restrepo", office: "CO Medellin", department: "AI Engineering", position: "ML Engineer", startDate: "2022-01-10", status: "Active", birthday: "1995-01-19" },
@@ -142,27 +146,33 @@ const MONTH_NAMES = [
 
 export function upcomingBirthdays() {
   return employees
-    .filter((e) => e.status === "Active")
-    .map((e) => {
+    .filter((e) => e.status === "Active" && e.birthday)
+    .flatMap((e) => {
       const d = new Date(e.birthday);
-      return { ...e, monthIndex: d.getMonth(), day: d.getDate(), monthName: MONTH_NAMES[d.getMonth()]! };
+      // Skip rows with an unparsable or missing birthday (e.g. blank cells from
+      // an Excel import) instead of producing a NaN month that crashes the page.
+      if (Number.isNaN(d.getTime())) return [];
+      return [{ ...e, monthIndex: d.getMonth(), day: d.getDate(), monthName: MONTH_NAMES[d.getMonth()]! }];
     })
     .sort((a, b) => a.monthIndex - b.monthIndex || a.day - b.day);
 }
 
 export function anniversaries() {
   return employees
-    .filter((e) => e.status === "Active")
-    .map((e) => {
+    .filter((e) => e.status === "Active" && e.startDate)
+    .flatMap((e) => {
       const d = new Date(e.startDate);
+      if (Number.isNaN(d.getTime())) return [];
       const years = REFERENCE_NOW.getFullYear() - d.getFullYear();
-      return {
-        ...e,
-        monthIndex: d.getMonth(),
-        day: d.getDate(),
-        monthName: MONTH_NAMES[d.getMonth()]!,
-        years: Math.max(years, 0),
-      };
+      return [
+        {
+          ...e,
+          monthIndex: d.getMonth(),
+          day: d.getDate(),
+          monthName: MONTH_NAMES[d.getMonth()]!,
+          years: Math.max(years, 0),
+        },
+      ];
     })
     .sort((a, b) => a.monthIndex - b.monthIndex || a.day - b.day);
 }
@@ -231,4 +241,11 @@ export function headcountGrowth() {
     });
   }
   return out;
+}
+
+// Only this module may reassign the `employees` binding directly (JS module semantics).
+// The Employee Store (@/data/employee-store) calls this to publish a new array —
+// every other file that imports `employees` sees the update automatically.
+export function replaceEmployees(next: Employee[]) {
+  employees = next;
 }

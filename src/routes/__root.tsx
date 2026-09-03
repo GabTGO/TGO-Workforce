@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -128,15 +129,24 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Routes that render full-bleed, without the sidebar/header chrome (sign-in, etc.).
+const STANDALONE_ROUTES = new Set(["/login"]);
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const isStandalone = STANDALONE_ROUTES.has(pathname);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      {isStandalone ? (
         <Outlet />
-      </AppShell>
+      ) : (
+        <AppShell>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </AppShell>
+      )}
       <Toaster />
     </QueryClientProvider>
   );

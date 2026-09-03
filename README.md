@@ -27,3 +27,11 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+
+## Backend & deployment
+
+The API lives in [`backend/`](./backend/README.md) — FastAPI + SQLAlchemy (async) +
+Alembic on Postgres. Frontend and backend deploy as two separate Railway
+services from this same repo, gated by the CI/CD workflow in
+[`.github/workflows/ci-cd.yml`](./.github/workflows/ci-cd.yml). See the backend
+README for local setup and full deployment steps.

@@ -1,0 +1,70 @@
+from datetime import date, datetime
+
+from pydantic import BaseModel, ConfigDict
+
+from app.models.employee import EmployeeStatus
+
+
+class EmployeeBase(BaseModel):
+    name: str
+    office: str = "PH Eastwood"
+    department: str = ""
+    position: str = ""
+    job_offer_date: date | None = None
+    start_date: date
+    status: EmployeeStatus = EmployeeStatus.ACTIVE
+    exit_date: date | None = None
+    birthday: date | None = None
+    source_type: str | None = None
+
+
+class EmployeeCreate(EmployeeBase):
+    """Used by the New Hire form. id is always server-generated (TGO-####),
+    never supplied by the client."""
+
+
+class EmployeeUpdate(BaseModel):
+    """Every field optional — a PATCH only touches what's actually sent, and
+    the route logs exactly which fields changed."""
+
+    name: str | None = None
+    office: str | None = None
+    department: str | None = None
+    position: str | None = None
+    job_offer_date: date | None = None
+    start_date: date | None = None
+    status: EmployeeStatus | None = None
+    exit_date: date | None = None
+    birthday: date | None = None
+    source_type: str | None = None
+
+
+class EmployeeImportRow(BaseModel):
+    """One row from an Excel/CSV import. Everything but name is optional,
+    mirroring ImportEmployeesDialog/addEmployees() on the frontend — a row
+    with no name is dropped rather than rejecting the whole file."""
+
+    id: str | None = None
+    name: str
+    office: str | None = None
+    department: str | None = None
+    position: str | None = None
+    job_offer_date: date | None = None
+    start_date: date | None = None
+    status: EmployeeStatus | None = None
+    exit_date: date | None = None
+    birthday: date | None = None
+    source_type: str | None = None
+
+
+class EmployeeImportResult(BaseModel):
+    added: int
+    skipped: int
+
+
+class EmployeeRead(EmployeeBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    created_at: datetime
+    updated_at: datetime

@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# All async tests/fixtures share one event loop for the whole run. Required
+# here because app.core.db's engine is a module-level singleton (shared by the
+# app and Alembic) — per-test event loops would leave asyncpg connections
+# bound to a loop that no longer exists by the next test.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Alembic autogenerates these from its own template — not hand-formatted,
+# not worth linting.
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# B008: FastAPI's `Depends(...)` as a default argument is the documented,
+# idiomatic pattern — not the bug this rule is meant to catch.
+ignore = ["B008"]

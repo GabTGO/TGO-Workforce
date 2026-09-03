@@ -1,12 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Search,
-  Upload,
-} from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -34,13 +27,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { ManageEmployeesDialog } from "@/components/manage-employees-dialog";
 import { NewHireDialog } from "@/components/new-hire-dialog";
+import { useEmployees } from "@/data/employee-store";
 import {
   DEPARTMENTS,
   OFFICES,
   STATUSES,
-  employees,
   formatDate,
   tenure,
   type Employee,
@@ -58,6 +52,7 @@ const statusVariant: Record<EmployeeStatus, "default" | "secondary" | "destructi
 const PAGE_SIZE = 8;
 
 export function EmployeeTable() {
+  const employees = useEmployees();
   const [query, setQuery] = useState("");
   const [office, setOffice] = useState("all");
   const [status, setStatus] = useState("all");
@@ -134,9 +129,7 @@ export function EmployeeTable() {
       <div className="flex flex-wrap items-center gap-2">
         <ManageEmployeesDialog />
         <NewHireDialog />
-        <Button variant="outline" size="sm" onClick={() => toast.info("Bulk upload template ready")}>
-          <Upload className="mr-2 h-4 w-4" /> Bulk Upload
-        </Button>
+        <ImportEmployeesDialog />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
