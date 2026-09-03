@@ -5,7 +5,15 @@ from app.services.activity_log import record_activity
 
 
 @pytest.mark.asyncio
-async def test_record_and_list_activity(client, db_session) -> None:
+async def test_activity_logs_requires_sign_in(client) -> None:
+    """/activity-logs used to be reachable by anyone — now it requires a
+    signed-in account (any role)."""
+    response = await client.get("/activity-logs")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_record_and_list_activity(admin_client, db_session) -> None:
     entry = await record_activity(
         db_session,
         action="Created employee record",
@@ -16,7 +24,7 @@ async def test_record_and_list_activity(client, db_session) -> None:
     )
     assert entry.id is not None
 
-    response = await client.get("/activity-logs", params={"category": "employee"})
+    response = await admin_client.get("/activity-logs", params={"category": "employee"})
 
     assert response.status_code == 200
     rows = response.json()
@@ -25,7 +33,7 @@ async def test_record_and_list_activity(client, db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_filter_by_severity(client, db_session) -> None:
+async def test_filter_by_severity(admin_client, db_session) -> None:
     await record_activity(
         db_session,
         action="Failed sign-in attempt",
@@ -34,7 +42,7 @@ async def test_filter_by_severity(client, db_session) -> None:
         severity=ActivitySeverity.CRITICAL,
     )
 
-    response = await client.get("/activity-logs", params={"severity": "info"})
+    response = await admin_client.get("/activity-logs", params={"severity": "info"})
 
     assert response.status_code == 200
     assert all(row["severity"] == "info" for row in response.json())

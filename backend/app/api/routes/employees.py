@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_account
+from app.core.auth import get_current_account, require_account
 from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivitySeverity
@@ -20,7 +20,13 @@ from app.schemas.employee import (
 from app.services.activity_log import record_activity
 from app.services.employee import next_employee_id
 
-router = APIRouter(prefix="/employees", tags=["employees"])
+# Router-level dependency: every route here requires a signed-in account
+# (401 otherwise) — these used to be reachable by anyone, signed in or not.
+# Individual routes still take their own `account: CurrentAccount` param
+# below for activity-log attribution; that's now guaranteed non-None, but is
+# kept Optional in type so record_activity's actor_label fallback stays
+# harmless rather than because it's still reachable anonymously.
+router = APIRouter(prefix="/employees", tags=["employees"], dependencies=[Depends(require_account)])
 
 CurrentAccount = Annotated[Account | None, Depends(get_current_account)]
 

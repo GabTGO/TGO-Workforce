@@ -4,11 +4,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import require_account
 from app.core.db import get_db
 from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySeverity
 from app.schemas.activity_log import ActivityLogRead
 
-router = APIRouter(prefix="/activity-logs", tags=["activity-logs"])
+# Requires a signed-in account — this used to be reachable by anyone.
+router = APIRouter(
+    prefix="/activity-logs", tags=["activity-logs"], dependencies=[Depends(require_account)]
+)
 
 
 @router.get("", response_model=list[ActivityLogRead])

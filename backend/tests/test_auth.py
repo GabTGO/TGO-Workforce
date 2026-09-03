@@ -1,9 +1,11 @@
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.main import app
+from app.models.account import Account
 from app.services import zoho
 
 
@@ -118,9 +120,53 @@ async def test_zoho_login_flow_creates_account_and_signs_in(
         params={"code": "auth-code-123", "state": state_2},
         follow_redirects=False,
     )
-    accounts_response = await client.get("/accounts")
-    matching = [row for row in accounts_response.json() if row["zoho_user_id"] == "zuid-new-1"]
-    assert len(matching) == 1
+    # /accounts is admin-only now (this account is a viewer), so check
+    # uniqueness directly against the database instead.
+    result = await db_session.execute(select(Account).where(Account.zoho_user_id == "zuid-new-1"))
+    assert len(result.scalars().all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_zoho_login_promotes_admin_allowlisted_email(
+    client, db_session, monkeypatch
+) -> None:
+    """ZOHO_ADMIN_EMAILS is the one bootstrap path to a first admin account —
+    a matching email gets promoted to admin right on sign-in, no database
+    access required."""
+
+    def _settings_with_admin_allowlist():
+        return get_settings().model_copy(
+            update={
+                "zoho_client_id": "test-client-id",
+                "zoho_client_secret": "test-client-secret",
+                "zoho_redirect_uri": "http://backend.test/auth/zoho/callback",
+                "frontend_url": "http://frontend.test",
+                "zoho_admin_emails": "boss@tgo.internal, other@tgo.internal",
+            }
+        )
+
+    app.dependency_overrides[get_settings] = _settings_with_admin_allowlist
+
+    async def fake_exchange_code_for_token(settings, code):
+        return {"access_token": "fake-access-token"}
+
+    async def fake_fetch_user_info(access_token):
+        return {"ZUID": "zuid-boss-1", "Email": "Boss@TGO.internal"}
+
+    monkeypatch.setattr(zoho, "exchange_code_for_token", fake_exchange_code_for_token)
+    monkeypatch.setattr(zoho, "fetch_user_info", fake_fetch_user_info)
+
+    login_response = await client.get("/auth/zoho/login", follow_redirects=False)
+    state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
+    await client.get(
+        "/auth/zoho/callback",
+        params={"code": "auth-code-boss", "state": state},
+        follow_redirects=False,
+    )
+    app.dependency_overrides.pop(get_settings, None)
+
+    me_response = await client.get("/auth/me")
+    assert me_response.json()["role"] == "admin"
 
 
 @pytest.mark.asyncio

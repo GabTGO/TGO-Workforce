@@ -18,6 +18,7 @@ import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NewHiresRouteImport } from './routes/new-hires'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as UserManagementRouteImport } from './routes/user-management'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UserManagementRoute = UserManagementRouteImport.update({
+  id: '/user-management',
+  path: '/user-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/settings': typeof SettingsRoute
+  '/user-management': typeof UserManagementRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/settings': typeof SettingsRoute
+  '/user-management': typeof UserManagementRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/settings': typeof SettingsRoute
+  '/user-management': typeof UserManagementRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/new-hires'
     | '/settings'
+    | '/user-management'
     | '/api/chat'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/new-hires'
     | '/settings'
+    | '/user-management'
     | '/api/chat'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/new-hires'
     | '/settings'
+    | '/user-management'
     | '/api/chat'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NewHiresRoute: typeof NewHiresRoute
   SettingsRoute: typeof SettingsRoute
+  UserManagementRoute: typeof UserManagementRoute
   ApiChatRoute: typeof ApiChatRoute
 }
 
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/user-management': {
+      id: '/user-management'
+      path: '/user-management'
+      fullPath: '/user-management'
+      preLoaderRoute: typeof UserManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NewHiresRoute: NewHiresRoute,
   SettingsRoute: SettingsRoute,
+  UserManagementRoute: UserManagementRoute,
   ApiChatRoute: ApiChatRoute,
 }
 export const routeTree = rootRouteImport

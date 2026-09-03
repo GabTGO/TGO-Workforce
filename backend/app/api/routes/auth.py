@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_account
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
-from app.models.account import Account
+from app.models.account import Account, AccountRole
 from app.schemas.account import AccountRead
 from app.services import zoho
 
@@ -92,6 +92,13 @@ async def zoho_callback(
         account.last_name = profile.get("Last_Name")
         account.display_name = profile.get("Display_Name")
         account.last_login_at = now
+
+    # Bootstrap / standing admin allowlist — see Settings.zoho_admin_emails.
+    # Applied on every login (not just account creation) so adding an email
+    # to the list and having that person sign in again is enough to promote
+    # them, with no database access required.
+    if email.lower() in settings.admin_email_set:
+        account.role = AccountRole.ADMIN
 
     await db.commit()
     await db.refresh(account)

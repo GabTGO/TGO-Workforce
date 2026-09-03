@@ -41,9 +41,20 @@ class Settings(BaseSettings):
     zoho_client_secret: str | None = None
     zoho_redirect_uri: str | None = None
 
+    # Comma-separated list of email addresses that are always promoted to
+    # admin on Zoho sign-in (see app/api/routes/auth.py). This is the one way
+    # to bootstrap the very first admin account without touching the
+    # database directly — every other account starts as VIEWER and gets
+    # promoted from the User Management page by an existing admin.
+    zoho_admin_emails: str = ""
+
     @property
     def zoho_configured(self) -> bool:
         return bool(self.zoho_client_id and self.zoho_client_secret and self.zoho_redirect_uri)
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.zoho_admin_emails.split(",") if e.strip()}
 
     @property
     def async_database_url(self) -> str:

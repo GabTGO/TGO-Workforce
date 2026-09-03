@@ -9,6 +9,7 @@ import {
   Cake,
   ScrollText,
   Settings,
+  UserCog,
 } from "lucide-react";
 
 import logoLight from "@/assets/tgo-logo-light.png";
@@ -27,11 +28,16 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useCurrentAccount } from "@/lib/session";
 
 type NavItem = {
   title: string;
   url: NonNullable<LinkProps["to"]>;
   icon: LucideIcon;
+  /** Hidden from the nav for every role except "admin" — the route itself
+   * also checks this (and the backend 403s regardless), this just keeps a
+   * non-admin from seeing a link to a page they can't use. */
+  adminOnly?: boolean;
 };
 
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
@@ -60,6 +66,12 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "System",
     items: [
       { title: "Activity Logs", url: "/activity-logs", icon: ScrollText },
+      {
+        title: "User Management",
+        url: "/user-management",
+        icon: UserCog,
+        adminOnly: true,
+      },
       { title: "Settings", url: "/settings", icon: Settings },
     ],
   },
@@ -71,6 +83,8 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const { data: account } = useCurrentAccount();
+  const isAdmin = account?.role === "admin";
 
   return (
     <Sidebar collapsible="icon">
@@ -94,7 +108,9 @@ export function AppSidebar() {
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight">TGO Workforce</p>
+              <p className="truncate text-sm font-semibold tracking-tight">
+                TGO Workforce
+              </p>
               <p className="truncate text-xs text-muted-foreground">
                 Automation and AI Portal Internal operations workspace
               </p>
@@ -109,20 +125,22 @@ export function AppSidebar() {
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={pathname === item.url}
-                    >
-                      <Link to={item.url} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {group.items
+                  .filter((item) => !item.adminOnly || isAdmin)
+                  .map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.title}
+                        isActive={pathname === item.url}
+                      >
+                        <Link to={item.url} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -130,7 +148,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border" />
-
     </Sidebar>
   );
 }

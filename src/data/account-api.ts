@@ -1,0 +1,87 @@
+// HTTP client for the /accounts endpoints (backend/app/api/routes/accounts.py)
+// — admin-only user management: list every account that has ever signed in,
+// and change its role or active state. Mirrors @/data/employee-api.ts:
+// snake_case<->camelCase mapping in one place, React Query hooks live in
+// @/data/account-store.
+
+import { apiUrl } from "@/lib/api";
+import type { AccountRole } from "@/lib/session";
+
+export type Account = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string | null;
+  photoUrl: string | null;
+  role: AccountRole;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+};
+
+type BackendAccount = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
+  photo_url: string | null;
+  role: AccountRole;
+  is_active: boolean;
+  last_login_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function fromBackend(row: BackendAccount): Account {
+  return {
+    id: row.id,
+    email: row.email,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    displayName: row.display_name,
+    photoUrl: row.photo_url,
+    role: row.role,
+    isActive: row.is_active,
+    lastLoginAt: row.last_login_at,
+    createdAt: row.created_at,
+  };
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Request to ${path} failed (${response.status})`);
+  }
+  return (await response.json()) as T;
+}
+
+export async function fetchAccounts(): Promise<Account[]> {
+  const rows = await request<BackendAccount[]>("/accounts");
+  return rows.map(fromBackend);
+}
+
+export type AccountPatch = { role?: AccountRole; isActive?: boolean };
+
+export async function updateAccount(
+  id: string,
+  patch: AccountPatch,
+): Promise<Account> {
+  const payload: Record<string, unknown> = {};
+  if (patch.role !== undefined) payload["role"] = patch.role;
+  if (patch.isActive !== undefined) payload["is_active"] = patch.isActive;
+  const row = await request<BackendAccount>(
+    `/accounts/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+  return fromBackend(row);
+}

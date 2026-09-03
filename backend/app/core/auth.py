@@ -15,7 +15,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.models.account import Account
+from app.models.account import Account, AccountRole
 
 
 async def get_current_account(
@@ -40,4 +40,15 @@ async def require_account(
 ) -> Account:
     if account is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not signed in")
+    return account
+
+
+async def require_admin(
+    account: Account = Depends(require_account),
+) -> Account:
+    """Same as require_account, but also rejects a signed-in non-admin with
+    403. Used to gate /accounts (user management) and anything else that
+    should only ever be reachable by an admin."""
+    if account.role != AccountRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return account
