@@ -5,11 +5,11 @@ import { ChevronDown, LogOut, User, LifeBuoy } from "lucide-react";
 import { AppSidebar, NAV_ITEMS } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SupportChat } from "@/components/support-chat";
 import { Button } from "@/components/ui/button";
-import { isSignedIn, signOut } from "@/lib/session";
+import { fetchCurrentAccount, signOut, type AccountProfile } from "@/lib/session";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -32,29 +32,52 @@ export function AppShell({ children }: { children: ReactNode }) {
   const current = NAV_ITEMS.find((i) => i.url === pathname);
   const navigate = useNavigate();
 
-  // Placeholder auth guard — runs client-side only (TanStack Start's
-  // beforeLoad executes during SSR, where localStorage doesn't exist, so we
-  // check post-mount here instead). Bounces to /login until a real session
-  // is issued by the backend. Render nothing until the check has run so a
-  // signed-out visitor never sees a flash of the dashboard.
+  // Auth guard — runs client-side only (TanStack Start's beforeLoad executes
+  // during SSR, where there's no cookie-bearing fetch context to check
+  // against, so we check post-mount here instead). Asks the backend who (if
+  // anyone) the session cookie belongs to, and bounces to /login if it's
+  // nobody. Render nothing until that check resolves so a signed-out visitor
+  // never sees a flash of the dashboard.
+  const [account, setAccount] = useState<AccountProfile | null>(null);
   const [checkedAuth, setCheckedAuth] = useState(false);
 
   useEffect(() => {
-    if (!isSignedIn()) {
-      navigate({ to: "/login" });
-      return;
-    }
-    setCheckedAuth(true);
+    let cancelled = false;
+    fetchCurrentAccount().then((profile) => {
+      if (cancelled) return;
+      if (!profile) {
+        navigate({ to: "/login" });
+        return;
+      }
+      setAccount(profile);
+      setCheckedAuth(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
-  function handleSignOut() {
-    signOut();
+  async function handleSignOut() {
+    await signOut();
     navigate({ to: "/login" });
   }
 
-  if (!checkedAuth) {
+  if (!checkedAuth || !account) {
     return null;
   }
+
+  const displayName =
+    account.display_name ||
+    [account.first_name, account.last_name].filter(Boolean).join(" ") ||
+    account.email;
+  const initials =
+    displayName
+      .split(" ")
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
 
   return (
     <SidebarProvider>
@@ -82,18 +105,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-9 gap-2 px-2">
                     <Avatar className="size-7">
-                      <AvatarFallback className="text-xs">GT</AvatarFallback>
+                      {account.photo_url && <AvatarImage src={account.photo_url} alt={displayName} />}
+                      <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                     </Avatar>
-                    <span className="hidden text-sm sm:inline">Gabriel Torres</span>
+                    <span className="hidden text-sm sm:inline">{displayName}</span>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
-                    <p className="text-sm font-medium">Gabriel Torres</p>
-                    <p className="text-xs font-normal text-muted-foreground">
-                      people.ops@tgo.internal
-                    </p>
+                    <p className="text-sm font-medium">{displayName}</p>
+                    <p className="text-xs font-normal text-muted-foreground">{account.email}</p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>

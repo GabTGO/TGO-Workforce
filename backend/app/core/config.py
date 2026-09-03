@@ -26,10 +26,24 @@ class Settings(BaseSettings):
 
     secret_key: str = "change-me-in-production"
 
-    # Placeholders for the Zoho OAuth integration — filled in once SSO is wired up.
+    # Where the Zoho login flow (and logout) sends the browser back to. In
+    # Railway, set this to the frontend service's public domain.
+    frontend_url: str = "http://localhost:3000"
+
+    # Session cookie — set by /auth/zoho/callback on a successful login, read
+    # by app.core.auth.get_current_account on every request after that.
+    session_cookie_name: str = "tgo_session"
+    session_max_age_seconds: int = 60 * 60 * 24 * 7  # 7 days
+
+    # Zoho OAuth client — from https://api-console.zoho.com. Sign-in is
+    # disabled (503) until all three are set.
     zoho_client_id: str | None = None
     zoho_client_secret: str | None = None
     zoho_redirect_uri: str | None = None
+
+    @property
+    def zoho_configured(self) -> bool:
+        return bool(self.zoho_client_id and self.zoho_client_secret and self.zoho_redirect_uri)
 
     @property
     def async_database_url(self) -> str:

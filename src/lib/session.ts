@@ -1,34 +1,48 @@
-// Placeholder client-side session — NOT real security. This only exists so the
-// dashboard can be gated behind a "signed in" state before the real Zoho SSO
-// flow (backend OAuth callback + issued session/token) lands. It's just a flag
-// in localStorage; anyone with devtools can flip it. Swap this out once the
-// backend issues real sessions.
+// Real session, backed by the backend's signed httpOnly cookie (set by
+// /auth/zoho/callback on a successful Zoho sign-in — see
+// backend/app/api/routes/auth.py). There's nothing to store client-side:
+// every check here just asks the backend "who is this cookie for, if
+// anyone."
 
-const SESSION_KEY = "tgo-workforce-session";
+import { apiUrl } from "@/lib/api";
 
-export function isSignedIn(): boolean {
-  if (typeof window === "undefined") return false;
+export type AccountRole = "admin" | "people_ops" | "hub_lead" | "viewer";
+
+export type AccountProfile = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
+  photo_url: string | null;
+  role: AccountRole;
+  is_active: boolean;
+};
+
+// Sends the browser to the backend, which redirects to Zoho and then back to
+// this app once sign-in completes. Deliberately a full navigation rather than
+// a fetch — Zoho's own login page has to be a top-level page, not an iframe
+// or an XHR target.
+export function signInWithZoho(): void {
+  window.location.href = apiUrl("/auth/zoho/login");
+}
+
+export async function fetchCurrentAccount(): Promise<AccountProfile | null> {
   try {
-    return window.localStorage.getItem(SESSION_KEY) === "true";
+    const response = await fetch(apiUrl("/auth/me"), { credentials: "include" });
+    if (!response.ok) return null;
+    return (await response.json()) as AccountProfile | null;
   } catch {
-    return false;
+    // Backend unreachable — treat as signed out rather than throwing, so a
+    // network hiccup doesn't take down the whole app shell.
+    return null;
   }
 }
 
-export function signIn(): void {
-  if (typeof window === "undefined") return;
+export async function signOut(): Promise<void> {
   try {
-    window.localStorage.setItem(SESSION_KEY, "true");
+    await fetch(apiUrl("/auth/logout"), { method: "POST", credentials: "include" });
   } catch {
-    // Storage unavailable (e.g. private browsing) — nothing to do.
-  }
-}
-
-export function signOut(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // Storage unavailable — nothing to do.
+    // Best-effort — the cookie expires on its own even if this call fails.
   }
 }

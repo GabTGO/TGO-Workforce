@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { isSignedIn, signIn } from "@/lib/session";
+import { fetchCurrentAccount, signInWithZoho } from "@/lib/session";
 import tgoLogoOnDark from "@/assets/tgo-logo-ondark.png";
 
 export const Route = createFileRoute("/login")({
@@ -33,20 +33,33 @@ const HIGHLIGHTS = [
 function LoginPage() {
   const navigate = useNavigate();
 
-  // Already signed in (placeholder session) — no reason to show the login screen.
+  // Already signed in — no reason to show the login screen.
   useEffect(() => {
-    if (isSignedIn()) {
-      navigate({ to: "/" });
-    }
+    let cancelled = false;
+    fetchCurrentAccount().then((profile) => {
+      if (!cancelled && profile) {
+        navigate({ to: "/" });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
-  // Zoho SSO isn't wired up yet — the real auth flow lands once the backend's
-  // OAuth callback is in place. For now this sets a placeholder signed-in flag
-  // so the rest of the app (which gates on it) is reachable for testing.
+  // Surfaces why we're back on this screen after a round trip to Zoho that
+  // didn't end in a session — see backend/app/api/routes/auth.py, which
+  // appends ?error=... to this redirect for each failure case.
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get("error");
+    if (error === "inactive") {
+      toast.error("Your account isn't active yet. Contact your admin.");
+    } else if (error === "zoho") {
+      toast.error("Zoho sign-in didn't go through. Please try again.");
+    }
+  }, []);
+
   function handleZohoSignIn() {
-    signIn();
-    toast.success("Signed in. (Zoho SSO isn't connected yet — this is a placeholder session.)");
-    navigate({ to: "/" });
+    signInWithZoho();
   }
 
   return (

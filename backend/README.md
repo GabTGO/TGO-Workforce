@@ -5,9 +5,12 @@ its own service alongside the frontend (see [Deployment](#deployment) below).
 
 ## Status
 
-Scaffold only — no domain tables yet. `app/models/` and `app/schemas/` are empty
-apart from a placeholder comment; they get filled in once the Postgres table
-definitions are provided, followed by an Alembic migration.
+Accounts, employees, and activity logs are live, with Zoho OAuth wired up for
+sign-in (see [Zoho SSO](#zoho-sso) below). Not yet done: locking the
+employees/accounts/activity-log endpoints behind `require_account` (they're
+still reachable without a session — only the identity of "who made this
+change" changes once you're signed in), and reconnecting the frontend's
+in-memory employee store to call this API instead of its local mock data.
 
 ## Local setup
 
@@ -39,12 +42,13 @@ uvicorn app.main:app --reload
 
 ## Migrations (Alembic)
 
-Once models exist in `app/models/`:
-
 ```bash
-alembic revision --autogenerate -m "add employees table"
-alembic upgrade head
+alembic upgrade head                              # apply pending migrations
+alembic revision --autogenerate -m "add x table"  # generate a new one from model changes
 ```
+
+Always run `alembic upgrade head` before autogenerating a new revision — Alembic
+refuses to diff against a database that isn't already at head.
 
 `alembic/env.py` reads `DATABASE_URL` the same way the app does (via
 `app.core.config.Settings`), so there's one source of truth for the connection
@@ -69,17 +73,66 @@ backend/
     core/
       config.py   # env-driven Settings (pydantic-settings)
       db.py        # async engine/session, Base, get_db() dependency
-      auth.py      # get_current_account() — stub until Zoho SSO lands
-    api/routes/    # one module per resource: health, accounts, activity_logs, employees
+      auth.py      # get_current_account() / require_account() — resolve the session cookie to an Account
+    api/routes/    # one module per resource: health, auth, accounts, activity_logs, employees
     models/        # SQLAlchemy models: Account, ActivityLog, Employee
     schemas/       # Pydantic request/response schemas, mirroring models/
-    services/      # record_activity(), next_employee_id() — shared logic routes call into
-    main.py        # FastAPI app, CORS, router registration
+    services/      # record_activity(), next_employee_id(), zoho.py (OAuth HTTP calls) — shared logic routes call into
+    main.py        # FastAPI app, CORS, session cookie middleware, router registration
   alembic/         # migration environment (async-aware env.py) + versions/
   tests/
   requirements.txt / requirements-dev.txt
   railway.json     # Railway build/start config for this service
 ```
+
+## Zoho SSO
+
+Sign-in is Zoho OAuth (`AaaServer.profile.READ` scope — just enough to read
+email/name/ZUID, no access to Zoho Mail/CRM/etc.). The flow:
+
+1. Frontend sends the browser to `GET /auth/zoho/login` (a full page
+   navigation, not a fetch — Zoho's login page has to be top-level).
+2. This backend redirects to Zoho with a random `state` value stashed in the
+   session, for CSRF protection.
+3. Person signs in on Zoho's own page and approves the app.
+4. Zoho redirects back to `GET /auth/zoho/callback`. This backend exchanges
+   the code for a token, fetches the profile, and upserts an `Account` row
+   matched on Zoho's stable `ZUID` (brand new accounts default to the
+   `viewer` role — an admin promotes them from there; there's no public
+   "create account" endpoint on purpose).
+5. On success, this backend sets a signed, httpOnly session cookie and
+   redirects to `FRONTEND_URL`. `GET /auth/me` (called with
+   `credentials: "include"`) is how the frontend asks "who is this cookie
+   for, if anyone." `POST /auth/logout` clears it.
+
+If `ZOHO_CLIENT_ID` / `ZOHO_CLIENT_SECRET` / `ZOHO_REDIRECT_URI` aren't all
+set, `/auth/zoho/login` returns `503` instead of trying to redirect anywhere.
+
+The session cookie is `SameSite=None; Secure` in production (required since
+the frontend and backend live on different Railway domains) and plain `Lax`,
+non-secure locally. That means the frontend must call the backend with
+`credentials: "include"` on every request that should carry it, and
+`CORS_ORIGINS` must list the frontend's exact origin — `allow_credentials`
+doesn't work with a wildcard `*` origin.
+
+### Registering the app in Zoho's API Console (one-time)
+
+1. Go to https://api-console.zoho.com and sign in with the Zoho account that
+   should own this integration (usually an admin/IT account, not a personal
+   one).
+2. **Add Client** → **Server-based Applications**.
+3. Client Name: `TGO Workforce`. Homepage URL: the frontend's deployed URL
+   (e.g. `https://<frontend>.up.railway.app`).
+4. Authorized Redirect URIs: this **backend's** URL plus `/auth/zoho/callback`
+   — e.g. `https://<backend>.up.railway.app/auth/zoho/callback`. Must match
+   `ZOHO_REDIRECT_URI` exactly, character for character, including the
+   scheme.
+5. Save. Zoho shows a **Client ID** and **Client Secret** — copy both.
+6. Set on the backend Railway service: `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`,
+   `ZOHO_REDIRECT_URI` (the same URL from step 4).
+7. For local dev, add `http://localhost:8000/auth/zoho/callback` as a second
+   Authorized Redirect URI on the same client, and use that value for
+   `ZOHO_REDIRECT_URI` in your local `.env`.
 
 ## Deployment
 
@@ -99,7 +152,14 @@ the same GitHub repo** (a monorepo), plus a managed Postgres plugin:
    - `DATABASE_URL` → reference the Postgres plugin: `${{Postgres.DATABASE_URL}}`
    - `CORS_ORIGINS` → the deployed frontend URL (plus `http://localhost:3000`
      for local dev against a deployed backend, if you ever do that)
-   - `SECRET_KEY`, and the `ZOHO_*` vars once SSO is wired up
+   - `FRONTEND_URL` → the deployed frontend URL — where `/auth/zoho/callback`
+     sends the browser back to after sign-in
+   - `SECRET_KEY` — signs the session cookie; any long random string
+   - `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REDIRECT_URI` — see
+     [Zoho SSO](#zoho-sso) above
+   On the **frontend** service: `VITE_API_URL` → the deployed backend URL.
+   Vite bakes this in at build time, so it has to be set before the frontend
+   builds, not just at runtime.
 6. On **each** service's Settings → Source, leave "Auto deploys when pushed to
    GitHub" **on**, and turn **on "Wait for CI"**. That makes Railway hold off
    building/deploying a push until the GitHub Actions checks from
