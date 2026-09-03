@@ -55,11 +55,34 @@ export const POSITIONS = [
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
 
+/** Parses a plain "YYYY-MM-DD" calendar date (birthday, start date, exit
+ * date, job offer date) as LOCAL midnight instead of UTC midnight.
+ *
+ * `new Date("YYYY-MM-DD")` is specced to parse date-only strings as UTC, but
+ * every local-timezone-aware read of that Date — `.toLocaleDateString()`,
+ * `.getMonth()`/`.getDate()`/`.getFullYear()`, or comparing it against a
+ * real `new Date()` "now" — then silently shifts it by a day for anyone
+ * viewing from a timezone behind UTC. That's exactly the bug reported
+ * 2026-09-03: a birthday entered and stored as 2003-06-16 (and shown
+ * correctly as 06/16/2003 in the `<input type="date">`, which doesn't do
+ * this conversion) was rendering as "Jun 15, 2003" everywhere `formatDate()`
+ * touched it. Appending a bare time-of-day with no "Z"/offset makes the
+ * `Date` constructor parse it as local time instead, which is what a
+ * calendar date — something with no timezone of its own — actually needs.
+ * A full backend timestamp (createdAt/updatedAt) isn't a plain date-only
+ * string, so it falls through to a normal parse and keeps converting from
+ * UTC to the viewer's local time as it should. */
+function parseCalendarDate(value: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+}
+
 /** Raw day count between start and (exit or today) — the source of truth for
  * every "how long has this person been here" display and export column. */
 export function tenureDays(startDate: string, exitDate?: string) {
-  const start = new Date(startDate);
-  const end = exitDate ? new Date(exitDate) : new Date();
+  const start = parseCalendarDate(startDate);
+  const end = exitDate ? parseCalendarDate(exitDate) : new Date();
   return Math.max(
     0,
     Math.round((end.getTime() - start.getTime()) / 86_400_000),
@@ -67,8 +90,8 @@ export function tenureDays(startDate: string, exitDate?: string) {
 }
 
 export function tenure(startDate: string, exitDate?: string) {
-  const start = new Date(startDate);
-  const end = exitDate ? new Date(exitDate) : new Date();
+  const start = parseCalendarDate(startDate);
+  const end = exitDate ? parseCalendarDate(exitDate) : new Date();
   let months =
     (end.getFullYear() - start.getFullYear()) * 12 +
     (end.getMonth() - start.getMonth());
@@ -87,7 +110,7 @@ export function tenure(startDate: string, exitDate?: string) {
 
 export function formatDate(iso?: string) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", {
+  return parseCalendarDate(iso).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -107,9 +130,11 @@ export function metrics(employees: Employee[]) {
   const inactive = employees.filter((e) => e.status !== "Active");
   const oneYearAgo = new Date(REFERENCE_NOW);
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const newHires = employees.filter((e) => new Date(e.startDate) >= oneYearAgo);
+  const newHires = employees.filter(
+    (e) => parseCalendarDate(e.startDate) >= oneYearAgo,
+  );
   const exits = employees.filter(
-    (e) => e.exitDate && new Date(e.exitDate) >= oneYearAgo,
+    (e) => e.exitDate && parseCalendarDate(e.exitDate) >= oneYearAgo,
   );
   return {
     active: active.length,
@@ -168,7 +193,7 @@ export function upcomingBirthdays(employees: Employee[]) {
   return employees
     .filter((e) => e.status === "Active" && e.birthday)
     .flatMap((e) => {
-      const d = new Date(e.birthday);
+      const d = parseCalendarDate(e.birthday);
       // Skip rows with an unparsable or missing birthday (e.g. blank cells from
       // an Excel import) instead of producing a NaN month that crashes the page.
       if (Number.isNaN(d.getTime())) return [];
@@ -188,7 +213,7 @@ export function anniversaries(employees: Employee[]) {
   return employees
     .filter((e) => e.status === "Active" && e.startDate)
     .flatMap((e) => {
-      const d = new Date(e.startDate);
+      const d = parseCalendarDate(e.startDate);
       if (Number.isNaN(d.getTime())) return [];
       const years = REFERENCE_NOW.getFullYear() - d.getFullYear();
       return [
@@ -217,7 +242,7 @@ export function departmentDistribution(employees: Employee[]) {
 }
 
 function monthsBetween(startDate: string, end: Date) {
-  const start = new Date(startDate);
+  const start = parseCalendarDate(startDate);
   let months =
     (end.getFullYear() - start.getFullYear()) * 12 +
     (end.getMonth() - start.getMonth());
@@ -272,8 +297,8 @@ export function headcountGrowth(employees: Employee[]) {
       0,
     );
     const headcount = employees.filter((e) => {
-      if (new Date(e.startDate) > end) return false;
-      if (e.exitDate && new Date(e.exitDate) <= end) return false;
+      if (parseCalendarDate(e.startDate) > end) return false;
+      if (e.exitDate && parseCalendarDate(e.exitDate) <= end) return false;
       return true;
     }).length;
     out.push({
