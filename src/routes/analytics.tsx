@@ -10,6 +10,7 @@ import {
   StatusDistributionChart,
   TenureDistributionChart,
 } from "@/components/workforce-charts";
+import { useEmployees } from "@/data/employee-store";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/analytics")({
 });
 
 function AnalyticsPage() {
+  const employees = useEmployees();
   return (
     <div className="space-y-6">
       <PageHeader
@@ -38,14 +40,14 @@ function AnalyticsPage() {
         description="Hiring, growth, distribution and tenure analysis across TGO delivery hubs."
       />
       <div className="grid gap-4 lg:grid-cols-2">
-        <MonthlyHiringTrendChart />
-        <HeadcountGrowthChart />
-        <DepartmentDistributionChart />
-        <TenureDistributionChart />
-        <OfficeDistributionChart />
-        <StatusDistributionChart />
+        <MonthlyHiringTrendChart employees={employees} />
+        <HeadcountGrowthChart employees={employees} />
+        <DepartmentDistributionChart employees={employees} />
+        <TenureDistributionChart employees={employees} />
+        <OfficeDistributionChart employees={employees} />
+        <StatusDistributionChart employees={employees} />
       </div>
-      <HeadcountTrendChart />
+      <HeadcountTrendChart employees={employees} />
     </div>
   );
 }

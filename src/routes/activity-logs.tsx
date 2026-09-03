@@ -22,105 +22,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useActivityLogs, type ActivitySeverity } from "@/data/activity-log-store";
 
-type LogCategory = "Employee" | "Access" | "Data" | "System";
-type LogSeverity = "info" | "warning" | "critical";
-
-type ActivityLog = {
-  id: string;
-  timestamp: string;
-  actor: string;
-  action: string;
-  target: string;
-  category: LogCategory;
-  severity: LogSeverity;
-};
-
-const ACTIVITY_LOGS: ActivityLog[] = [
-  {
-    id: "LOG-1041",
-    timestamp: "2026-08-26 15:52",
-    actor: "Gabriel Torres",
-    action: "Created employee record",
-    target: "TGO-0241 · Marisol Reyes",
-    category: "Employee",
-    severity: "info",
-  },
-  {
-    id: "LOG-1040",
-    timestamp: "2026-08-26 14:07",
-    actor: "Gabriel Torres",
-    action: "Exported directory to CSV",
-    target: "Employee Directory (218 rows)",
-    category: "Data",
-    severity: "warning",
-  },
-  {
-    id: "LOG-1039",
-    timestamp: "2026-08-26 11:31",
-    actor: "Ana Villegas",
-    action: "Updated position",
-    target: "TGO-0187 · Senior AI Analyst",
-    category: "Employee",
-    severity: "info",
-  },
-  {
-    id: "LOG-1038",
-    timestamp: "2026-08-25 18:44",
-    actor: "System",
-    action: "Nightly sync completed",
-    target: "PH Eastwood · CO Medellin",
-    category: "System",
-    severity: "info",
-  },
-  {
-    id: "LOG-1037",
-    timestamp: "2026-08-25 16:10",
-    actor: "Ramon Cruz",
-    action: "Failed sign-in attempt",
-    target: "ramon.cruz@tgo.internal",
-    category: "Access",
-    severity: "critical",
-  },
-  {
-    id: "LOG-1036",
-    timestamp: "2026-08-25 09:22",
-    actor: "Ana Villegas",
-    action: "Bulk upload processed",
-    target: "new-hires-august.xlsx (14 rows)",
-    category: "Data",
-    severity: "info",
-  },
-  {
-    id: "LOG-1035",
-    timestamp: "2026-08-24 17:03",
-    actor: "Gabriel Torres",
-    action: "Marked employee as resigned",
-    target: "TGO-0122 · Luis Fernandez",
-    category: "Employee",
-    severity: "warning",
-  },
-  {
-    id: "LOG-1034",
-    timestamp: "2026-08-24 08:15",
-    actor: "System",
-    action: "Retention policy applied",
-    target: "Archived 6 exited records",
-    category: "System",
-    severity: "info",
-  },
-  {
-    id: "LOG-1033",
-    timestamp: "2026-08-23 13:48",
-    actor: "Ramon Cruz",
-    action: "Granted portal access",
-    target: "people.ops@tgo.internal",
-    category: "Access",
-    severity: "warning",
-  },
-];
-
-const SEVERITY_VARIANT: Record<LogSeverity, "secondary" | "outline" | "destructive"> = {
+const SEVERITY_VARIANT: Record<ActivitySeverity, "secondary" | "outline" | "destructive"> = {
   info: "secondary",
   warning: "outline",
   critical: "destructive",
@@ -146,13 +50,16 @@ export const Route = createFileRoute("/activity-logs")({
 });
 
 function ActivityLogsPage() {
+  const { data, isLoading, isError } = useActivityLogs();
+  const logs = data ?? [];
+
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [severity, setSeverity] = useState<string>("all");
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return ACTIVITY_LOGS.filter((log) => {
+    return logs.filter((log) => {
       const matchesQuery =
         !q ||
         [log.id, log.actor, log.action, log.target].some((v) => v.toLowerCase().includes(q));
@@ -160,11 +67,11 @@ function ActivityLogsPage() {
       const matchesSeverity = severity === "all" || log.severity === severity;
       return matchesQuery && matchesCategory && matchesSeverity;
     });
-  }, [query, category, severity]);
+  }, [logs, query, category, severity]);
 
-  const critical = ACTIVITY_LOGS.filter((l) => l.severity === "critical").length;
-  const warning = ACTIVITY_LOGS.filter((l) => l.severity === "warning").length;
-  const info = ACTIVITY_LOGS.filter((l) => l.severity === "info").length;
+  const critical = logs.filter((l) => l.severity === "critical").length;
+  const warning = logs.filter((l) => l.severity === "warning").length;
+  const info = logs.filter((l) => l.severity === "info").length;
 
   return (
     <div className="space-y-6">
@@ -176,8 +83,8 @@ function ActivityLogsPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           title="Total Events"
-          value={ACTIVITY_LOGS.length}
-          hint="Last 7 days"
+          value={logs.length}
+          hint="All recorded events"
           icon={ScrollText}
         />
         <MetricCard title="Critical" value={critical} hint="Needs immediate review" icon={AlertCircle} />
@@ -189,7 +96,7 @@ function ActivityLogsPage() {
         <CardHeader>
           <CardTitle>Recent activity</CardTitle>
           <CardDescription>
-            Showing {rows.length} of {ACTIVITY_LOGS.length} events from the last 7 days.
+            Showing {rows.length} of {logs.length} events.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -242,7 +149,19 @@ function ActivityLogsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      Loading activity...
+                    </TableCell>
+                  </TableRow>
+                ) : isError ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      Couldn't load activity logs. Try refreshing the page.
+                    </TableCell>
+                  </TableRow>
+                ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       No activity matches your filters.

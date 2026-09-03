@@ -10,7 +10,7 @@ export interface Employee {
   startDate: string; // ISO
   status: EmployeeStatus;
   exitDate?: string;
-  birthday: string; // ISO (year may be birth year)
+  birthday: string; // ISO (year may be birth year); "" when unknown
   sourceType?: string;
 }
 
@@ -53,30 +53,6 @@ export const POSITIONS = [
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
 
-// `let`, not `const` — this binding is reassigned by replaceEmployees() below so
-// imports/edits from the Employee Store propagate to every page that reads it
-// (metrics(), officeDistribution(), etc. all re-read this live binding on each call).
-export let employees: Employee[] = [
-  { id: "TGO-1001", name: "Maria Santos", office: "PH Eastwood", department: "Automation", position: "RPA Developer", startDate: "2021-03-15", status: "Active", birthday: "1993-08-29" },
-  { id: "TGO-1002", name: "Juan Dela Cruz", office: "PH Eastwood", department: "Operations", position: "Operations Lead", startDate: "2019-07-01", status: "Active", birthday: "1988-09-02" },
-  { id: "TGO-1003", name: "Camila Restrepo", office: "CO Medellin", department: "AI Engineering", position: "ML Engineer", startDate: "2022-01-10", status: "Active", birthday: "1995-01-19" },
-  { id: "TGO-1004", name: "Andres Gomez", office: "CO Medellin", department: "Automation", position: "Automation Analyst", startDate: "2023-05-22", status: "Active", birthday: "1997-05-11" },
-  { id: "TGO-1005", name: "Grace Lim", office: "PH Eastwood", department: "People Ops", position: "HR Generalist", startDate: "2020-11-09", status: "Resigned", exitDate: "2026-02-28", birthday: "1991-11-30" },
-  { id: "TGO-1006", name: "Daniel Reyes", office: "PH Eastwood", department: "AI Engineering", position: "Data Scientist", startDate: "2024-02-05", status: "Active", birthday: "1994-03-08" },
-  { id: "TGO-1007", name: "Valentina Ortiz", office: "CO Medellin", department: "Customer Success", position: "CS Specialist", startDate: "2023-09-18", status: "Active", birthday: "1998-08-27" },
-  { id: "TGO-1010", name: "Paolo Bautista", office: "PH Eastwood", department: "Automation", position: "Senior RPA Developer", startDate: "2017-10-23", status: "Active", birthday: "1989-12-01" },
-  { id: "TGO-1011", name: "Ana Lucia Vargas", office: "CO Medellin", department: "Operations", position: "Workforce Coordinator", startDate: "2025-10-03", status: "Active", birthday: "1996-02-22" },
-  { id: "TGO-1012", name: "Ryan Mercado", office: "PH Eastwood", department: "Customer Success", position: "Account Manager", startDate: "2021-01-11", status: "Terminated", exitDate: "2025-12-15", birthday: "1990-07-19" },
-  { id: "TGO-1013", name: "Isabella Cardona", office: "CO Medellin", department: "AI Engineering", position: "Prompt Engineer", startDate: "2026-01-06", status: "Active", birthday: "1999-09-09" },
-  { id: "TGO-1016", name: "Angela Torres", office: "PH Eastwood", department: "Finance", position: "Payroll Officer", startDate: "2020-02-17", status: "Active", birthday: "1990-10-04" },
-  { id: "TGO-1017", name: "Miguel Ramos", office: "PH Eastwood", department: "Operations", position: "Shift Supervisor", startDate: "2022-11-14", status: "Active", birthday: "1992-12-21" },
-  { id: "TGO-1018", name: "Laura Betancur", office: "CO Medellin", department: "People Ops", position: "People Ops Analyst", startDate: "2026-04-21", status: "Active", birthday: "1997-09-12" },
-  { id: "TGO-1020", name: "Bea Villanueva", office: "PH Eastwood", department: "AI Engineering", position: "AI Ops Engineer", startDate: "2026-07-14", status: "Active", birthday: "1996-08-25" },
-  { id: "TGO-1021", name: "Diego Salazar", office: "CO Medellin", department: "Finance", position: "Accountant", startDate: "2021-06-07", status: "Active", birthday: "1991-03-15" },
-  { id: "TGO-1022", name: "Kristine Yu", office: "PH Eastwood", department: "Customer Success", position: "CS Team Lead", startDate: "2018-08-20", status: "Active", birthday: "1989-09-23" },
-  { id: "TGO-1023", name: "Tomas Arango", office: "CO Medellin", department: "Operations", position: "Process Analyst", startDate: "2023-12-04", status: "Terminated", exitDate: "2026-06-11", birthday: "1994-01-30" },
-];
-
 export function tenure(startDate: string, exitDate?: string) {
   const start = new Date(startDate);
   const end = exitDate ? new Date(exitDate) : new Date();
@@ -100,7 +76,13 @@ export function formatDate(iso?: string) {
 
 const REFERENCE_NOW = new Date();
 
-export function metrics() {
+// Everything below is a pure function of the employee list the caller passes
+// in — none of it reads a module-level array anymore. The list itself comes
+// from the API via useEmployees() (@/data/employee-store), so every page
+// that used to call e.g. metrics() with no arguments now calls
+// metrics(employees) with whatever that hook returned.
+
+export function metrics(employees: Employee[]) {
   const active = employees.filter((e) => e.status === "Active");
   const inactive = employees.filter((e) => e.status !== "Active");
   const oneYearAgo = new Date(REFERENCE_NOW);
@@ -118,7 +100,7 @@ export function metrics() {
   };
 }
 
-export function officeDistribution() {
+export function officeDistribution(employees: Employee[]) {
   return OFFICES.map((office) => ({
     office,
     active: employees.filter((e) => e.office === office && e.status === "Active").length,
@@ -126,14 +108,14 @@ export function officeDistribution() {
   }));
 }
 
-export function statusDistribution() {
+export function statusDistribution(employees: Employee[]) {
   return STATUSES.map((status) => ({
     status,
     count: employees.filter((e) => e.status === status).length,
   }));
 }
 
-export function headcountTrend() {
+export function headcountTrend(employees: Employee[]) {
   const months = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"];
   const base = employees.filter((e) => e.status === "Active").length - 5;
   return months.map((month, i) => ({ month, headcount: base + i + (i % 2) }));
@@ -144,7 +126,7 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-export function upcomingBirthdays() {
+export function upcomingBirthdays(employees: Employee[]) {
   return employees
     .filter((e) => e.status === "Active" && e.birthday)
     .flatMap((e) => {
@@ -157,7 +139,7 @@ export function upcomingBirthdays() {
     .sort((a, b) => a.monthIndex - b.monthIndex || a.day - b.day);
 }
 
-export function anniversaries() {
+export function anniversaries(employees: Employee[]) {
   return employees
     .filter((e) => e.status === "Active" && e.startDate)
     .flatMap((e) => {
@@ -177,7 +159,7 @@ export function anniversaries() {
     .sort((a, b) => a.monthIndex - b.monthIndex || a.day - b.day);
 }
 
-export function departmentDistribution() {
+export function departmentDistribution(employees: Employee[]) {
   return DEPARTMENTS.map((department) => ({
     department,
     active: employees.filter((e) => e.department === department && e.status === "Active").length,
@@ -192,7 +174,7 @@ function monthsBetween(startDate: string, end: Date) {
   return Math.max(months, 0);
 }
 
-export function tenureDistribution() {
+export function tenureDistribution(employees: Employee[]) {
   const buckets = [
     { band: "0-1 yr", min: 0, max: 12 },
     { band: "1-3 yrs", min: 12, max: 36 },
@@ -211,7 +193,7 @@ export function tenureDistribution() {
 }
 
 /** Last 12 months of hires vs exits. */
-export function monthlyHiringTrend() {
+export function monthlyHiringTrend(employees: Employee[]) {
   const out: { month: string; hires: number; exits: number }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(REFERENCE_NOW.getFullYear(), REFERENCE_NOW.getMonth() - i, 1);
@@ -226,7 +208,7 @@ export function monthlyHiringTrend() {
 }
 
 /** Cumulative active headcount at the end of each of the last 12 months. */
-export function headcountGrowth() {
+export function headcountGrowth(employees: Employee[]) {
   const out: { month: string; headcount: number }[] = [];
   for (let i = 11; i >= 0; i--) {
     const end = new Date(REFERENCE_NOW.getFullYear(), REFERENCE_NOW.getMonth() - i + 1, 0);
@@ -241,11 +223,4 @@ export function headcountGrowth() {
     });
   }
   return out;
-}
-
-// Only this module may reassign the `employees` binding directly (JS module semantics).
-// The Employee Store (@/data/employee-store) calls this to publish a new array —
-// every other file that imports `employees` sees the update automatically.
-export function replaceEmployees(next: Employee[]) {
-  employees = next;
 }

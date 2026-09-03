@@ -46,11 +46,11 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  useEmployees(); // subscribe so metrics()/officeDistribution() below re-run after an import here
-  const m = metrics();
-  const dist = officeDistribution();
+  const employees = useEmployees();
+  const m = metrics(employees);
+  const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
-  const upcoming = anniversaries().slice(0, 5);
+  const upcoming = anniversaries(employees).slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -80,7 +80,7 @@ function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <HeadcountTrendChart />
+          <HeadcountTrendChart employees={employees} />
         </div>
 
         <Card>

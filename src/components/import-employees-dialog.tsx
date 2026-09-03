@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import type { Employee } from "@/data/employees";
-import { addEmployees } from "@/data/employee-store";
+import { useImportEmployees } from "@/data/employee-store";
 
 // Recognized column headers, matched case-insensitively with spaces/underscores stripped —
 // so "Employee ID", "employee_id" and "EmployeeID" all map to the same field.
@@ -81,6 +81,7 @@ export function ImportEmployeesDialog() {
   const [importing, setImporting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const importMutation = useImportEmployees();
 
   function reset() {
     setFile(null);
@@ -93,8 +94,7 @@ export function ImportEmployeesDialog() {
     setImporting(true);
     try {
       const rows = await parseWorkbook(file);
-      const added = addEmployees(rows);
-      const skipped = rows.length - added;
+      const { added, skipped } = await importMutation.mutateAsync(rows);
 
       if (added === 0) {
         toast.error("No usable rows found. Make sure the sheet has a Name column.");

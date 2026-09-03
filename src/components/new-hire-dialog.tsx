@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OFFICES } from "@/data/employees";
+import { useCreateEmployee } from "@/data/employee-store";
 
 const SOURCE_TYPES = [
   "Direct Applicant",
@@ -30,6 +31,7 @@ export function NewHireDialog() {
   const [startDate, setStartDate] = useState("");
   const [office, setOffice] = useState("");
   const [sourceType, setSourceType] = useState("");
+  const createMutation = useCreateEmployee();
 
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
 
@@ -40,6 +42,32 @@ export function NewHireDialog() {
     setStartDate("");
     setOffice("");
     setSourceType("");
+  }
+
+  async function handleSubmit() {
+    if (!fullName) {
+      toast.error("Enter at least a first or last name.");
+      return;
+    }
+    if (!startDate) {
+      toast.error("Start date is required.");
+      return;
+    }
+    try {
+      await createMutation.mutateAsync({
+        name: fullName,
+        birthday: birthday || undefined,
+        startDate,
+        office: office || undefined,
+        sourceType: sourceType || undefined,
+      });
+      setOpen(false);
+      toast.success(`New hire submitted: ${fullName}`);
+      reset();
+    } catch (error) {
+      console.error(error);
+      toast.error("Couldn't submit this new hire. Please try again.");
+    }
   }
 
   return (
@@ -143,14 +171,8 @@ export function NewHireDialog() {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={() => {
-              setOpen(false);
-              toast.success(`New hire submitted${fullName ? `: ${fullName}` : ""}`);
-              reset();
-            }}
-          >
-            Submit New Hire Form
+          <Button onClick={handleSubmit} disabled={createMutation.isPending}>
+            {createMutation.isPending ? "Submitting..." : "Submit New Hire Form"}
           </Button>
         </DialogFooter>
       </DialogContent>

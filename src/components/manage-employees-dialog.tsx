@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useEmployees, updateEmployeeInStore, removeEmployeeFromStore } from "@/data/employee-store";
+import { useEmployees, useUpdateEmployee, useDeleteEmployee } from "@/data/employee-store";
 import {
   DEPARTMENTS,
   OFFICES,
@@ -55,6 +55,8 @@ export function ManageEmployeesDialog() {
   const [passwordError, setPasswordError] = useState(false);
 
   const rows = useEmployees();
+  const updateMutation = useUpdateEmployee();
+  const deleteMutation = useDeleteEmployee();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "name",
@@ -114,18 +116,30 @@ export function ManageEmployeesDialog() {
     setPendingSave(updated);
   }
 
-  function confirmSave() {
+  async function confirmSave() {
     if (!pendingSave) return;
-    updateEmployeeInStore(pendingSave);
-    toast.success(`${pendingSave.name} updated`);
-    setPendingSave(null);
+    try {
+      await updateMutation.mutateAsync(pendingSave);
+      toast.success(`${pendingSave.name} updated`);
+    } catch (error) {
+      console.error(error);
+      toast.error(`Couldn't save changes to ${pendingSave.name}. Please try again.`);
+    } finally {
+      setPendingSave(null);
+    }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!pendingDelete) return;
-    removeEmployeeFromStore(pendingDelete.id);
-    toast.success(`${pendingDelete.name} removed`);
-    setPendingDelete(null);
+    try {
+      await deleteMutation.mutateAsync(pendingDelete.id);
+      toast.success(`${pendingDelete.name} removed`);
+    } catch (error) {
+      console.error(error);
+      toast.error(`Couldn't remove ${pendingDelete.name}. Please try again.`);
+    } finally {
+      setPendingDelete(null);
+    }
   }
 
   const SortHeader = ({ label, sortKey }: { label: string; sortKey: SortKey }) => (
@@ -191,7 +205,7 @@ export function ManageEmployeesDialog() {
               <div>
                 <h2 className="text-base font-semibold">Manage Employees</h2>
                 <p className="text-sm text-muted-foreground">
-                  Edit or remove records. Changes apply to this session.
+                  Edit or remove records. Changes save immediately.
                 </p>
               </div>
               <div className="relative max-w-sm">
@@ -296,7 +310,9 @@ export function ManageEmployeesDialog() {
             <AlertDialogCancel onClick={() => setEditing(pendingSave)}>
               Back to edit
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmSave}>Confirm & Save</AlertDialogAction>
+            <AlertDialogAction onClick={confirmSave} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "Saving..." : "Confirm & Save"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -309,17 +325,18 @@ export function ManageEmployeesDialog() {
             </div>
             <AlertDialogTitle>Remove {pendingDelete?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes {pendingDelete?.id} from this session's records. This
-              can't be undone.
+              This permanently removes {pendingDelete?.id} from the directory. This can't be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Confirm & Remove
+              {deleteMutation.isPending ? "Removing..." : "Confirm & Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

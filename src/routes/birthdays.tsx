@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { upcomingBirthdays } from "@/data/employees";
+import { useEmployees } from "@/data/employee-store";
 
 export const Route = createFileRoute("/birthdays")({
   head: () => ({
@@ -35,7 +36,8 @@ function initials(name: string) {
 }
 
 function BirthdaysPage() {
-  const list = upcomingBirthdays();
+  const employees = useEmployees();
+  const list = upcomingBirthdays(employees);
   const months = [...new Set(list.map((e) => e.monthName))];
   const currentMonthName = new Date().toLocaleString("en-US", { month: "long" });
   const thisMonth = list.filter((e) => e.monthName === currentMonthName).length;

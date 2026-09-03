@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, metrics, tenure } from "@/data/employees";
+import { useEmployees } from "@/data/employee-store";
 
 export const Route = createFileRoute("/new-hires")({
   head: () => ({
@@ -35,7 +36,8 @@ export const Route = createFileRoute("/new-hires")({
 });
 
 function NewHiresPage() {
-  const list = metrics().newHireList;
+  const employees = useEmployees();
+  const list = metrics(employees).newHireList;
   const active = list.filter((e) => e.status === "Active").length;
   const eastwood = list.filter((e) => e.office === "PH Eastwood").length;
   const medellin = list.filter((e) => e.office === "CO Medellin").length;

@@ -32,7 +32,10 @@ import {
   officeDistribution,
   statusDistribution,
   tenureDistribution,
+  type Employee,
 } from "@/data/employees";
+
+type ChartProps = { employees: Employee[] };
 
 const officeConfig = {
   active: { label: "Active", color: "var(--chart-1)" },
@@ -56,7 +59,7 @@ function useMounted() {
   return mounted;
 }
 
-export function OfficeDistributionChart() {
+export function OfficeDistributionChart({ employees }: ChartProps) {
   const mounted = useMounted();
   return (
     <Card>
@@ -69,7 +72,7 @@ export function OfficeDistributionChart() {
           <Skeleton className="h-[260px] w-full" />
         ) : (
         <ChartContainer config={officeConfig} className="h-[280px] w-full">
-          <BarChart data={officeDistribution()}>
+          <BarChart data={officeDistribution(employees)}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="office" tickLine={false} axisLine={false} fontSize={12} />
             <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
@@ -85,9 +88,9 @@ export function OfficeDistributionChart() {
   );
 }
 
-export function StatusDistributionChart() {
+export function StatusDistributionChart({ employees }: ChartProps) {
   const mounted = useMounted();
-  const data = statusDistribution();
+  const data = statusDistribution(employees);
   return (
     <Card>
       <CardHeader>
@@ -115,7 +118,7 @@ export function StatusDistributionChart() {
   );
 }
 
-export function HeadcountTrendChart() {
+export function HeadcountTrendChart({ employees }: ChartProps) {
   const mounted = useMounted();
   return (
     <Card>
@@ -128,7 +131,7 @@ export function HeadcountTrendChart() {
           <Skeleton className="h-[260px] w-full" />
         ) : (
         <ChartContainer config={trendConfig} className="h-[260px] w-full">
-          <LineChart data={headcountTrend()}>
+          <LineChart data={headcountTrend(employees)}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
             <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
@@ -166,7 +169,7 @@ const tenureConfig = {
   employees: { label: "Employees", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
-export function MonthlyHiringTrendChart() {
+export function MonthlyHiringTrendChart({ employees }: ChartProps) {
   const mounted = useMounted();
   return (
     <Card>
@@ -179,7 +182,7 @@ export function MonthlyHiringTrendChart() {
           <Skeleton className="h-[280px] w-full" />
         ) : (
           <ChartContainer config={hiringConfig} className="h-[280px] w-full">
-            <BarChart data={monthlyHiringTrend()}>
+            <BarChart data={monthlyHiringTrend(employees)}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} />
               <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
@@ -195,7 +198,7 @@ export function MonthlyHiringTrendChart() {
   );
 }
 
-export function HeadcountGrowthChart() {
+export function HeadcountGrowthChart({ employees }: ChartProps) {
   const mounted = useMounted();
   return (
     <Card>
@@ -208,7 +211,7 @@ export function HeadcountGrowthChart() {
           <Skeleton className="h-[280px] w-full" />
         ) : (
           <ChartContainer config={growthConfig} className="h-[280px] w-full">
-            <AreaChart data={headcountGrowth()}>
+            <AreaChart data={headcountGrowth(employees)}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} />
               <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
@@ -229,7 +232,7 @@ export function HeadcountGrowthChart() {
   );
 }
 
-export function DepartmentDistributionChart() {
+export function DepartmentDistributionChart({ employees }: ChartProps) {
   const mounted = useMounted();
   return (
     <Card>
@@ -242,7 +245,7 @@ export function DepartmentDistributionChart() {
           <Skeleton className="h-[300px] w-full" />
         ) : (
           <ChartContainer config={departmentConfig} className="h-[300px] w-full">
-            <BarChart data={departmentDistribution()} layout="vertical" margin={{ left: 8 }}>
+            <BarChart data={departmentDistribution(employees)} layout="vertical" margin={{ left: 8 }}>
               <CartesianGrid horizontal={false} strokeDasharray="3 3" />
               <XAxis type="number" tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
               <YAxis
@@ -265,7 +268,7 @@ export function DepartmentDistributionChart() {
   );
 }
 
-export function TenureDistributionChart() {
+export function TenureDistributionChart({ employees }: ChartProps) {
   const mounted = useMounted();
   return (
     <Card>
@@ -278,7 +281,7 @@ export function TenureDistributionChart() {
           <Skeleton className="h-[280px] w-full" />
         ) : (
           <ChartContainer config={tenureConfig} className="h-[280px] w-full">
-            <BarChart data={tenureDistribution()}>
+            <BarChart data={tenureDistribution(employees)}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="band" tickLine={false} axisLine={false} fontSize={12} />
               <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />

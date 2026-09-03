@@ -4,7 +4,8 @@ import { Users, UserCheck, UserMinus, UserX } from "lucide-react";
 import { PageHeader } from "@/components/app-shell";
 import { EmployeeTable } from "@/components/employee-table";
 import { MetricCard } from "@/components/metric-card";
-import { employees, statusDistribution } from "@/data/employees";
+import { statusDistribution } from "@/data/employees";
+import { useEmployees } from "@/data/employee-store";
 
 export const Route = createFileRoute("/directory")({
   head: () => ({
@@ -26,7 +27,8 @@ export const Route = createFileRoute("/directory")({
 });
 
 function DirectoryPage() {
-  const byStatus = Object.fromEntries(statusDistribution().map((s) => [s.status, s.count]));
+  const employees = useEmployees();
+  const byStatus = Object.fromEntries(statusDistribution(employees).map((s) => [s.status, s.count]));
 
   return (
     <div className="space-y-6">
