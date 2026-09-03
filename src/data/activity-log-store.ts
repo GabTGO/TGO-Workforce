@@ -62,7 +62,9 @@ function fromBackend(row: BackendActivityLog): ActivityLogEntry {
 }
 
 async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
-  const response = await fetch(apiUrl("/activity-logs?limit=200"), { credentials: "include" });
+  const response = await fetch(apiUrl("/activity-logs?limit=200"), {
+    credentials: "include",
+  });
   if (!response.ok) {
     throw new Error(`Failed to load activity logs (${response.status})`);
   }
@@ -70,6 +72,14 @@ async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
   return rows.map(fromBackend);
 }
 
+// Same near-real-time approach as employee-store.ts: a 15s background
+// refetch, not a websocket push — plenty fresh for an audit trail.
+const REALTIME_POLL_MS = 15_000;
+
 export function useActivityLogs() {
-  return useQuery({ queryKey: ["activity-logs"], queryFn: fetchActivityLogs });
+  return useQuery({
+    queryKey: ["activity-logs"],
+    queryFn: fetchActivityLogs,
+    refetchInterval: REALTIME_POLL_MS,
+  });
 }

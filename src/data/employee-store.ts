@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Employee } from "@/data/employees";
 import {
+  bulkDeleteEmployees,
   createEmployee,
   deleteEmployee,
   fetchEmployees,
@@ -22,8 +23,20 @@ import {
 
 const EMPLOYEES_KEY = ["employees"] as const;
 
+// Polling interval for "realtime" data: the app has multiple people signed
+// in at once now (Zoho SSO), so one person's create/edit/delete should show
+// up for everyone else without them having to reload. This isn't push-based
+// (no websocket) — it's a background refetch every 15s, plus React Query's
+// default refetch-on-window-focus, which is enough for HR data that changes
+// on the order of minutes, not milliseconds.
+const REALTIME_POLL_MS = 15_000;
+
 export function useEmployeesQuery() {
-  return useQuery({ queryKey: EMPLOYEES_KEY, queryFn: fetchEmployees });
+  return useQuery({
+    queryKey: EMPLOYEES_KEY,
+    queryFn: fetchEmployees,
+    refetchInterval: REALTIME_POLL_MS,
+  });
 }
 
 /** Convenience for read-only consumers that just want the list — empty while
@@ -42,10 +55,19 @@ export function useCreateEmployee() {
   });
 }
 
+/** `originalId` is the id the record had when editing started (the PATCH
+ * URL); `employee.id` is the form's current value, which may have been
+ * edited — see the doc comment on employee-api.ts's updateEmployee(). */
 export function useUpdateEmployee() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (employee: Employee) => updateEmployee(employee),
+    mutationFn: ({
+      originalId,
+      employee,
+    }: {
+      originalId: string;
+      employee: Employee;
+    }) => updateEmployee(originalId, employee),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: EMPLOYEES_KEY }),
   });
 }
@@ -54,6 +76,15 @@ export function useDeleteEmployee() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteEmployee(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: EMPLOYEES_KEY }),
+  });
+}
+
+/** Checkbox multi-select delete from the Employee Directory table. */
+export function useBulkDeleteEmployees() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => bulkDeleteEmployees(ids),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: EMPLOYEES_KEY }),
   });
 }

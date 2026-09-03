@@ -47,11 +47,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `Request to ${path} failed (${response.status})`);
+    throw new Error(await readErrorMessage(response, path));
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+/** FastAPI error responses are JSON — `{"detail": "message"}` for a plain
+ * HTTPException (400/404/409/...), or `{"detail": [{"msg": "...", ...}, ...]}`
+ * for a Pydantic validation error (422). Surface the human-readable message
+ * either way instead of dumping raw JSON into a toast. */
+async function readErrorMessage(
+  response: Response,
+  path: string,
+): Promise<string> {
+  const fallback = `Request to ${path} failed (${response.status})`;
+  const body = await response.text();
+  if (!body) return fallback;
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (Array.isArray(parsed.detail)) {
+      const messages = parsed.detail
+        .map((item) =>
+          item && typeof item === "object" && "msg" in item
+            ? String(item.msg)
+            : null,
+        )
+        .filter((msg): msg is string => Boolean(msg));
+      if (messages.length > 0) return messages.join("; ");
+    }
+    return fallback;
+  } catch {
+    return body;
+  }
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
@@ -87,7 +116,9 @@ function toCreatePayload(input: NewEmployeeInput) {
   };
 }
 
-export async function createEmployee(input: NewEmployeeInput): Promise<Employee> {
+export async function createEmployee(
+  input: NewEmployeeInput,
+): Promise<Employee> {
   const row = await request<BackendEmployee>("/employees", {
     method: "POST",
     body: JSON.stringify(toCreatePayload(input)),
@@ -97,9 +128,20 @@ export async function createEmployee(input: NewEmployeeInput): Promise<Employee>
 
 /** Full-record save from the Manage Employees edit form — sends every field,
  * including explicit nulls for cleared optional dates, so clearing a field in
- * the form actually clears it server-side rather than leaving the old value. */
-export async function updateEmployee(employee: Employee): Promise<Employee> {
+ * the form actually clears it server-side rather than leaving the old value.
+ *
+ * `originalId` is the record's id *before* this edit — always the URL
+ * segment, since that's how the backend finds the row. `employee.id` is the
+ * form's current value, which the Employee ID field now lets someone edit;
+ * when it differs from `originalId` we send it as a rename (the backend
+ * uniqueness-checks it — see backend/app/api/routes/employees.py). Omitting
+ * it entirely when unchanged avoids a no-op rename round-trip. */
+export async function updateEmployee(
+  originalId: string,
+  employee: Employee,
+): Promise<Employee> {
   const payload = {
+    id: employee.id !== originalId ? employee.id : undefined,
     name: employee.name,
     office: employee.office,
     department: employee.department,
@@ -111,15 +153,32 @@ export async function updateEmployee(employee: Employee): Promise<Employee> {
     birthday: employee.birthday || null,
     source_type: employee.sourceType || null,
   };
-  const row = await request<BackendEmployee>(`/employees/${encodeURIComponent(employee.id)}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
+  const row = await request<BackendEmployee>(
+    `/employees/${encodeURIComponent(originalId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
   return fromBackend(row);
 }
 
 export async function deleteEmployee(id: string): Promise<void> {
-  await request<void>(`/employees/${encodeURIComponent(id)}`, { method: "DELETE" });
+  await request<void>(`/employees/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export type BulkDeleteResult = { deleted: number; notFound: string[] };
+
+export async function bulkDeleteEmployees(
+  ids: string[],
+): Promise<BulkDeleteResult> {
+  const result = await request<{ deleted: number; not_found: string[] }>(
+    "/employees/bulk-delete",
+    { method: "POST", body: JSON.stringify({ ids }) },
+  );
+  return { deleted: result.deleted, notFound: result.not_found };
 }
 
 export type ImportRowInput = Partial<Employee>;

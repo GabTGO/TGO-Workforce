@@ -27,6 +27,11 @@ class EmployeeUpdate(BaseModel):
     """Every field optional — a PATCH only touches what's actually sent, and
     the route logs exactly which fields changed."""
 
+    # id doubles as the primary key (see app/models/employee.py) — the route
+    # handles this specially: a value that differs from the current id
+    # renames the record (uniqueness-checked) rather than being set with the
+    # rest of the fields.
+    id: str | None = None
     name: str | None = None
     office: str | None = None
     department: str | None = None
@@ -60,6 +65,20 @@ class EmployeeImportRow(BaseModel):
 class EmployeeImportResult(BaseModel):
     added: int
     skipped: int
+
+
+class EmployeeBulkDeleteRequest(BaseModel):
+    """Backs the Employee Directory's checkbox multi-select delete."""
+
+    ids: list[str]
+
+
+class EmployeeBulkDeleteResult(BaseModel):
+    deleted: int
+    # ids that were requested but didn't match any record — e.g. another
+    # tab/user already deleted them. Not an error; the caller decides whether
+    # to surface it.
+    not_found: list[str]
 
 
 class EmployeeRead(EmployeeBase):

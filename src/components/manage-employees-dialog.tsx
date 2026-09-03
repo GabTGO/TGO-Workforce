@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpDown, Lock, Pencil, Search, ShieldCheck, Trash2, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpDown,
+  Lock,
+  Pencil,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -14,7 +23,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,8 +38,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useEmployees, useUpdateEmployee, useDeleteEmployee } from "@/data/employee-store";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  useEmployees,
+  useUpdateEmployee,
+  useDeleteEmployee,
+} from "@/data/employee-store";
 import {
   DEPARTMENTS,
   OFFICES,
@@ -40,9 +65,13 @@ import {
 // bulk-edit tools. Swap for a real auth check once the app is backed by a database.
 const MANAGE_PASSWORD = "Gemma";
 
-type SortKey = "id" | "name" | "office" | "department" | "position" | "birthday" | "status";
+type SortKey =
+  "id" | "name" | "office" | "department" | "position" | "birthday" | "status";
 
-const statusVariant: Record<EmployeeStatus, "default" | "secondary" | "destructive"> = {
+const statusVariant: Record<
+  EmployeeStatus,
+  "default" | "secondary" | "destructive"
+> = {
   Active: "default",
   Resigned: "secondary",
   Terminated: "destructive",
@@ -64,6 +93,13 @@ export function ManageEmployeesDialog() {
   });
 
   const [editing, setEditing] = useState<Employee | null>(null);
+  // The id the record had when its edit dialog opened — always the PATCH
+  // URL, since the Employee ID field below is now editable and pendingSave
+  // may carry a *different* id than the one this record is actually stored
+  // under.
+  const [editingOriginalId, setEditingOriginalId] = useState<string | null>(
+    null,
+  );
   const [pendingSave, setPendingSave] = useState<Employee | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Employee | null>(null);
 
@@ -86,7 +122,10 @@ export function ManageEmployeesDialog() {
   }, [rows, query, sort]);
 
   const toggleSort = (key: SortKey) =>
-    setSort((s) => ({ key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" }));
+    setSort((s) => ({
+      key,
+      dir: s.key === key && s.dir === "asc" ? "desc" : "asc",
+    }));
 
   function handleUnlock() {
     if (password === MANAGE_PASSWORD) {
@@ -106,24 +145,37 @@ export function ManageEmployeesDialog() {
       setPassword("");
       setPasswordError(false);
       setQuery("");
+      setEditing(null);
+      setEditingOriginalId(null);
     }
   }
 
   // Editing captures the change, but doesn't commit it — that happens after
   // the confirmation step below, so a save always requires a deliberate second click.
   function requestSave(updated: Employee) {
+    const trimmedId = updated.id.trim();
+    if (!trimmedId) {
+      toast.error("Employee ID can't be empty");
+      return;
+    }
     setEditing(null);
-    setPendingSave(updated);
+    setPendingSave({ ...updated, id: trimmedId });
   }
 
   async function confirmSave() {
-    if (!pendingSave) return;
+    if (!pendingSave || !editingOriginalId) return;
     try {
-      await updateMutation.mutateAsync(pendingSave);
+      await updateMutation.mutateAsync({
+        originalId: editingOriginalId,
+        employee: pendingSave,
+      });
       toast.success(`${pendingSave.name} updated`);
+      setEditingOriginalId(null);
     } catch (error) {
       console.error(error);
-      toast.error(`Couldn't save changes to ${pendingSave.name}. Please try again.`);
+      toast.error(
+        `Couldn't save changes to ${pendingSave.name}. Please try again.`,
+      );
     } finally {
       setPendingSave(null);
     }
@@ -142,7 +194,13 @@ export function ManageEmployeesDialog() {
     }
   }
 
-  const SortHeader = ({ label, sortKey }: { label: string; sortKey: SortKey }) => (
+  const SortHeader = ({
+    label,
+    sortKey,
+  }: {
+    label: string;
+    sortKey: SortKey;
+  }) => (
     <button
       type="button"
       onClick={() => toggleSort(sortKey)}
@@ -171,7 +229,8 @@ export function ManageEmployeesDialog() {
               <div>
                 <h2 className="text-base font-semibold">Manage Employees</h2>
                 <p className="text-sm text-muted-foreground">
-                  Enter the workspace password to edit or remove employee records.
+                  Enter the workspace password to edit or remove employee
+                  records.
                 </p>
               </div>
               <div className="grid w-full gap-2 pt-2 text-left">
@@ -188,7 +247,9 @@ export function ManageEmployeesDialog() {
                   autoFocus
                 />
                 {passwordError && (
-                  <p className="text-xs text-destructive">Incorrect password. Try again.</p>
+                  <p className="text-xs text-destructive">
+                    Incorrect password. Try again.
+                  </p>
                 )}
               </div>
             </div>
@@ -222,41 +283,75 @@ export function ManageEmployeesDialog() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-primary/5 hover:bg-primary/5">
-                    <TableHead><SortHeader label="Employee ID" sortKey="id" /></TableHead>
-                    <TableHead><SortHeader label="Full Name" sortKey="name" /></TableHead>
-                    <TableHead><SortHeader label="Office" sortKey="office" /></TableHead>
-                    <TableHead><SortHeader label="Department" sortKey="department" /></TableHead>
-                    <TableHead><SortHeader label="Position" sortKey="position" /></TableHead>
-                    <TableHead><SortHeader label="Birthday" sortKey="birthday" /></TableHead>
-                    <TableHead><SortHeader label="Status" sortKey="status" /></TableHead>
+                    <TableHead>
+                      <SortHeader label="Employee ID" sortKey="id" />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader label="Full Name" sortKey="name" />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader label="Office" sortKey="office" />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader label="Department" sortKey="department" />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader label="Position" sortKey="position" />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader label="Birthday" sortKey="birthday" />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader label="Status" sortKey="status" />
+                    </TableHead>
                     <TableHead className="text-primary">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={8}
+                        className="h-24 text-center text-muted-foreground"
+                      >
                         No employees match your search.
                       </TableCell>
                     </TableRow>
                   )}
                   {filtered.map((e) => (
                     <TableRow key={e.id}>
-                      <TableCell className="font-mono text-xs">{e.id}</TableCell>
-                      <TableCell className="font-medium whitespace-nowrap">{e.name}</TableCell>
-                      <TableCell className="whitespace-nowrap">{e.office}</TableCell>
-                      <TableCell className="whitespace-nowrap">{e.department}</TableCell>
-                      <TableCell className="whitespace-nowrap">{e.position}</TableCell>
-                      <TableCell className="whitespace-nowrap">{formatDate(e.birthday)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {e.id}
+                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {e.name}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {e.office}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {e.department}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {e.position}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(e.birthday)}
+                      </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
+                        <Badge variant={statusVariant[e.status]}>
+                          {e.status}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <Button
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setEditing(e)}
+                            onClick={() => {
+                              setEditing(e);
+                              setEditingOriginalId(e.id);
+                            }}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -279,7 +374,11 @@ export function ManageEmployeesDialog() {
               <p className="text-sm text-muted-foreground">
                 Showing {filtered.length} of {rows.length} employees
               </p>
-              <Button variant="outline" size="sm" onClick={() => handleClose(false)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleClose(false)}
+              >
                 Close
               </Button>
             </div>
@@ -290,34 +389,52 @@ export function ManageEmployeesDialog() {
       {editing && (
         <EditEmployeeDialog
           employee={editing}
-          onCancel={() => setEditing(null)}
+          onCancel={() => {
+            setEditing(null);
+            setEditingOriginalId(null);
+          }}
           onRequestSave={requestSave}
         />
       )}
 
-      <AlertDialog open={!!pendingSave} onOpenChange={(o) => !o && setPendingSave(null)}>
+      <AlertDialog
+        open={!!pendingSave}
+        onOpenChange={(o) => !o && setPendingSave(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
               <ShieldCheck className="h-5 w-5" />
             </div>
-            <AlertDialogTitle>Save changes to {pendingSave?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Save changes to {pendingSave?.name}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Please confirm you want to apply these changes to this employee's record.
+              {pendingSave &&
+              editingOriginalId &&
+              pendingSave.id !== editingOriginalId
+                ? `This also renames the Employee ID from ${editingOriginalId} to ${pendingSave.id}.`
+                : "Please confirm you want to apply these changes to this employee's record."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setEditing(pendingSave)}>
               Back to edit
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmSave} disabled={updateMutation.isPending}>
+            <AlertDialogAction
+              onClick={confirmSave}
+              disabled={updateMutation.isPending}
+            >
               {updateMutation.isPending ? "Saving..." : "Confirm & Save"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
@@ -325,8 +442,8 @@ export function ManageEmployeesDialog() {
             </div>
             <AlertDialogTitle>Remove {pendingDelete?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes {pendingDelete?.id} from the directory. This can't be
-              undone.
+              This permanently removes {pendingDelete?.id} from the directory.
+              This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -366,11 +483,22 @@ function EditEmployeeDialog({
 
         <div className="space-y-6 py-2">
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">Basic Information</h3>
+            <h3 className="text-sm font-semibold text-primary">
+              Basic Information
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="edit-id">Employee ID</Label>
-                <Input id="edit-id" value={form.id} disabled />
+                <Input
+                  id="edit-id"
+                  value={form.id}
+                  onChange={(e) => setForm({ ...form, id: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used as this record's identifier in Activity Logs and
+                  Excel/CSV imports — change it only to fix a mistake. Must be
+                  unique.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-name">Full Name</Label>
@@ -386,7 +514,9 @@ function EditEmployeeDialog({
                   id="edit-birthday"
                   type="date"
                   value={form.birthday}
-                  onChange={(e) => setForm({ ...form, birthday: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, birthday: e.target.value })
+                  }
                 />
               </div>
               <div className="grid gap-2">
@@ -395,18 +525,25 @@ function EditEmployeeDialog({
                   id="edit-start"
                   type="date"
                   value={form.startDate}
-                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, startDate: e.target.value })
+                  }
                 />
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">Employment Information</h3>
+            <h3 className="text-sm font-semibold text-primary">
+              Employment Information
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Office Location</Label>
-                <Select value={form.office} onValueChange={(v) => setForm({ ...form, office: v })}>
+                <Select
+                  value={form.office}
+                  onValueChange={(v) => setForm({ ...form, office: v })}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -461,7 +598,12 @@ function EditEmployeeDialog({
                   id="edit-job-offer-date"
                   type="date"
                   value={form.jobOfferDate ?? ""}
-                  onChange={(e) => setForm({ ...form, jobOfferDate: e.target.value || undefined })}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      jobOfferDate: e.target.value || undefined,
+                    })
+                  }
                 />
               </div>
             </div>
@@ -474,7 +616,9 @@ function EditEmployeeDialog({
                 <Label>Status</Label>
                 <Select
                   value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v as EmployeeStatus })}
+                  onValueChange={(v) =>
+                    setForm({ ...form, status: v as EmployeeStatus })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -494,7 +638,9 @@ function EditEmployeeDialog({
                   id="edit-exit"
                   type="date"
                   value={form.exitDate ?? ""}
-                  onChange={(e) => setForm({ ...form, exitDate: e.target.value || undefined })}
+                  onChange={(e) =>
+                    setForm({ ...form, exitDate: e.target.value || undefined })
+                  }
                 />
               </div>
             </div>

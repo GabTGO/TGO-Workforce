@@ -11,6 +11,8 @@ from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.employee import Employee, EmployeeStatus
 from app.schemas.employee import (
+    EmployeeBulkDeleteRequest,
+    EmployeeBulkDeleteResult,
     EmployeeCreate,
     EmployeeImportResult,
     EmployeeImportRow,
@@ -150,17 +152,47 @@ async def update_employee(
     db: Annotated[AsyncSession, Depends(get_db)],
     account: CurrentAccount = None,
 ) -> Employee:
-    """Backs the Manage Employees edit dialog."""
+    """Backs the Manage Employees edit dialog — including renaming the
+    Employee ID itself, which doubles as the primary key (see
+    app/models/employee.py). A rename is uniqueness-checked before it's
+    applied; every other field is a normal column update."""
     employee = await db.get(Employee, employee_id)
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
     changes = payload.model_dump(exclude_unset=True)
+
+    old_id = employee.id
+    new_id = changes.pop("id", None)
+    if new_id is not None:
+        new_id = new_id.strip()
+        if not new_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Employee ID can't be empty"
+            )
+        if len(new_id) > 20:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee ID must be 20 characters or fewer",
+            )
+        if new_id != old_id:
+            existing = await db.get(Employee, new_id)
+            if existing is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Employee ID {new_id} is already in use",
+                )
+            employee.id = new_id
+
     for field, value in changes.items():
         setattr(employee, field, value)
     await db.flush()
 
-    if changes:
+    id_changed = new_id is not None and new_id != old_id
+    if changes or id_changed:
+        details: dict[str, object] = {"changed_fields": list(changes.keys())}
+        if id_changed:
+            details["id_changed_from"] = old_id
         await record_activity(
             db,
             action="Updated employee record",
@@ -168,12 +200,49 @@ async def update_employee(
             account=account,
             actor_label=None if account else "System",
             target=f"{employee.id} · {employee.name}",
-            details={"changed_fields": list(changes.keys())},
+            details=details,
             commit=False,
         )
     await db.commit()
     await db.refresh(employee)
     return employee
+
+
+@router.post("/bulk-delete", response_model=EmployeeBulkDeleteResult)
+async def bulk_delete_employees(
+    payload: EmployeeBulkDeleteRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account: CurrentAccount = None,
+) -> EmployeeBulkDeleteResult:
+    """Backs the Employee Directory's checkbox multi-select delete. One
+    activity-log entry for the whole batch (not one per row) so a 40-row
+    cleanup doesn't flood the audit trail."""
+    ids = list(dict.fromkeys(payload.ids))  # de-dupe, keep the request order
+    if not ids:
+        return EmployeeBulkDeleteResult(deleted=0, not_found=[])
+
+    result = await db.execute(select(Employee).where(Employee.id.in_(ids)))
+    found = list(result.scalars().all())
+    found_ids = {e.id for e in found}
+    not_found = [i for i in ids if i not in found_ids]
+
+    for employee in found:
+        await db.delete(employee)
+
+    if found:
+        await record_activity(
+            db,
+            action="Bulk removed employee records",
+            category=ActivityCategory.EMPLOYEE,
+            account=account,
+            actor_label=None if account else "System",
+            severity=ActivitySeverity.WARNING,
+            target=f"{len(found)} record{'s' if len(found) != 1 else ''}",
+            details={"ids": sorted(found_ids)},
+            commit=False,
+        )
+    await db.commit()
+    return EmployeeBulkDeleteResult(deleted=len(found), not_found=not_found)
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)

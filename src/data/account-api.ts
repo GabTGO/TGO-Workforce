@@ -56,10 +56,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `Request to ${path} failed (${response.status})`);
+    throw new Error(await readErrorMessage(response, path));
   }
   return (await response.json()) as T;
+}
+
+/** FastAPI error responses are JSON — `{"detail": "message"}` for a plain
+ * HTTPException, or a Pydantic validation-error array for a 422. Surface the
+ * human-readable message either way instead of a raw JSON blob in a toast. */
+async function readErrorMessage(
+  response: Response,
+  path: string,
+): Promise<string> {
+  const fallback = `Request to ${path} failed (${response.status})`;
+  const body = await response.text();
+  if (!body) return fallback;
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (Array.isArray(parsed.detail)) {
+      const messages = parsed.detail
+        .map((item) =>
+          item && typeof item === "object" && "msg" in item
+            ? String(item.msg)
+            : null,
+        )
+        .filter((msg): msg is string => Boolean(msg));
+      if (messages.length > 0) return messages.join("; ");
+    }
+    return fallback;
+  } catch {
+    return body;
+  }
 }
 
 export async function fetchAccounts(): Promise<Account[]> {

@@ -9,12 +9,21 @@ import { CURRENT_ACCOUNT_KEY } from "@/lib/session";
 
 const ACCOUNTS_KEY = ["accounts"] as const;
 
+// Same near-real-time approach as employee-store.ts (15s background
+// refetch) — two admins can have this page open at once.
+const REALTIME_POLL_MS = 15_000;
+
 /** `enabled` should be gated to `currentAccount?.role === "admin"` by the
  * caller — the backend 403s a non-admin anyway, but there's no reason to
  * fire the request (and log the noisy error) for a role that can never see
  * this page's nav item in the first place. */
 export function useAccountsQuery(enabled: boolean) {
-  return useQuery({ queryKey: ACCOUNTS_KEY, queryFn: fetchAccounts, enabled });
+  return useQuery({
+    queryKey: ACCOUNTS_KEY,
+    queryFn: fetchAccounts,
+    enabled,
+    refetchInterval: enabled ? REALTIME_POLL_MS : false,
+  });
 }
 
 export function useUpdateAccount() {

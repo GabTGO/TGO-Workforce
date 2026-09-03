@@ -109,6 +109,94 @@ async def test_delete_employee_logs_warning_and_404s_after(admin_client) -> None
 
 
 @pytest.mark.asyncio
+async def test_update_employee_can_rename_id(admin_client) -> None:
+    create = await admin_client.post(
+        "/employees", json={"name": "Rename Me", "start_date": "2026-01-01"}
+    )
+    old_id = create.json()["id"]
+
+    update = await admin_client.patch(f"/employees/{old_id}", json={"id": "TGO-CUSTOM-1"})
+    assert update.status_code == 200
+    assert update.json()["id"] == "TGO-CUSTOM-1"
+
+    assert (await admin_client.get(f"/employees/{old_id}")).status_code == 404
+    assert (await admin_client.get("/employees/TGO-CUSTOM-1")).status_code == 200
+
+    logs = await admin_client.get("/activity-logs", params={"category": "employee"})
+    entry = next(row for row in logs.json() if row["target"] == "TGO-CUSTOM-1 · Rename Me")
+    assert entry["details"]["id_changed_from"] == old_id
+
+
+@pytest.mark.asyncio
+async def test_update_employee_id_rejects_duplicate(admin_client) -> None:
+    first = await admin_client.post(
+        "/employees", json={"name": "First", "start_date": "2026-01-01"}
+    )
+    second = await admin_client.post(
+        "/employees", json={"name": "Second", "start_date": "2026-01-01"}
+    )
+    first_id = first.json()["id"]
+    second_id = second.json()["id"]
+
+    response = await admin_client.patch(f"/employees/{second_id}", json={"id": first_id})
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_employee_id_rejects_blank(admin_client) -> None:
+    create = await admin_client.post(
+        "/employees", json={"name": "Blank ID", "start_date": "2026-01-01"}
+    )
+    employee_id = create.json()["id"]
+
+    response = await admin_client.patch(f"/employees/{employee_id}", json={"id": "   "})
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_employees(admin_client) -> None:
+    ids = []
+    for i in range(3):
+        create = await admin_client.post(
+            "/employees", json={"name": f"Bulk {i}", "start_date": "2026-01-01"}
+        )
+        ids.append(create.json()["id"])
+
+    response = await admin_client.post("/employees/bulk-delete", json={"ids": ids})
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 3, "not_found": []}
+
+    for employee_id in ids:
+        assert (await admin_client.get(f"/employees/{employee_id}")).status_code == 404
+
+    logs = await admin_client.get("/activity-logs", params={"category": "employee"})
+    assert any(row["action"] == "Bulk removed employee records" for row in logs.json())
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_reports_not_found_ids(admin_client) -> None:
+    create = await admin_client.post(
+        "/employees", json={"name": "Real Row", "start_date": "2026-01-01"}
+    )
+    real_id = create.json()["id"]
+
+    response = await admin_client.post(
+        "/employees/bulk-delete", json={"ids": [real_id, "TGO-NOPE"]}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["deleted"] == 1
+    assert body["not_found"] == ["TGO-NOPE"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_empty_list_is_a_noop(admin_client) -> None:
+    response = await admin_client.post("/employees/bulk-delete", json={"ids": []})
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 0, "not_found": []}
+
+
+@pytest.mark.asyncio
 async def test_import_skips_rows_without_name(admin_client) -> None:
     response = await admin_client.post(
         "/employees/import",
