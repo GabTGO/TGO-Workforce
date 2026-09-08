@@ -5,6 +5,7 @@
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySeverity
 from app.models.employee import Employee, EmployeeStatus
+from app.models.pending_invite import PendingInvite
 
 __all__ = [
     "Account",
@@ -14,4 +15,5 @@ __all__ = [
     "ActivitySeverity",
     "Employee",
     "EmployeeStatus",
+    "PendingInvite",
 ]

@@ -124,3 +124,105 @@ async def test_admin_cannot_deactivate_self(admin_client) -> None:
 async def test_update_account_not_found(admin_client) -> None:
     response = await admin_client.patch(f"/accounts/{uuid.uuid4()}", json={"role": "admin"})
     assert response.status_code == 404
+
+
+# --- Pending invites (POST /accounts/invites) --------------------------------
+# Lets an admin pre-assign a role to an email that hasn't signed in yet — see
+# app/models/pending_invite.py and test_zoho_login_consumes_pending_invite in
+# test_auth.py for the consuming side of this at first sign-in.
+
+
+@pytest.mark.asyncio
+async def test_invites_requires_admin_role(viewer_client) -> None:
+    response = await viewer_client.get("/accounts/invites")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_invite(admin_client) -> None:
+    response = await admin_client.post(
+        "/accounts/invites", json={"email": "Not.Yet.Signed.In@TGO.internal", "role": "people_ops"}
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    # Stored lowercased so it matches Zoho's Email claim at login regardless
+    # of casing either side typed it with.
+    assert body["email"] == "not.yet.signed.in@tgo.internal"
+    assert body["role"] == "people_ops"
+    assert body["invited_by_label"]
+
+    logs = await admin_client.get("/activity-logs", params={"category": "access"})
+    assert any(row["action"] == "Invited user" for row in logs.json())
+
+
+@pytest.mark.asyncio
+async def test_list_invites_includes_created(admin_client) -> None:
+    await admin_client.post(
+        "/accounts/invites", json={"email": "future.viewer@tgo.internal", "role": "viewer"}
+    )
+
+    response = await admin_client.get("/accounts/invites")
+
+    assert response.status_code == 200
+    emails = [row["email"] for row in response.json()]
+    assert "future.viewer@tgo.internal" in emails
+
+
+@pytest.mark.asyncio
+async def test_create_invite_rejects_already_signed_in_email(admin_client, db_session) -> None:
+    existing = Account(
+        zoho_user_id="zuid-already-signed-in",
+        email="already.here@tgo.internal",
+        role=AccountRole.VIEWER,
+    )
+    db_session.add(existing)
+    await db_session.commit()
+
+    response = await admin_client.post(
+        "/accounts/invites", json={"email": "already.here@tgo.internal", "role": "admin"}
+    )
+
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_invite_twice_updates_role_instead_of_erroring(admin_client) -> None:
+    first = await admin_client.post(
+        "/accounts/invites", json={"email": "typo.role@tgo.internal", "role": "viewer"}
+    )
+    assert first.status_code == 201
+    first_id = first.json()["id"]
+
+    second = await admin_client.post(
+        "/accounts/invites", json={"email": "typo.role@tgo.internal", "role": "hub_lead"}
+    )
+
+    assert second.status_code == 201
+    assert second.json()["id"] == first_id
+    assert second.json()["role"] == "hub_lead"
+
+    # Still just one row, not a duplicate.
+    listing = await admin_client.get("/accounts/invites")
+    matches = [row for row in listing.json() if row["email"] == "typo.role@tgo.internal"]
+    assert len(matches) == 1
+
+
+@pytest.mark.asyncio
+async def test_revoke_invite(admin_client) -> None:
+    create = await admin_client.post(
+        "/accounts/invites", json={"email": "changed.mind@tgo.internal", "role": "people_ops"}
+    )
+    invite_id = create.json()["id"]
+
+    response = await admin_client.delete(f"/accounts/invites/{invite_id}")
+    assert response.status_code == 204
+
+    listing = await admin_client.get("/accounts/invites")
+    assert all(row["id"] != invite_id for row in listing.json())
+
+
+@pytest.mark.asyncio
+async def test_revoke_invite_not_found(admin_client) -> None:
+    response = await admin_client.delete(f"/accounts/invites/{uuid.uuid4()}")
+    assert response.status_code == 404

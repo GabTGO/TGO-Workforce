@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.main import app
 from app.models.account import Account
+from app.models.pending_invite import PendingInvite
 from app.services import zoho
 
 
@@ -127,9 +128,7 @@ async def test_zoho_login_flow_creates_account_and_signs_in(
 
 
 @pytest.mark.asyncio
-async def test_zoho_login_promotes_admin_allowlisted_email(
-    client, db_session, monkeypatch
-) -> None:
+async def test_zoho_login_promotes_admin_allowlisted_email(client, db_session, monkeypatch) -> None:
     """ZOHO_ADMIN_EMAILS is the one bootstrap path to a first admin account —
     a matching email gets promoted to admin right on sign-in, no database
     access required."""
@@ -161,6 +160,101 @@ async def test_zoho_login_promotes_admin_allowlisted_email(
     await client.get(
         "/auth/zoho/callback",
         params={"code": "auth-code-boss", "state": state},
+        follow_redirects=False,
+    )
+    app.dependency_overrides.pop(get_settings, None)
+
+    me_response = await client.get("/auth/me")
+    assert me_response.json()["role"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_zoho_login_consumes_pending_invite(
+    client, db_session, zoho_configured, monkeypatch
+) -> None:
+    """An admin registering a PendingInvite (POST /accounts/invites) before
+    someone's first sign-in should give them that role instead of the usual
+    VIEWER default, and the invite row should be consumed (deleted) so it
+    can't apply a second time."""
+    db_session.add(
+        PendingInvite(
+            email="invited.person@tgo.internal",
+            role="hub_lead",
+            invited_by_label="Test Admin",
+        )
+    )
+    await db_session.commit()
+
+    async def fake_exchange_code_for_token(settings, code):
+        return {"access_token": "fake-access-token"}
+
+    async def fake_fetch_user_info(access_token):
+        # Zoho's Email claim can differ in case from however the invite was
+        # typed — matching is case-insensitive on the invite's (lowercased)
+        # stored email.
+        return {"ZUID": "zuid-invited-1", "Email": "Invited.Person@TGO.internal"}
+
+    monkeypatch.setattr(zoho, "exchange_code_for_token", fake_exchange_code_for_token)
+    monkeypatch.setattr(zoho, "fetch_user_info", fake_fetch_user_info)
+
+    login_response = await client.get("/auth/zoho/login", follow_redirects=False)
+    state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
+    await client.get(
+        "/auth/zoho/callback",
+        params={"code": "auth-code-invited", "state": state},
+        follow_redirects=False,
+    )
+
+    me_response = await client.get("/auth/me")
+    assert me_response.json()["role"] == "hub_lead"
+
+    remaining = await db_session.execute(
+        select(PendingInvite).where(PendingInvite.email == "invited.person@tgo.internal")
+    )
+    assert remaining.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_admin_allowlist_overrides_pending_invite(client, db_session, monkeypatch) -> None:
+    """If an email is both invited (say, as viewer) and on the
+    ZOHO_ADMIN_EMAILS allowlist, the allowlist wins — it's the standing
+    bootstrap mechanism and should never be weaker than a one-off invite."""
+    db_session.add(
+        PendingInvite(
+            email="dual.path@tgo.internal",
+            role="viewer",
+            invited_by_label="Test Admin",
+        )
+    )
+    await db_session.commit()
+
+    def _settings_with_admin_allowlist():
+        return get_settings().model_copy(
+            update={
+                "zoho_client_id": "test-client-id",
+                "zoho_client_secret": "test-client-secret",
+                "zoho_redirect_uri": "http://backend.test/auth/zoho/callback",
+                "frontend_url": "http://frontend.test",
+                "zoho_admin_emails": "dual.path@tgo.internal",
+            }
+        )
+
+    app.dependency_overrides[get_settings] = _settings_with_admin_allowlist
+
+    async def fake_exchange_code_for_token(settings, code):
+        return {"access_token": "fake-access-token"}
+
+    async def fake_fetch_user_info(access_token):
+        return {"ZUID": "zuid-dual-1", "Email": "dual.path@tgo.internal"}
+
+    monkeypatch.setattr(zoho, "exchange_code_for_token", fake_exchange_code_for_token)
+    monkeypatch.setattr(zoho, "fetch_user_info", fake_fetch_user_info)
+
+    login_response = await client.get("/auth/zoho/login", follow_redirects=False)
+    state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
+    await client.get(
+        "/auth/zoho/callback",
+        params={"code": "auth-code-dual", "state": state},
         follow_redirects=False,
     )
     app.dependency_overrides.pop(get_settings, None)

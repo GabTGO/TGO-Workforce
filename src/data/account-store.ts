@@ -1,13 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createPendingInvite,
   fetchAccounts,
+  fetchPendingInvites,
+  revokePendingInvite,
   updateAccount,
   type AccountPatch,
 } from "@/data/account-api";
+import type { AccountRole } from "@/lib/session";
 import { CURRENT_ACCOUNT_KEY } from "@/lib/session";
 
 const ACCOUNTS_KEY = ["accounts"] as const;
+const PENDING_INVITES_KEY = ["pending-invites"] as const;
 
 // Same near-real-time approach as employee-store.ts (15s background
 // refetch) — two admins can have this page open at once.
@@ -37,6 +42,38 @@ export function useUpdateAccount() {
       // server-side for role/active, but display_name/photo_url still go
       // through) or another admin's row affecting the signed-in menu.
       queryClient.invalidateQueries({ queryKey: CURRENT_ACCOUNT_KEY });
+    },
+  });
+}
+
+/** Same `enabled` contract as useAccountsQuery above — gate to
+ * `currentAccount?.role === "admin"` at the call site. */
+export function usePendingInvitesQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: PENDING_INVITES_KEY,
+    queryFn: fetchPendingInvites,
+    enabled,
+    refetchInterval: enabled ? REALTIME_POLL_MS : false,
+  });
+}
+
+export function useCreatePendingInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, role }: { email: string; role: AccountRole }) =>
+      createPendingInvite(email, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PENDING_INVITES_KEY });
+    },
+  });
+}
+
+export function useRevokePendingInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => revokePendingInvite(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PENDING_INVITES_KEY });
     },
   });
 }

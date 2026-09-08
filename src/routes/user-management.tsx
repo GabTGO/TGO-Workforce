@@ -1,11 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ShieldAlert, ShieldCheck, UserCheck, Users } from "lucide-react";
+import {
+  Mail,
+  ShieldAlert,
+  ShieldCheck,
+  UserCheck,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { AddUserDialog } from "@/components/add-user-dialog";
 import { PageHeader } from "@/components/app-shell";
 import { MetricCard } from "@/components/metric-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -29,7 +38,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAccountsQuery, useUpdateAccount } from "@/data/account-store";
+import {
+  useAccountsQuery,
+  usePendingInvitesQuery,
+  useRevokePendingInvite,
+  useUpdateAccount,
+} from "@/data/account-store";
 import { useCurrentAccount, type AccountRole } from "@/lib/session";
 import { ROLE_LABELS, ROLE_OPTIONS } from "@/lib/roles";
 
@@ -79,6 +93,8 @@ function UserManagementPage() {
 
   const accountsQuery = useAccountsQuery(isAdmin);
   const updateAccount = useUpdateAccount();
+  const invitesQuery = usePendingInvitesQuery(isAdmin);
+  const revokeInvite = useRevokePendingInvite();
 
   if (currentLoading) {
     return (
@@ -122,6 +138,7 @@ function UserManagementPage() {
   const accounts = accountsQuery.data ?? [];
   const admins = accounts.filter((a) => a.role === "admin").length;
   const active = accounts.filter((a) => a.isActive).length;
+  const invites = invitesQuery.data ?? [];
 
   async function handleRoleChange(accountId: string, role: AccountRole) {
     try {
@@ -145,11 +162,23 @@ function UserManagementPage() {
     }
   }
 
+  async function handleRevokeInvite(inviteId: string, email: string) {
+    try {
+      await revokeInvite.mutateAsync(inviteId);
+      toast.success(`Revoked invite for ${email}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't revoke invite",
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="User Management"
         description="Everyone who has signed in via Zoho, and what they can do here."
+        action={<AddUserDialog />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -305,6 +334,97 @@ function UserManagementPage() {
                     </TableRow>
                   );
                 })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pending Invites</CardTitle>
+          <CardDescription>
+            Emails an admin pre-assigned a role to before they've signed in. The
+            role applies automatically on their first Zoho sign-in — this
+            doesn't send them anything, so let them know to go sign in.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Invited by</TableHead>
+                <TableHead>Invited</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invitesQuery.isLoading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="h-20 text-center text-muted-foreground"
+                  >
+                    Loading invites...
+                  </TableCell>
+                </TableRow>
+              ) : invitesQuery.isError ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="h-20 text-center text-muted-foreground"
+                  >
+                    Couldn't load pending invites. Try refreshing the page.
+                  </TableCell>
+                </TableRow>
+              ) : invites.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="h-20 text-center text-muted-foreground"
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <Mail className="h-5 w-5 text-muted-foreground/60" />
+                      No pending invites. Use "Add User" above to pre-assign a
+                      role before someone's first sign-in.
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                invites.map((invite) => (
+                  <TableRow key={invite.id}>
+                    <TableCell className="font-medium">
+                      {invite.email}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {ROLE_LABELS[invite.role]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {invite.invitedByLabel}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDateTime(invite.createdAt)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={revokeInvite.isPending}
+                        onClick={() =>
+                          handleRevokeInvite(invite.id, invite.email)
+                        }
+                        aria-label={`Revoke invite for ${invite.email}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>

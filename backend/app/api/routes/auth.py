@@ -4,7 +4,10 @@
 /auth/zoho/callback is where Zoho sends the browser back once the person
                      approves — this exchanges the code, upserts the Account
                      row (matched on Zoho's stable ZUID), and sets the session
-                     cookie.
+                     cookie. A brand-new account's role comes from a matching
+                     PendingInvite (see app/models/pending_invite.py) if an
+                     admin registered one via POST /accounts/invites, or the
+                     usual VIEWER default otherwise.
 /auth/me           tells the frontend who (if anyone) is currently signed in.
 /auth/me/preferences lets that same person update their own personalization
                      (theme, default office, notification toggles) — see
@@ -27,6 +30,7 @@ from app.core.auth import get_current_account, require_account
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
+from app.models.pending_invite import PendingInvite
 from app.schemas.account import AccountPreferencesUpdate, AccountRead
 from app.services import zoho
 
@@ -78,19 +82,29 @@ async def zoho_callback(
 
     now = datetime.now(UTC)
     if account is None:
-        # First-ever sign-in for this person — role defaults to VIEWER (see
-        # Account.role); an admin promotes them from there. There's no public
-        # "create account" endpoint on purpose — this upsert-on-login is the
-        # only way a row in accounts ever gets created.
+        # First-ever sign-in for this person. There's no public "create
+        # account" endpoint on purpose — this upsert-on-login is the only way
+        # a row in accounts ever gets created — but an admin can pre-assign a
+        # role for this email via POST /accounts/invites before they ever
+        # sign in (see app/models/pending_invite.py); consume that here if
+        # one's waiting, otherwise fall back to the usual VIEWER default.
+        invite_result = await db.execute(
+            select(PendingInvite).where(PendingInvite.email == email.lower())
+        )
+        pending_invite = invite_result.scalar_one_or_none()
+
         account = Account(
             zoho_user_id=zuid,
             email=email,
             first_name=profile.get("First_Name"),
             last_name=profile.get("Last_Name"),
             display_name=profile.get("Display_Name"),
+            role=pending_invite.role if pending_invite else AccountRole.VIEWER,
             last_login_at=now,
         )
         db.add(account)
+        if pending_invite is not None:
+            await db.delete(pending_invite)
     else:
         account.email = email
         account.first_name = profile.get("First_Name")
