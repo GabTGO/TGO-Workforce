@@ -48,7 +48,11 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Overview",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Analytics", url: "/analytics", icon: BarChart3 },
+      // Admin-only: Analytics rolls up numbers across every module (Employee
+      // Directory, Onboarding, Attendance), which no single module-siloed
+      // role should see in full — see app/routes/analytics.tsx's own isAdmin
+      // gate, which enforces this independent of what the nav shows.
+      { title: "Analytics", url: "/analytics", icon: BarChart3, adminOnly: true },
     ],
   },
   {
@@ -120,10 +124,10 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-tight">
-                TGO Workforce
+                Torero Global Outsourcing
               </p>
-              <p className="truncate text-xs text-muted-foreground">
-                Automation and AI Portal Internal operations workspace
+              <p className="truncate text-xs uppercase tracking-wide text-muted-foreground">
+                HR Operations
               </p>
             </div>
           )}

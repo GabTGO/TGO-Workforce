@@ -31,17 +31,17 @@ import {
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings — TGO Workforce" },
+      { title: "Settings — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Configure workspace defaults and notification preferences for TGO Workforce.",
+          "Configure workspace defaults and notification preferences for HR Operations.",
       },
-      { property: "og:title", content: "Settings — TGO Workforce" },
+      { property: "og:title", content: "Settings — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content:
-          "Workspace preferences for the TGO internal operations portal.",
+          "Workspace preferences for the Torero Global Outsourcing HR Operations portal.",
       },
     ],
   }),
@@ -106,8 +106,8 @@ function SettingsPage() {
         <CardHeader>
           <CardTitle>Workspace</CardTitle>
           <CardDescription>
-            TGO Workforce — internal operations portal. Your default office
-            pre-fills the New Hire form's office picker.
+            Torero Global Outsourcing HR Operations — internal operations portal. Your default
+            office pre-fills the New Hire form's office picker.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

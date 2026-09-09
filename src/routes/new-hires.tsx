@@ -42,13 +42,13 @@ import { canManageEmployees } from "@/lib/permissions";
 export const Route = createFileRoute("/new-hires")({
   head: () => ({
     meta: [
-      { title: "New Hires — TGO Workforce" },
+      { title: "New Hires — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
           "Employees who joined TGO in the last twelve months, with onboarding details.",
       },
-      { property: "og:title", content: "New Hires — TGO Workforce" },
+      { property: "og:title", content: "New Hires — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content: "Track recent TGO hires by hub, department and start date.",

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   AlertTriangle,
+  Bell,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -34,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/metric-card";
 import { OnboardingExportButton, OnboardingImportDialog } from "@/components/onboarding-import-export";
 import { OnboardingHireDialog } from "@/components/onboarding-hire-dialog";
+import { OnboardingNotifyDialog } from "@/components/onboarding-notify-dialog";
 import {
   Table,
   TableBody,
@@ -50,13 +52,13 @@ import { useCurrentAccount } from "@/lib/session";
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
-      { title: "Onboarding — TGO Workforce" },
+      { title: "Onboarding — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
           "Track new hires through the 7-step onboarding checklist, from job offer discussion to onboarding day.",
       },
-      { property: "og:title", content: "Onboarding — TGO Workforce" },
+      { property: "og:title", content: "Onboarding — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content: "The onboarding checklist tracker for recruitment and HR.",
@@ -106,6 +108,13 @@ function OnboardingPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<NewHire | null>(null);
+  const [notified, setNotified] = useState<Record<string, boolean>>({});
+
+  function handleNotified(hire: NewHire) {
+    toast.success(`Notification sent for ${hire.name}`);
+    setNotified((prev) => ({ ...prev, [hire.id]: true }));
+    setTimeout(() => setNotified((prev) => ({ ...prev, [hire.id]: false })), 1800);
+  }
 
   const leadOptions = useMemo(
     () => Array.from(new Set(hires.map((h) => h.recruitmentLead).filter(Boolean))).sort(),
@@ -267,6 +276,18 @@ function OnboardingPage() {
       <div className="flex flex-wrap items-center gap-2">
         <OnboardingExportButton hires={filtered} />
         {canManage && <OnboardingImportDialog />}
+        {canManage && hires.length > 0 && (
+          <OnboardingNotifyDialog
+            hires={hires}
+            onSent={handleNotified}
+            trigger={
+              <Button size="sm" variant="outline" className="h-8">
+                <Bell className="h-3.5 w-3.5" />
+                Notify
+              </Button>
+            }
+          />
+        )}
       </div>
 
       <Card>
@@ -326,6 +347,21 @@ function OnboardingPage() {
                     {canManage && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <OnboardingNotifyDialog
+                            hires={hires}
+                            initialHire={hire}
+                            onSent={handleNotified}
+                            trigger={
+                              <Button
+                                size="icon"
+                                variant={notified[hire.id] ? "secondary" : "ghost"}
+                                title="Notify"
+                                className="h-7 w-7"
+                              >
+                                <Bell className="h-3.5 w-3.5" />
+                              </Button>
+                            }
+                          />
                           <OnboardingHireDialog
                             hire={hire}
                             trigger={

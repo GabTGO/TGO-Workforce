@@ -33,13 +33,16 @@ const SEVERITY_VARIANT: Record<ActivitySeverity, "secondary" | "outline" | "dest
 export const Route = createFileRoute("/activity-logs")({
   head: () => ({
     meta: [
-      { title: "Activity Logs — TGO Workforce" },
+      { title: "Activity Logs — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Audit trail of employee record changes, access events, data exports and system jobs in TGO Workforce.",
+          "Audit trail of employee record changes, access events, data exports and system jobs in HR Operations.",
       },
-      { property: "og:title", content: "Activity Logs — TGO Workforce" },
+      {
+        property: "og:title",
+        content: "Activity Logs — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
         content: "Track who changed what across the TGO internal operations portal.",

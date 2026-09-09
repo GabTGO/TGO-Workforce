@@ -80,14 +80,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "TGO Workforce — Automation and AI Portal" },
+      { title: "Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Internal workforce portal for TGO automation and AI operations: directory, analytics and milestones.",
+          "Internal HR operations portal for Torero Global Outsourcing: employee directory, onboarding, attendance and analytics.",
       },
-      { name: "author", content: "TGO" },
-      { property: "og:title", content: "TGO Workforce — Automation and AI Portal" },
+      { name: "author", content: "Torero Global Outsourcing" },
+      { property: "og:title", content: "Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content: "Internal operations workspace for the TGO workforce.",

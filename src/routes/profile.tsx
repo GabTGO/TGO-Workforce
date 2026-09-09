@@ -25,13 +25,13 @@ import { ROLE_LABELS } from "@/lib/roles";
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
-      { title: "Profile — TGO Workforce" },
+      { title: "Profile — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Your account details and personalization settings for TGO Workforce.",
+          "Your account details and personalization settings for HR Operations.",
       },
-      { property: "og:title", content: "Profile — TGO Workforce" },
+      { property: "og:title", content: "Profile — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content: "Account identity and appearance preferences.",
@@ -82,7 +82,7 @@ function ProfilePage() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title="Profile"
-        description="Your account and how TGO Workforce looks for you."
+        description="Your account and how HR Operations looks for you."
       />
 
       <Card>

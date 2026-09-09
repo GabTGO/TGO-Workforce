@@ -4,6 +4,7 @@ import {
   createNewHire,
   deleteNewHire,
   fetchNewHires,
+  sendCliqNotification,
   updateNewHire,
   type NewHire,
   type NewHireInput,
@@ -66,5 +67,13 @@ export function useDeleteNewHire() {
   return useMutation({
     mutationFn: (id: string) => deleteNewHire(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: NEW_HIRES_KEY }),
+  });
+}
+
+/** No cache to invalidate — sending a Cliq notification doesn't change any
+ * new-hire row, it just relays a message (see onboarding-notify-dialog.tsx). */
+export function useSendCliqNotification() {
+  return useMutation({
+    mutationFn: (message: string) => sendCliqNotification(message),
   });
 }

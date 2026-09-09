@@ -78,6 +78,19 @@ class Settings(BaseSettings):
     # separate from the API — see that module's docstring.
     violation_send_worker_poll_seconds: int = 120
 
+    # --- Zoho Cliq (onboarding "Notify" button) ---------------------------
+    # A Cliq Incoming Webhook, ported from the standalone onboarding app
+    # (backend/CLIQ_SETUP.md there) — one-time setup: generate a Webhook
+    # Token from a Cliq account's own Settings > Bots & Tools > Webhook
+    # Tokens (NOT the channel's Connectors tab, which is for a different,
+    # unrelated Cliq feature). See app/services/cliq_notify.py.
+    cliq_webhook_endpoint: str = ""
+    cliq_webhook_token: str = ""
+
+    @property
+    def cliq_configured(self) -> bool:
+        return bool(self.cliq_webhook_endpoint and self.cliq_webhook_token)
+
     @property
     def zoho_configured(self) -> bool:
         return bool(self.zoho_client_id and self.zoho_client_secret and self.zoho_redirect_uri)

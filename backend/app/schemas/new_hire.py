@@ -51,3 +51,11 @@ class NewHireRead(NewHireBase):
     completed_by: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class CliqNotifyRequest(BaseModel):
+    """The frontend builds and previews this text (see
+    src/lib/onboarding-notify.ts) before the person confirms sending it —
+    this endpoint just relays it to Cliq verbatim, it doesn't rebuild it."""
+
+    message: str

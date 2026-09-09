@@ -55,11 +55,14 @@ async def require_admin(
 
 
 # Roles allowed to create/edit/delete/import employee records (RBAC policy
-# agreed 2026-09-03). Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts
-# on the frontend — keep the two in sync. Viewer is deliberately excluded:
-# read (list/get) and export stay open to every signed-in role, but any
-# mutation to the employee roster requires one of these three.
-EMPLOYEE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS, AccountRole.HUB_LEAD}
+# tightened to one-role-per-module 2026-09-09: each non-admin role now owns
+# exactly one module — People Ops owns Employee Directory, Hub Lead owns
+# Attendance, Recruitment owns Onboarding — only Admin crosses modules.
+# Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts on the frontend —
+# keep the two in sync. Viewer is deliberately excluded: read (list/get) and
+# export stay open to every signed-in role, but any mutation to the employee
+# roster requires one of these two.
+EMPLOYEE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS}
 
 
 async def require_employee_writer(
@@ -96,14 +99,20 @@ async def require_onboarding_writer(
 
 # Roles allowed to create/edit/import attendance violation records, ported
 # from the standalone attendance app (formerly "hr"/"projects"/"admin").
+# One-role-per-module policy (2026-09-09): Hub Lead is now the sole
+# non-admin owner of the whole Attendance module (write AND approve — see
+# ATTENDANCE_APPROVE_ROLES below), not just the "projects" write-only slice
+# it inherited from the standalone app. People Ops no longer reaches into
+# Attendance at all; it's scoped to Employee Directory only.
 # Mirrors ATTENDANCE_WRITE_ROLES in src/lib/permissions.ts.
-ATTENDANCE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS, AccountRole.HUB_LEAD}
+ATTENDANCE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.HUB_LEAD}
 
-# Narrower than ATTENDANCE_WRITE_ROLES: only these roles may approve/hold/
-# send/resend a violation record (formerly "hr"/"admin" only in the
-# standalone app) — HUB_LEAD can prepare a record but not approve its own
-# submission. Mirrors ATTENDANCE_APPROVE_ROLES in src/lib/permissions.ts.
-ATTENDANCE_APPROVE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS}
+# Same role set as ATTENDANCE_WRITE_ROLES now that Hub Lead owns the whole
+# module solo — kept as a separate function/constant (rather than collapsing
+# into one) so approve/hold/send/resend stays independently gate-able if a
+# narrower split is ever reintroduced. Mirrors ATTENDANCE_APPROVE_ROLES in
+# src/lib/permissions.ts.
+ATTENDANCE_APPROVE_ROLES = {AccountRole.ADMIN, AccountRole.HUB_LEAD}
 
 
 async def require_violation_writer(

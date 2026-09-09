@@ -29,15 +29,18 @@ import {
 export const Route = createFileRoute("/attendance-reports")({
   head: () => ({
     meta: [
-      { title: "Attendance Reports — TGO Workforce" },
+      { title: "Attendance Reports — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content: "Filter and generate formatted attendance violation summary reports (xlsx/pdf).",
       },
-      { property: "og:title", content: "Attendance Reports — TGO Workforce" },
+      {
+        property: "og:title",
+        content: "Attendance Reports — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
-        content: "Attendance violation summary reports for TGO Workforce.",
+        content: "Attendance violation summary reports for Torero Global Outsourcing HR Operations.",
       },
     ],
   }),

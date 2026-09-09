@@ -11,12 +11,12 @@ import tgoLogoOnDark from "@/assets/tgo-logo-ondark.png";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign In — TGO Workforce" },
+      { title: "Sign In — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
-        content: "Sign in to the TGO Workforce portal with your Zoho account.",
+        content: "Sign in to the Torero Global Outsourcing HR Operations portal with your Zoho account.",
       },
-      { property: "og:title", content: "Sign In — TGO Workforce" },
+      { property: "og:title", content: "Sign In — Torero Global Outsourcing HR Operations" },
     ],
   }),
   component: LoginPage,
@@ -82,7 +82,7 @@ function LoginPage() {
           <div className="mx-auto w-full max-w-xs">
             <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sign in to your TGO Workforce account
+              Sign in to your HR Operations account
             </p>
             <Button
               className="mt-6 w-full shadow-sm transition-shadow hover:shadow-md"
@@ -92,8 +92,8 @@ function LoginPage() {
               Continue with Zoho
             </Button>
             <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
-              Access is limited to People Ops and Hub Leads. Contact your admin if you can't sign
-              in.
+              Access is limited to authorized HR Operations staff. Contact your admin if you
+              can't sign in.
             </p>
           </div>
         </div>
@@ -115,12 +115,12 @@ function LoginPage() {
             className="relative h-16 w-auto object-contain"
           />
           <div className="relative">
-            <p className="text-[11px] font-medium uppercase tracking-widest text-white/40">
-              Workforce Operations
+            <h2 className="text-xl font-semibold text-white">Torero Global Outsourcing</h2>
+            <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-white/40">
+              HR Operations
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-white">TGO Workforce</h2>
-            <p className="mt-1 max-w-[240px] text-sm text-white/60">
-              For TGO's People Operations team
+            <p className="mt-2 max-w-[240px] text-sm text-white/60">
+              For Torero Global Outsourcing's HR Operations team
             </p>
           </div>
           <ul className="relative flex w-full flex-col gap-3">

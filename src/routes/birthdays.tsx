@@ -12,12 +12,12 @@ import { useEmployees } from "@/data/employee-store";
 export const Route = createFileRoute("/birthdays")({
   head: () => ({
     meta: [
-      { title: "Birthdays — TGO Workforce" },
+      { title: "Birthdays — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content: "Employee birthday calendar for TGO teams, grouped by month.",
       },
-      { property: "og:title", content: "Birthdays — TGO Workforce" },
+      { property: "og:title", content: "Birthdays — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content: "Plan celebrations with the TGO employee birthday calendar.",

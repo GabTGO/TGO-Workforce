@@ -98,7 +98,7 @@ export async function exportEmployeesPdf(
   const doc = new JsPDF({ orientation: "landscape" });
 
   doc.setFontSize(14);
-  doc.text("TGO Workforce — Employee Directory", 14, 15);
+  doc.text("Torero Global Outsourcing HR Operations — Employee Directory", 14, 15);
   doc.setFontSize(9);
   doc.setTextColor(110);
   doc.text(
@@ -133,7 +133,7 @@ export async function exportEmployeesPdf(
 // anyone having to remap columns by hand.
 //
 // Note on "Status": those legacy files use a different status vocabulary
-// (e.g. "Termed", "Withdraw", "JO Accepted") than TGO Workforce's own
+// (e.g. "Termed", "Withdraw", "JO Accepted") than HR Operations' own
 // Active/Resigned/Terminated states. This export keeps our real status
 // values rather than inventing a mapping to statuses our system doesn't
 // track — flag it if the team needs those extra states represented.

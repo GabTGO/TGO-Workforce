@@ -205,3 +205,12 @@ export async function updateNewHire(
 export async function deleteNewHire(id: string): Promise<void> {
   await request<void>(`/onboarding/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+/** Relays a "Notify" message (built by src/lib/onboarding-notify.ts) to Zoho
+ * Cliq — see backend/app/api/routes/new_hires.py's POST /onboarding/notify. */
+export async function sendCliqNotification(message: string): Promise<void> {
+  await request<void>("/onboarding/notify", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}

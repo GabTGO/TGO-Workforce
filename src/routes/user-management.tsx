@@ -50,13 +50,13 @@ import { ROLE_LABELS, ROLE_OPTIONS } from "@/lib/roles";
 export const Route = createFileRoute("/user-management")({
   head: () => ({
     meta: [
-      { title: "User Management — TGO Workforce" },
+      { title: "User Management — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Manage sign-in roles and access for the TGO Workforce portal.",
+          "Manage sign-in roles and access for the Torero Global Outsourcing HR Operations portal.",
       },
-      { property: "og:title", content: "User Management — TGO Workforce" },
+      { property: "og:title", content: "User Management — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content: "Admin-only: promote, demote or deactivate portal accounts.",

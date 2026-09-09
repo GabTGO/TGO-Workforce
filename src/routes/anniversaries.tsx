@@ -12,12 +12,15 @@ import { useEmployees } from "@/data/employee-store";
 export const Route = createFileRoute("/anniversaries")({
   head: () => ({
     meta: [
-      { title: "Work Anniversaries — TGO Workforce" },
+      { title: "Work Anniversaries — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content: "Upcoming TGO work anniversaries and tenure milestones by month.",
       },
-      { property: "og:title", content: "Work Anniversaries — TGO Workforce" },
+      {
+        property: "og:title",
+        content: "Work Anniversaries — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
         content: "Recognise tenure milestones across TGO delivery hubs.",

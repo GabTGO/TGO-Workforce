@@ -8,6 +8,10 @@ import {
   Globe2,
   ArrowRight,
   Cake,
+  ClipboardCheck,
+  ShieldAlert,
+  Send,
+  CircleAlert,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
@@ -33,6 +37,9 @@ import {
   officeDistribution,
   upcomingBirthdays,
 } from "@/data/employees";
+import { computeStatus } from "@/data/new-hire-api";
+import { useNewHires } from "@/data/new-hire-store";
+import { useViolationsQuery } from "@/data/violation-store";
 import { useCurrentAccount } from "@/lib/session";
 import { canManageEmployees } from "@/lib/permissions";
 
@@ -56,13 +63,13 @@ function isWithinNextWeek(monthIndex: number, day: number): boolean {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — TGO Workforce Portal" },
+      { title: "Dashboard — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Operational snapshot of TGO Workforce: active headcount, new hires, exits and hub distribution.",
+          "Operational snapshot across every HR Operations module: headcount, onboarding progress, attendance violations and hub distribution.",
       },
-      { property: "og:title", content: "Dashboard — TGO Workforce Portal" },
+      { property: "og:title", content: "Dashboard — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
         content:
@@ -84,6 +91,29 @@ function Dashboard() {
   const birthdaysThisWeek = upcomingBirthdays(employees).filter((e) =>
     isWithinNextWeek(e.monthIndex, e.day),
   );
+
+  // Cross-module snapshot — every signed-in role sees this, same as every
+  // other read in the app (reads stay open across modules; only writes and
+  // the deep-dive Analytics page are role/admin-gated). This is the "one
+  // dashboard" home view: a person whose role only lets them *manage* one
+  // module can still see at a glance what's happening in the others.
+  const newHires = useNewHires();
+  const onboardingStats = {
+    total: newHires.length,
+    complete: newHires.filter((h) => computeStatus(h) === "Complete").length,
+    inProgress: newHires.filter((h) => computeStatus(h) === "In Progress").length,
+  };
+
+  const { data: violationsPage } = useViolationsQuery({}, 0, 500);
+  const violations = violationsPage?.items ?? [];
+  const violationStats = {
+    total: violationsPage?.total ?? violations.length,
+    pending: violations.filter(
+      (v) => !["Sent", "Failed"].includes(v.emailStatus),
+    ).length,
+    sent: violations.filter((v) => v.emailStatus === "Sent").length,
+    failed: violations.filter((v) => v.emailStatus === "Failed").length,
+  };
 
   // Personalization from Settings — each person's Dashboard only shows the
   // cards they've asked to see. Default to shown while the account is still
@@ -166,6 +196,78 @@ function Dashboard() {
           hint="LATAM delivery hub"
           icon={Globe2}
         />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+              Onboarding Snapshot
+            </CardTitle>
+            <CardDescription>New hires moving through the checklist</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-2xl font-semibold">{onboardingStats.total}</p>
+                <p className="text-xs text-muted-foreground">Tracked</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold">{onboardingStats.inProgress}</p>
+                <p className="text-xs text-muted-foreground">In Progress</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold">{onboardingStats.complete}</p>
+                <p className="text-xs text-muted-foreground">Complete</p>
+              </div>
+            </div>
+            <Button asChild size="sm" variant="outline" className="w-full">
+              <Link to="/onboarding">
+                Open onboarding <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+              Attendance Snapshot
+            </CardTitle>
+            <CardDescription>Violation records across every status</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-2xl font-semibold">{violationStats.pending}</p>
+                <p className="text-xs text-muted-foreground">Pending</p>
+              </div>
+              <div>
+                <p className="flex items-center justify-center gap-1 text-2xl font-semibold">
+                  <Send className="h-4 w-4 text-muted-foreground" />
+                  {violationStats.sent}
+                </p>
+                <p className="text-xs text-muted-foreground">Sent</p>
+              </div>
+              <div>
+                <p className="flex items-center justify-center gap-1 text-2xl font-semibold">
+                  {violationStats.failed > 0 && (
+                    <CircleAlert className="h-4 w-4 text-destructive" />
+                  )}
+                  {violationStats.failed}
+                </p>
+                <p className="text-xs text-muted-foreground">Failed</p>
+              </div>
+            </div>
+            <Button asChild size="sm" variant="outline" className="w-full">
+              <Link to="/attendance-violations">
+                Open attendance <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

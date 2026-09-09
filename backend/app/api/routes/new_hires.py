@@ -32,8 +32,13 @@ from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.new_hire import NewHire
-from app.schemas.new_hire import NewHireCreate, NewHireRead, NewHireUpdate
+from app.schemas.new_hire import CliqNotifyRequest, NewHireCreate, NewHireRead, NewHireUpdate
 from app.services.activity_log import record_activity
+from app.services.cliq_notify import (
+    CliqNotConfiguredError,
+    CliqRejectedError,
+    send_cliq_notification,
+)
 
 # Router-level dependency: every route here requires a signed-in account
 # (401 otherwise). The two read routes (list/get) stop there, so every
@@ -169,3 +174,31 @@ async def delete_new_hire(
         commit=False,
     )
     await db.commit()
+
+
+@router.post("/notify", status_code=status.HTTP_204_NO_CONTENT)
+async def notify_cliq(
+    payload: CliqNotifyRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account: WriterAccount,
+) -> None:
+    """Relays the "Notify" confirmation dialog's previewed message to Zoho
+    Cliq — ported from the standalone onboarding app's POST /api/notify/cliq.
+    Gated the same as every other onboarding write (require_onboarding_writer)
+    rather than the source app's plain require_account, since sending a
+    notification is a module action like any other under the one-role-per-
+    module policy."""
+    try:
+        await send_cliq_notification(payload.message)
+    except CliqNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except CliqRejectedError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    await record_activity(
+        db,
+        action="Sent Cliq notification",
+        category=ActivityCategory.ONBOARDING,
+        account=account,
+        target=payload.message.splitlines()[0] if payload.message else None,
+    )

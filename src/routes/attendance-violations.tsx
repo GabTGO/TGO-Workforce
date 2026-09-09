@@ -54,16 +54,19 @@ import { canApproveAttendance, canManageAttendance } from "@/lib/permissions";
 export const Route = createFileRoute("/attendance-violations")({
   head: () => ({
     meta: [
-      { title: "Attendance Violations — TGO Workforce" },
+      { title: "Attendance Violations — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
           "Track attendance violation records through Draft, Approval and Sent, with automated employee notification emails.",
       },
-      { property: "og:title", content: "Attendance Violations — TGO Workforce" },
+      {
+        property: "og:title",
+        content: "Attendance Violations — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
-        content: "Attendance violation tracking and email automation for TGO Workforce.",
+        content: "Attendance violation tracking and email automation for Torero Global Outsourcing HR Operations.",
       },
     ],
   }),

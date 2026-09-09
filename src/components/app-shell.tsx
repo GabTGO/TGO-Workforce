@@ -103,7 +103,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden sm:block">
-                  <BreadcrumbLink href="/">TGO Workforce</BreadcrumbLink>
+                  <BreadcrumbLink href="/">Torero Global Outsourcing</BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden sm:block" />
                 <BreadcrumbItem>

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
+import { ShieldAlert } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,20 +24,23 @@ import { useEmployees } from "@/data/employee-store";
 import type { NewHire } from "@/data/new-hire-api";
 import { useNewHires } from "@/data/new-hire-store";
 import { useAnalyticsOverviewQuery } from "@/data/violation-store";
+import { ROLE_LABELS } from "@/lib/roles";
+import { useCurrentAccount } from "@/lib/session";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({
     meta: [
-      { title: "Analytics — TGO Workforce" },
+      { title: "Analytics — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
-          "Charts covering hiring trend, headcount growth, onboarding completion and attendance violations across TGO.",
+          "Charts covering hiring trend, headcount growth, onboarding completion and attendance violations across every module.",
       },
-      { property: "og:title", content: "Analytics — TGO Workforce" },
+      { property: "og:title", content: "Analytics — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
-        content: "Visual breakdown of TGO headcount, onboarding progress and attendance violations.",
+        content:
+          "Cross-module visual breakdown of headcount, onboarding progress and attendance violations.",
       },
     ],
   }),
@@ -154,12 +158,49 @@ function ViolationsByOfficeChart() {
 
 function AnalyticsPage() {
   const employees = useEmployees();
+  const { data: account, isLoading: accountLoading } = useCurrentAccount();
+  const isAdmin = account?.role === "admin";
+
+  // Analytics rolls up numbers across every module (Employee Directory,
+  // Onboarding, Attendance) — no single module-siloed role should see the
+  // full cross-module picture, only Admin. Same wall pattern as
+  // user-management.tsx; the nav item is also hidden for non-admins (see
+  // app-sidebar.tsx's adminOnly flag), this is the page's own enforcement of
+  // that in case someone navigates here directly by URL.
+  if (accountLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Analytics" description="Cross-module reporting." />
+        <p className="text-sm text-muted-foreground">Checking access…</p>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Analytics" description="Cross-module reporting." />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Admins only</p>
+              <p className="text-sm text-muted-foreground">
+                Your account ({account ? ROLE_LABELS[account.role] : "signed out"}) doesn't have
+                access to this page. Ask an existing admin if you need it.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Hiring, onboarding progress and attendance analysis across TGO delivery hubs."
+        description="Hiring, onboarding progress and attendance analysis across every module."
       />
       <Tabs defaultValue="workforce">
         <TabsList>

@@ -10,13 +10,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import require_account
+from app.core.auth import require_admin
 from app.core.db import get_db
 from app.models.violation import ViolationRecord
 from app.schemas.violation import AnalyticsOverview
 
+# Admin-only: this overview is consumed exclusively by the frontend's
+# Analytics page (src/routes/analytics.tsx), which itself is admin-only —
+# Hub Lead already sees full violation detail on its own Attendance
+# Violations page, but the cross-module Analytics rollup is reserved for
+# Admin, so this endpoint is gated the same way rather than just relying on
+# the frontend to hide the button.
 router = APIRouter(
-    prefix="/violation-analytics", tags=["violation-analytics"], dependencies=[Depends(require_account)]
+    prefix="/violation-analytics", tags=["violation-analytics"], dependencies=[Depends(require_admin)]
 )
 
 
