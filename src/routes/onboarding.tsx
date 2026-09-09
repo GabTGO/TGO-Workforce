@@ -77,23 +77,19 @@ type ChecklistKey =
   | "credentialsCreated"
   | "onboardingDay";
 
-// Labels and column order match the SOP's section 4.1 column reference table
-// exactly (A Name, B Role, C Start Date, D Recruitment Lead, E Onboarding
-// Specialist, F-H items 1-3, I Completed By, J-M items 4-7, N Status) — see
-// the table rendering below, which splits the checklist in two so Completed
-// By (column I) lands between item 3 and item 4, not after item 7.
-const CHECKLIST_COLUMNS_PART1: { key: ChecklistKey; label: string }[] = [
+// Field labels match the SOP's section 4.1 column reference table (items
+// 1-7); Completed By is rendered after all seven checkboxes rather than at
+// its SOP column position (between items 3 and 4) — a deliberate UI
+// deviation from the SOP's literal column order, requested directly.
+const CHECKLIST_COLUMNS: { key: ChecklistKey; label: string }[] = [
   { key: "joDiscussion", label: "1. JO Discussion" },
   { key: "confirmationSigned", label: "2. Confirmation Sheet Signed" },
   { key: "welcomeEmailSent", label: "3. Welcome Email Sent" },
-];
-const CHECKLIST_COLUMNS_PART2: { key: ChecklistKey; label: string }[] = [
   { key: "newHireInfo", label: "4. New Hire Info Completed" },
   { key: "idPhoto", label: "5. ID Photo Provided" },
   { key: "credentialsCreated", label: "6. Credentials Created" },
   { key: "onboardingDay", label: "7. Onboarding Day" },
 ];
-const CHECKLIST_COLUMNS = [...CHECKLIST_COLUMNS_PART1, ...CHECKLIST_COLUMNS_PART2];
 
 const PAGE_SIZE = 8;
 
@@ -298,17 +294,12 @@ function OnboardingPage() {
                 <TableHead className="min-w-[160px]">Start Date</TableHead>
                 <TableHead className="min-w-[140px]">Recruitment Lead</TableHead>
                 <TableHead className="min-w-[150px]">Onboarding Specialist</TableHead>
-                {CHECKLIST_COLUMNS_PART1.map((col) => (
+                {CHECKLIST_COLUMNS.map((col) => (
                   <TableHead key={col.key} className="text-center">
                     {col.label}
                   </TableHead>
                 ))}
                 <TableHead className="min-w-[150px]">Completed By</TableHead>
-                {CHECKLIST_COLUMNS_PART2.map((col) => (
-                  <TableHead key={col.key} className="text-center">
-                    {col.label}
-                  </TableHead>
-                ))}
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
@@ -341,7 +332,7 @@ function OnboardingPage() {
                         <span className="italic text-muted-foreground/60">—</span>
                       )}
                     </TableCell>
-                    {CHECKLIST_COLUMNS_PART1.map((col) => (
+                    {CHECKLIST_COLUMNS.map((col) => (
                       <TableCell key={col.key} className="text-center">
                         <Checkbox
                           checked={hire[col.key]}
@@ -357,19 +348,6 @@ function OnboardingPage() {
                     <TableCell className="text-muted-foreground">
                       {hire.completedBy ?? <span className="italic text-muted-foreground/60">—</span>}
                     </TableCell>
-                    {CHECKLIST_COLUMNS_PART2.map((col) => (
-                      <TableCell key={col.key} className="text-center">
-                        <Checkbox
-                          checked={hire[col.key]}
-                          disabled={
-                            !canEditOnboardingField(account?.role, col.key) ||
-                            updateMutation.isPending
-                          }
-                          onCheckedChange={() => handleToggle(hire, col.key)}
-                          className="mx-auto"
-                        />
-                      </TableCell>
-                    ))}
                     <TableCell>
                       <StatusBadge status={status} />
                     </TableCell>
