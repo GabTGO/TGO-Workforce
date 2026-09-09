@@ -1,0 +1,17 @@
+# The attendance-violation send worker, deployed as its own Railway service —
+# same pattern as the standalone attendance app's backend/Dockerfile.worker.
+# Polls for Approved/Resend Approved violation records and sends them via
+# Zoho Mail; see app/workers/violation_email_worker.py. Runs against the same
+# Postgres as the main backend service (set DATABASE_URL to the same
+# reference), which is the one that runs migrations — this service only ever
+# reads/writes rows, it never runs alembic itself.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "-m", "app.workers.violation_email_worker"]

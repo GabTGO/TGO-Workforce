@@ -1,11 +1,12 @@
 # Local development only. On Railway, backend/worker/frontend are three
-# separate services (backend on Nixpacks per backend/railway.json, worker on
-# Nixpacks per backend/railway.worker.json — set that as the worker service's
-# Config File Path in Railway's dashboard) plus a managed Postgres add-on.
-# This compose file is not what gets deployed, it's for running the backend
-# + worker + database on your laptop. Run the frontend separately with
-# `npm run dev` (in src's parent directory) — it has no Dockerfile here since
-# Railway/Nixpacks don't need one for it either.
+# separate services — backend on Nixpacks (backend/railway.json), worker as
+# its own Dockerfile-builder service pointed at backend/Dockerfile.worker
+# (same pattern as the standalone attendance app's TGO AV Worker service) —
+# plus a managed Postgres add-on shared by backend and worker. This compose
+# file is not what gets deployed, it's for running the backend + worker +
+# database on your laptop. Run the frontend separately with `npm run dev`
+# (in src's parent directory) — it has no Dockerfile here since Railway/
+# Nixpacks don't need one for it either.
 version: "3.9"
 
 services:
@@ -31,8 +32,9 @@ services:
       - db
 
   worker:
-    build: ./backend
-    command: ["python", "-m", "app.workers.violation_email_worker"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
     env_file: ./backend/.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/tgo_workforce
