@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/table";
 import { computeStatus, type NewHire, type NewHirePatch } from "@/data/new-hire-api";
 import { useDeleteNewHire, useNewHires, useUpdateNewHire } from "@/data/new-hire-store";
-import { canManageOnboarding } from "@/lib/permissions";
+import { canEditOnboardingField, canManageOnboarding } from "@/lib/permissions";
 import { useCurrentAccount } from "@/lib/session";
 
 export const Route = createFileRoute("/onboarding")({
@@ -77,15 +77,23 @@ type ChecklistKey =
   | "credentialsCreated"
   | "onboardingDay";
 
-const CHECKLIST_COLUMNS: { key: ChecklistKey; label: string }[] = [
+// Labels and column order match the SOP's section 4.1 column reference table
+// exactly (A Name, B Role, C Start Date, D Recruitment Lead, E Onboarding
+// Specialist, F-H items 1-3, I Completed By, J-M items 4-7, N Status) — see
+// the table rendering below, which splits the checklist in two so Completed
+// By (column I) lands between item 3 and item 4, not after item 7.
+const CHECKLIST_COLUMNS_PART1: { key: ChecklistKey; label: string }[] = [
   { key: "joDiscussion", label: "1. JO Discussion" },
-  { key: "confirmationSigned", label: "2. Confirmation Signed" },
-  { key: "welcomeEmailSent", label: "3. Welcome Email" },
-  { key: "newHireInfo", label: "4. Info Completed" },
-  { key: "idPhoto", label: "5. ID Photo" },
-  { key: "credentialsCreated", label: "6. Credentials" },
+  { key: "confirmationSigned", label: "2. Confirmation Sheet Signed" },
+  { key: "welcomeEmailSent", label: "3. Welcome Email Sent" },
+];
+const CHECKLIST_COLUMNS_PART2: { key: ChecklistKey; label: string }[] = [
+  { key: "newHireInfo", label: "4. New Hire Info Completed" },
+  { key: "idPhoto", label: "5. ID Photo Provided" },
+  { key: "credentialsCreated", label: "6. Credentials Created" },
   { key: "onboardingDay", label: "7. Onboarding Day" },
 ];
+const CHECKLIST_COLUMNS = [...CHECKLIST_COLUMNS_PART1, ...CHECKLIST_COLUMNS_PART2];
 
 const PAGE_SIZE = 8;
 
@@ -161,23 +169,13 @@ function OnboardingPage() {
     setPage(1);
   }
 
-  // Checking a later step (e.g. "6. Credentials") implies every earlier step
-  // already happened, so ticking it also ticks anything before it that isn't
-  // already checked — same UX carried over from the source onboarding app's
-  // Dashboard.tsx. Unchecking only clears the one box; it doesn't cascade
-  // backwards.
+  // One checkbox, one field — no cross-step cascade. The SOP's protected
+  // ranges mean Recruitment Lead and Onboarding Specialist each only ever
+  // touch their own half of the checklist (see canEditOnboardingField), so
+  // ticking a later step can't imply earlier ones the acting role may not
+  // even be able to see confirmed, let alone write.
   async function handleToggle(hire: NewHire, field: ChecklistKey) {
-    const idx = CHECKLIST_COLUMNS.findIndex((c) => c.key === field);
-    const turningOn = !hire[field];
-    const patch: NewHirePatch = {};
-    if (turningOn) {
-      for (let i = 0; i <= idx; i++) {
-        const key = CHECKLIST_COLUMNS[i]!.key;
-        if (!hire[key]) patch[key] = true;
-      }
-    } else {
-      patch[field] = false;
-    }
+    const patch: NewHirePatch = { [field]: !hire[field] };
     try {
       await updateMutation.mutateAsync({ id: hire.id, patch });
     } catch (error) {
@@ -298,12 +296,19 @@ function OnboardingPage() {
                 <TableHead className="min-w-[160px]">Name</TableHead>
                 <TableHead className="min-w-[140px]">Role</TableHead>
                 <TableHead className="min-w-[160px]">Start Date</TableHead>
-                {CHECKLIST_COLUMNS.map((col) => (
+                <TableHead className="min-w-[140px]">Recruitment Lead</TableHead>
+                <TableHead className="min-w-[150px]">Onboarding Specialist</TableHead>
+                {CHECKLIST_COLUMNS_PART1.map((col) => (
                   <TableHead key={col.key} className="text-center">
                     {col.label}
                   </TableHead>
                 ))}
                 <TableHead className="min-w-[150px]">Completed By</TableHead>
+                {CHECKLIST_COLUMNS_PART2.map((col) => (
+                  <TableHead key={col.key} className="text-center">
+                    {col.label}
+                  </TableHead>
+                ))}
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
@@ -312,7 +317,7 @@ function OnboardingPage() {
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={CHECKLIST_COLUMNS.length + (canManage ? 6 : 5)}
+                    colSpan={CHECKLIST_COLUMNS.length + (canManage ? 9 : 8)}
                     className="h-24 text-center text-muted-foreground"
                   >
                     {hires.length === 0
@@ -328,11 +333,22 @@ function OnboardingPage() {
                     <TableCell className="font-medium">{hire.name}</TableCell>
                     <TableCell className="text-muted-foreground">{hire.roleTitle}</TableCell>
                     <TableCell className="text-muted-foreground">{hire.startDate}</TableCell>
-                    {CHECKLIST_COLUMNS.map((col) => (
+                    <TableCell className="text-muted-foreground">
+                      {hire.recruitmentLead || <span className="italic text-muted-foreground/60">—</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {hire.onboardingSpecialist || (
+                        <span className="italic text-muted-foreground/60">—</span>
+                      )}
+                    </TableCell>
+                    {CHECKLIST_COLUMNS_PART1.map((col) => (
                       <TableCell key={col.key} className="text-center">
                         <Checkbox
                           checked={hire[col.key]}
-                          disabled={!canManage || updateMutation.isPending}
+                          disabled={
+                            !canEditOnboardingField(account?.role, col.key) ||
+                            updateMutation.isPending
+                          }
                           onCheckedChange={() => handleToggle(hire, col.key)}
                           className="mx-auto"
                         />
@@ -341,6 +357,19 @@ function OnboardingPage() {
                     <TableCell className="text-muted-foreground">
                       {hire.completedBy ?? <span className="italic text-muted-foreground/60">—</span>}
                     </TableCell>
+                    {CHECKLIST_COLUMNS_PART2.map((col) => (
+                      <TableCell key={col.key} className="text-center">
+                        <Checkbox
+                          checked={hire[col.key]}
+                          disabled={
+                            !canEditOnboardingField(account?.role, col.key) ||
+                            updateMutation.isPending
+                          }
+                          onCheckedChange={() => handleToggle(hire, col.key)}
+                          className="mx-auto"
+                        />
+                      </TableCell>
+                    ))}
                     <TableCell>
                       <StatusBadge status={status} />
                     </TableCell>

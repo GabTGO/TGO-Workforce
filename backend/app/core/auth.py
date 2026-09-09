@@ -57,7 +57,8 @@ async def require_admin(
 # Roles allowed to create/edit/delete/import employee records (RBAC policy
 # tightened to one-role-per-module 2026-09-09: each non-admin role now owns
 # exactly one module — People Ops owns Employee Directory, Hub Lead owns
-# Attendance, Recruitment owns Onboarding — only Admin crosses modules.
+# Attendance, Recruitment Lead + Onboarding Specialist split Onboarding by
+# checklist field (see ROLE_FIELD_ACCESS below) — only Admin crosses modules.
 # Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts on the frontend —
 # keep the two in sync. Viewer is deliberately excluded: read (list/get) and
 # export stay open to every signed-in role, but any mutation to the employee
@@ -80,10 +81,18 @@ async def require_employee_writer(
     return account
 
 
-# Roles allowed to create/edit/delete the onboarding checklist (new hires
-# tracker, ported from the standalone onboarding app). Mirrors
-# ONBOARDING_WRITE_ROLES in src/lib/permissions.ts — keep the two in sync.
-ONBOARDING_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.RECRUITMENT}
+# Roles allowed to touch the onboarding checklist at all (new hires tracker,
+# ported from the standalone onboarding app). This is the broad "reaches this
+# router" check — Recruitment Lead and Onboarding Specialist are further
+# restricted to their own checklist fields by ROLE_FIELD_ACCESS in
+# app/api/routes/new_hires.py (per the New Hire Onboarding Tracker SOP), not
+# by this constant. Mirrors ONBOARDING_WRITE_ROLES in src/lib/permissions.ts
+# — keep the two in sync.
+ONBOARDING_WRITE_ROLES = {
+    AccountRole.ADMIN,
+    AccountRole.RECRUITMENT_LEAD,
+    AccountRole.ONBOARDING_SPECIALIST,
+}
 
 
 async def require_onboarding_writer(

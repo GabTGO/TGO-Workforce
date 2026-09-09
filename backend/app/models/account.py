@@ -31,7 +31,17 @@ class AccountRole(enum.StrEnum):
     ADMIN = "admin"
     PEOPLE_OPS = "people_ops"
     HUB_LEAD = "hub_lead"
-    RECRUITMENT = "recruitment"
+    # Onboarding is split into two roles, not one — per the New Hire
+    # Onboarding Tracker SOP (2026-09-09 correction; an earlier single
+    # "recruitment" role was wrong): Recruitment Lead owns checklist items
+    # 1-2, Onboarding Specialist owns items 4-7, item 3 (Welcome Email Sent)
+    # is shared by both. See ROLE_FIELD_ACCESS in
+    # app/api/routes/new_hires.py for the exact field-level matrix. The old
+    # "recruitment" enum value is retired but not removed from the Postgres
+    # type (Postgres can't drop a single enum value without recreating the
+    # whole type) — nothing in the app writes or reads it anymore.
+    RECRUITMENT_LEAD = "recruitment_lead"
+    ONBOARDING_SPECIALIST = "onboarding_specialist"
     VIEWER = "viewer"
 
 

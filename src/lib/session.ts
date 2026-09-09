@@ -8,7 +8,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiUrl } from "@/lib/api";
 
-export type AccountRole = "admin" | "people_ops" | "hub_lead" | "recruitment" | "viewer";
+export type AccountRole =
+  | "admin"
+  | "people_ops"
+  | "hub_lead"
+  | "recruitment_lead"
+  | "onboarding_specialist"
+  | "viewer";
 export type Theme = "light" | "dark";
 
 export type AccountProfile = {

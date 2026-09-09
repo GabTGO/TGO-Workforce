@@ -1,23 +1,21 @@
 """CRUD for the onboarding checklist tracker (new hire rows), ported from the
 standalone tgo-onboarding-app's backend/app/routers/new_hires.py.
 
-Two differences from that source router, both intentional simplifications
-for the merged role model:
+Field-level role split (corrected 2026-09-09 against the New Hire Onboarding
+Tracker SOP): Recruitment Lead and Onboarding Specialist are two distinct
+roles, not one merged role — see ROLE_FIELD_ACCESS below for the exact
+per-field write matrix, which mirrors the SOP's protected-range design
+(Recruitment Leads write F:G [items 1-2], Onboarding Specialist writes J:M
+[items 4-7], H [item 3, Welcome Email Sent] is writable by either since it
+depends on whichever person is available first).
 
-- No separate audit_logs table / entity-specific audit endpoint — every
-  create/update/delete calls record_activity() (app/services/activity_log.py)
-  with category=ActivityCategory.ONBOARDING instead, same as every other
-  domain in this app. The shared GET /activity-logs?category=onboarding
-  endpoint (app/api/routes/activity_logs.py) is what the source app's
-  per-entity "/new-hires/{id}/audit-log" route used to be.
-- No field-by-field ROLE_FIELD_ACCESS matrix. The source app distinguished
-  "recruitment_lead" from "onboarding_specialist" and gated each of the 7
-  checklist fields to one or the other; the unified AccountRole enum only has
-  a single RECRUITMENT role now, so that distinction no longer exists. Any
-  signed-in RECRUITMENT or ADMIN account may edit any field on any row —
-  enforced by gating the whole write surface on require_onboarding_writer
-  (see app/core/auth.py) rather than re-deriving a per-field matrix that
-  wouldn't mean anything anymore.
+One difference from the source app: no separate audit_logs table /
+entity-specific audit endpoint — every create/update/delete calls
+record_activity() (app/services/activity_log.py) with
+category=ActivityCategory.ONBOARDING instead, same as every other domain in
+this app. The shared GET /activity-logs?category=onboarding endpoint
+(app/api/routes/activity_logs.py) is what the source app's per-entity
+"/new-hires/{id}/audit-log" route used to be.
 """
 
 from typing import Annotated
@@ -29,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_account, require_account, require_onboarding_writer
 from app.core.db import get_db
-from app.models.account import Account
+from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.new_hire import NewHire
 from app.schemas.new_hire import CliqNotifyRequest, NewHireCreate, NewHireRead, NewHireUpdate
@@ -44,7 +42,9 @@ from app.services.cliq_notify import (
 # (401 otherwise). The two read routes (list/get) stop there, so every
 # signed-in role — including viewer — can see the tracker. The three write
 # routes below additionally depend on require_onboarding_writer, which
-# rejects a signed-in non-admin/non-recruitment account with 403.
+# rejects a signed-in account that's neither an onboarding role nor admin
+# with 403 — update_new_hire then further restricts *which* fields within
+# that request are allowed via ROLE_FIELD_ACCESS below.
 router = APIRouter(prefix="/onboarding", tags=["onboarding"], dependencies=[Depends(require_account)])
 
 CurrentAccount = Annotated[Account | None, Depends(get_current_account)]
@@ -52,6 +52,37 @@ CurrentAccount = Annotated[Account | None, Depends(get_current_account)]
 # three write routes below for activity-log attribution and the
 # "Completed By" auto-stamp.
 WriterAccount = Annotated[Account, Depends(require_onboarding_writer)]
+
+# Which roles may change each checklist field — the SOP's protected-range
+# split (section 3, "Roles & Responsibilities"): Recruitment Lead owns items
+# 1-2, Onboarding Specialist owns items 4-7, item 3 (Welcome Email Sent) is
+# shared since it depends on whichever person is available first. Fields not
+# listed here (name, role_title, start_date, recruitment_lead,
+# onboarding_specialist name-assignment, completed_by) stay open to any
+# onboarding role — they're not part of the SOP's protected-range table.
+ROLE_FIELD_ACCESS: dict[str, set[AccountRole]] = {
+    "jo_discussion": {AccountRole.RECRUITMENT_LEAD, AccountRole.ADMIN},
+    "confirmation_signed": {AccountRole.RECRUITMENT_LEAD, AccountRole.ADMIN},
+    "welcome_email_sent": {
+        AccountRole.RECRUITMENT_LEAD,
+        AccountRole.ONBOARDING_SPECIALIST,
+        AccountRole.ADMIN,
+    },
+    "new_hire_info": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
+    "id_photo": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
+    "credentials_created": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
+    "onboarding_day": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
+}
+
+FIELD_LABELS = {
+    "jo_discussion": "JO Discussion",
+    "confirmation_signed": "Confirmation Sheet Signed",
+    "welcome_email_sent": "Welcome Email Sent",
+    "new_hire_info": "New Hire Info Completed",
+    "id_photo": "ID Photo Provided",
+    "credentials_created": "Credentials Created",
+    "onboarding_day": "Onboarding Day",
+}
 
 
 def _actor_label(account: Account) -> str:
@@ -129,6 +160,21 @@ async def update_new_hire(
     hire = _get_or_404(await db.get(NewHire, hire_id))
 
     changes = payload.model_dump(exclude_unset=True)
+
+    # Validate every changed checklist field's role permission BEFORE writing
+    # anything — otherwise a request touching one allowed field and one
+    # blocked field could partially apply, which is worse than rejecting the
+    # whole request outright. Fields absent from ROLE_FIELD_ACCESS (name,
+    # start_date, etc.) aren't part of the SOP's protected ranges, so they're
+    # open to any onboarding role (already enforced by WriterAccount above).
+    for field in changes:
+        allowed_roles = ROLE_FIELD_ACCESS.get(field)
+        if allowed_roles is not None and account.role not in allowed_roles:
+            label = FIELD_LABELS.get(field, field)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Your role can't edit '{label}'.",
+            )
 
     # The SOP's "Completed By" rule, carried over from the source app: the
     # first time Welcome Email Sent flips from false to true, stamp it with
