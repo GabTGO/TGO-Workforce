@@ -48,9 +48,49 @@ class Settings(BaseSettings):
     # promoted from the User Management page by an existing admin.
     zoho_admin_emails: str = ""
 
+    # --- Zoho Mail (attendance violation notices) -----------------------------
+    # A SEPARATE Zoho API registration/scope from zoho_client_id/secret above:
+    # those are for "Sign in with Zoho" (AaaServer.profile.READ, shared across
+    # the whole merged app); these are for actually sending mail through the
+    # Zoho Mail API (ZohoMail.messages.CREATE) on behalf of the attendance
+    # notice mailbox, ported from the standalone attendance app's
+    # zoho_mail_* settings. Keep the two client id/secret pairs distinct even
+    # if they end up pointing at the same Zoho org — a scope change to one
+    # (e.g. widening login's profile scope) should never accidentally touch
+    # the other's send credentials.
+    zoho_mail_client_id: str = ""
+    zoho_mail_client_secret: str = ""
+    zoho_mail_refresh_token: str = ""
+    # The Zoho Mail "accountId" that owns the sending mailbox (attendance@...).
+    zoho_mail_account_id: str = ""
+    zoho_mail_from_address: str = "attendance@tgocorp.com"
+    zoho_mail_api_base_url: str = "https://mail.zoho.com/api"
+    # Comma-separated list of OTHER addresses validated as "send as" aliases
+    # on the connected Zoho Mail account, if any exist beyond
+    # zoho_mail_from_address. Surfaced via GET /violations/email-sender-config
+    # so the "From address override" picker in the UI only offers addresses
+    # someone has actually confirmed Zoho will honor.
+    zoho_mail_known_aliases: str = ""
+
+    # How often (in seconds) the standalone send worker
+    # (app/workers/violation_email_worker.py) polls for Approved/Resend
+    # Approved violation records to send. Runs as its own process/service,
+    # separate from the API — see that module's docstring.
+    violation_send_worker_poll_seconds: int = 120
+
     @property
     def zoho_configured(self) -> bool:
         return bool(self.zoho_client_id and self.zoho_client_secret and self.zoho_redirect_uri)
+
+    @property
+    def zoho_mail_configured(self) -> bool:
+        return bool(
+            self.zoho_mail_client_id and self.zoho_mail_client_secret and self.zoho_mail_refresh_token
+        )
+
+    @property
+    def zoho_mail_known_alias_list(self) -> list[str]:
+        return [a.strip() for a in self.zoho_mail_known_aliases.split(",") if a.strip()]
 
     @property
     def admin_email_set(self) -> set[str]:

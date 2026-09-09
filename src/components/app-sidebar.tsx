@@ -10,6 +10,9 @@ import {
   ScrollText,
   Settings,
   UserCog,
+  ClipboardCheck,
+  ShieldAlert,
+  FileBarChart,
 } from "lucide-react";
 
 import logoLight from "@/assets/tgo-logo-light.png";
@@ -53,6 +56,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "Employee Directory", url: "/directory", icon: Users },
       { title: "New Hires", url: "/new-hires", icon: UserPlus },
+      { title: "Onboarding", url: "/onboarding", icon: ClipboardCheck },
     ],
   },
   {
@@ -60,6 +64,13 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "Anniversaries", url: "/anniversaries", icon: Award },
       { title: "Birthdays", url: "/birthdays", icon: Cake },
+    ],
+  },
+  {
+    label: "Attendance",
+    items: [
+      { title: "Violations", url: "/attendance-violations", icon: ShieldAlert },
+      { title: "Reports", url: "/attendance-reports", icon: FileBarChart },
     ],
   },
   {

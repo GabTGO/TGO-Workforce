@@ -8,7 +8,13 @@ import { apiUrl } from "@/lib/api";
 // default, which is plenty fresh for an audit log) and filtered client-side
 // by the Activity Logs page, same as the old hardcoded sample data did.
 
-export type ActivityCategory = "Employee" | "Access" | "Data" | "System";
+export type ActivityCategory =
+  | "Employee"
+  | "Access"
+  | "Data"
+  | "System"
+  | "Onboarding"
+  | "Attendance";
 export type ActivitySeverity = "info" | "warning" | "critical";
 
 export type ActivityLogEntry = {
@@ -27,7 +33,7 @@ type BackendActivityLog = {
   actor_label: string;
   action: string;
   target: string | null;
-  category: "employee" | "access" | "data" | "system";
+  category: "employee" | "access" | "data" | "system" | "onboarding" | "attendance";
   severity: ActivitySeverity;
   details: Record<string, unknown> | null;
   created_at: string;

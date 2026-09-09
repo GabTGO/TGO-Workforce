@@ -1,0 +1,43 @@
+# Local development only. On Railway, backend/worker/frontend are three
+# separate services (backend on Nixpacks per backend/railway.json, worker on
+# Nixpacks per backend/railway.worker.json — set that as the worker service's
+# Config File Path in Railway's dashboard) plus a managed Postgres add-on.
+# This compose file is not what gets deployed, it's for running the backend
+# + worker + database on your laptop. Run the frontend separately with
+# `npm run dev` (in src's parent directory) — it has no Dockerfile here since
+# Railway/Nixpacks don't need one for it either.
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tgo_workforce
+    ports:
+      - "5432:5432"
+    volumes:
+      - tgo_workforce_db_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/tgo_workforce
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.workers.violation_email_worker"]
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/tgo_workforce
+    depends_on:
+      - db
+
+volumes:
+  tgo_workforce_db_data:

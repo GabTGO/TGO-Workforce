@@ -5,7 +5,15 @@
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySeverity
 from app.models.employee import Employee, EmployeeStatus
+from app.models.new_hire import NewHire
 from app.models.pending_invite import PendingInvite
+from app.models.violation import (
+    EmailStatus,
+    ImportBatch,
+    Office,
+    ViolationRecord,
+    ViolationType,
+)
 
 __all__ = [
     "Account",
@@ -13,7 +21,13 @@ __all__ = [
     "ActivityCategory",
     "ActivityLog",
     "ActivitySeverity",
+    "EmailStatus",
     "Employee",
     "EmployeeStatus",
+    "ImportBatch",
+    "NewHire",
+    "Office",
     "PendingInvite",
+    "ViolationRecord",
+    "ViolationType",
 ]

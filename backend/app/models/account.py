@@ -31,6 +31,7 @@ class AccountRole(enum.StrEnum):
     ADMIN = "admin"
     PEOPLE_OPS = "people_ops"
     HUB_LEAD = "hub_lead"
+    RECRUITMENT = "recruitment"
     VIEWER = "viewer"
 
 

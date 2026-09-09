@@ -27,6 +27,8 @@ class ActivityCategory(enum.StrEnum):
     ACCESS = "access"
     DATA = "data"
     SYSTEM = "system"
+    ONBOARDING = "onboarding"
+    ATTENDANCE = "attendance"
 
 
 class ActivitySeverity(enum.StrEnum):

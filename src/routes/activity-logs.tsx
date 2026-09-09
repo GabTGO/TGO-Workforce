@@ -120,6 +120,8 @@ function ActivityLogsPage() {
                 <SelectItem value="Access">Access</SelectItem>
                 <SelectItem value="Data">Data</SelectItem>
                 <SelectItem value="System">System</SelectItem>
+                <SelectItem value="Onboarding">Onboarding</SelectItem>
+                <SelectItem value="Attendance">Attendance</SelectItem>
               </SelectContent>
             </Select>
             <Select value={severity} onValueChange={setSeverity}>

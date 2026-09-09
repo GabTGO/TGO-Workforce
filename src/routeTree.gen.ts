@@ -13,10 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityLogsRouteImport } from './routes/activity-logs'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AnniversariesRouteImport } from './routes/anniversaries'
+import { Route as AttendanceReportsRouteImport } from './routes/attendance-reports'
+import { Route as AttendanceViolationsRouteImport } from './routes/attendance-violations'
 import { Route as BirthdaysRouteImport } from './routes/birthdays'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NewHiresRouteImport } from './routes/new-hires'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UserManagementRouteImport } from './routes/user-management'
@@ -42,6 +45,16 @@ const AnniversariesRoute = AnniversariesRouteImport.update({
   path: '/anniversaries',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AttendanceReportsRoute = AttendanceReportsRouteImport.update({
+  id: '/attendance-reports',
+  path: '/attendance-reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AttendanceViolationsRoute = AttendanceViolationsRouteImport.update({
+  id: '/attendance-violations',
+  path: '/attendance-violations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BirthdaysRoute = BirthdaysRouteImport.update({
   id: '/birthdays',
   path: '/birthdays',
@@ -60,6 +73,11 @@ const LoginRoute = LoginRouteImport.update({
 const NewHiresRoute = NewHiresRouteImport.update({
   id: '/new-hires',
   path: '/new-hires',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -88,10 +106,13 @@ export interface FileRoutesByFullPath {
   '/activity-logs': typeof ActivityLogsRoute
   '/analytics': typeof AnalyticsRoute
   '/anniversaries': typeof AnniversariesRoute
+  '/attendance-reports': typeof AttendanceReportsRoute
+  '/attendance-violations': typeof AttendanceViolationsRoute
   '/birthdays': typeof BirthdaysRoute
   '/directory': typeof DirectoryRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRoute
@@ -102,10 +123,13 @@ export interface FileRoutesByTo {
   '/activity-logs': typeof ActivityLogsRoute
   '/analytics': typeof AnalyticsRoute
   '/anniversaries': typeof AnniversariesRoute
+  '/attendance-reports': typeof AttendanceReportsRoute
+  '/attendance-violations': typeof AttendanceViolationsRoute
   '/birthdays': typeof BirthdaysRoute
   '/directory': typeof DirectoryRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRoute
@@ -117,10 +141,13 @@ export interface FileRoutesById {
   '/activity-logs': typeof ActivityLogsRoute
   '/analytics': typeof AnalyticsRoute
   '/anniversaries': typeof AnniversariesRoute
+  '/attendance-reports': typeof AttendanceReportsRoute
+  '/attendance-violations': typeof AttendanceViolationsRoute
   '/birthdays': typeof BirthdaysRoute
   '/directory': typeof DirectoryRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRoute
@@ -133,10 +160,13 @@ export interface FileRouteTypes {
     | '/activity-logs'
     | '/analytics'
     | '/anniversaries'
+    | '/attendance-reports'
+    | '/attendance-violations'
     | '/birthdays'
     | '/directory'
     | '/login'
     | '/new-hires'
+    | '/onboarding'
     | '/profile'
     | '/settings'
     | '/user-management'
@@ -147,10 +177,13 @@ export interface FileRouteTypes {
     | '/activity-logs'
     | '/analytics'
     | '/anniversaries'
+    | '/attendance-reports'
+    | '/attendance-violations'
     | '/birthdays'
     | '/directory'
     | '/login'
     | '/new-hires'
+    | '/onboarding'
     | '/profile'
     | '/settings'
     | '/user-management'
@@ -161,10 +194,13 @@ export interface FileRouteTypes {
     | '/activity-logs'
     | '/analytics'
     | '/anniversaries'
+    | '/attendance-reports'
+    | '/attendance-violations'
     | '/birthdays'
     | '/directory'
     | '/login'
     | '/new-hires'
+    | '/onboarding'
     | '/profile'
     | '/settings'
     | '/user-management'
@@ -176,10 +212,13 @@ export interface RootRouteChildren {
   ActivityLogsRoute: typeof ActivityLogsRoute
   AnalyticsRoute: typeof AnalyticsRoute
   AnniversariesRoute: typeof AnniversariesRoute
+  AttendanceReportsRoute: typeof AttendanceReportsRoute
+  AttendanceViolationsRoute: typeof AttendanceViolationsRoute
   BirthdaysRoute: typeof BirthdaysRoute
   DirectoryRoute: typeof DirectoryRoute
   LoginRoute: typeof LoginRoute
   NewHiresRoute: typeof NewHiresRoute
+  OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
   UserManagementRoute: typeof UserManagementRoute
@@ -216,6 +255,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnniversariesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/attendance-reports': {
+      id: '/attendance-reports'
+      path: '/attendance-reports'
+      fullPath: '/attendance-reports'
+      preLoaderRoute: typeof AttendanceReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/attendance-violations': {
+      id: '/attendance-violations'
+      path: '/attendance-violations'
+      fullPath: '/attendance-violations'
+      preLoaderRoute: typeof AttendanceViolationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/birthdays': {
       id: '/birthdays'
       path: '/birthdays'
@@ -242,6 +295,13 @@ declare module '@tanstack/react-router' {
       path: '/new-hires'
       fullPath: '/new-hires'
       preLoaderRoute: typeof NewHiresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -280,10 +340,13 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityLogsRoute: ActivityLogsRoute,
   AnalyticsRoute: AnalyticsRoute,
   AnniversariesRoute: AnniversariesRoute,
+  AttendanceReportsRoute: AttendanceReportsRoute,
+  AttendanceViolationsRoute: AttendanceViolationsRoute,
   BirthdaysRoute: BirthdaysRoute,
   DirectoryRoute: DirectoryRoute,
   LoginRoute: LoginRoute,
   NewHiresRoute: NewHiresRoute,
+  OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
   UserManagementRoute: UserManagementRoute,

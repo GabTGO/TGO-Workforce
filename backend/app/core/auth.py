@@ -75,3 +75,54 @@ async def require_employee_writer(
             detail="You don't have permission to modify employee records",
         )
     return account
+
+
+# Roles allowed to create/edit/delete the onboarding checklist (new hires
+# tracker, ported from the standalone onboarding app). Mirrors
+# ONBOARDING_WRITE_ROLES in src/lib/permissions.ts — keep the two in sync.
+ONBOARDING_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.RECRUITMENT}
+
+
+async def require_onboarding_writer(
+    account: Account = Depends(require_account),
+) -> Account:
+    if account.role not in ONBOARDING_WRITE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify onboarding records",
+        )
+    return account
+
+
+# Roles allowed to create/edit/import attendance violation records, ported
+# from the standalone attendance app (formerly "hr"/"projects"/"admin").
+# Mirrors ATTENDANCE_WRITE_ROLES in src/lib/permissions.ts.
+ATTENDANCE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS, AccountRole.HUB_LEAD}
+
+# Narrower than ATTENDANCE_WRITE_ROLES: only these roles may approve/hold/
+# send/resend a violation record (formerly "hr"/"admin" only in the
+# standalone app) — HUB_LEAD can prepare a record but not approve its own
+# submission. Mirrors ATTENDANCE_APPROVE_ROLES in src/lib/permissions.ts.
+ATTENDANCE_APPROVE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS}
+
+
+async def require_violation_writer(
+    account: Account = Depends(require_account),
+) -> Account:
+    if account.role not in ATTENDANCE_WRITE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify attendance violation records",
+        )
+    return account
+
+
+async def require_violation_approver(
+    account: Account = Depends(require_account),
+) -> Account:
+    if account.role not in ATTENDANCE_APPROVE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to approve, hold, or send attendance violation records",
+        )
+    return account

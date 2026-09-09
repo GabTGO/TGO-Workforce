@@ -29,3 +29,36 @@ const EMPLOYEE_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
 export function canManageEmployees(role: AccountRole | undefined): boolean {
   return !!role && EMPLOYEE_WRITE_ROLES.has(role);
 }
+
+// Mirrors ONBOARDING_WRITE_ROLES in backend/app/core/auth.py.
+const ONBOARDING_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
+  "admin",
+  "recruitment",
+]);
+
+export function canManageOnboarding(role: AccountRole | undefined): boolean {
+  return !!role && ONBOARDING_WRITE_ROLES.has(role);
+}
+
+// Mirrors ATTENDANCE_WRITE_ROLES in backend/app/core/auth.py. Covers
+// create/edit/prepare/import of a violation record.
+const ATTENDANCE_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
+  "admin",
+  "people_ops",
+  "hub_lead",
+]);
+
+export function canManageAttendance(role: AccountRole | undefined): boolean {
+  return !!role && ATTENDANCE_WRITE_ROLES.has(role);
+}
+
+// Mirrors ATTENDANCE_APPROVE_ROLES in backend/app/core/auth.py. Narrower
+// than canManageAttendance — approve/hold/send/resend only.
+const ATTENDANCE_APPROVE_ROLES: ReadonlySet<AccountRole> = new Set([
+  "admin",
+  "people_ops",
+]);
+
+export function canApproveAttendance(role: AccountRole | undefined): boolean {
+  return !!role && ATTENDANCE_APPROVE_ROLES.has(role);
+}
