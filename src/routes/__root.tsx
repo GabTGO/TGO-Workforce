@@ -106,7 +106,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Fira+Code:wght@400;500&display=swap",
       },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
+      // Query-string version so browsers that aggressively cache favicons
+      // (most of them — favicons don't follow normal cache-busting the way
+      // hashed asset URLs do) actually refetch this instead of continuing to
+      // show whatever icon was cached before this file existed. Bump the
+      // "v" value if the favicon image itself ever changes again.
+      { rel: "icon", type: "image/png", href: "/favicon.png?v=2" },
+      { rel: "apple-touch-icon", href: "/favicon.png?v=2" },
     ],
   }),
   shellComponent: RootShell,

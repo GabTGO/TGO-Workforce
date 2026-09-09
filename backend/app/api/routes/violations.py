@@ -31,6 +31,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
+    ATTENDANCE_APPROVE_ROLES,
     require_account,
     require_violation_admin,
     require_violation_approver,
@@ -56,6 +57,7 @@ from app.schemas.violation import (
     ViolationRecordUpdate,
 )
 from app.services.activity_log import record_activity
+from app.services.notify import notify_roles
 from app.services.violation_email import ZohoMailError, send_email
 from app.services.violation_email_template import build_body, build_cc_address, build_from_address, build_subject
 from app.services.violation_history import get_previous_violations_for_month
@@ -323,6 +325,18 @@ async def prepare_record(record_id: int, db: DbSession, account: WriterAccount) 
         target=record.violation_record_id,
         commit=False,
     )
+    # Whoever prepared this (often Projects, per the SOP) isn't necessarily
+    # watching the queue — nudge everyone who can actually approve it.
+    await notify_roles(
+        db,
+        ATTENDANCE_APPROVE_ROLES,
+        title="Violation email ready for review",
+        body=f"{record.employee_name} — {record.violation_type_label} ({record.violation_date})",
+        link="/attendance-violations",
+        exclude_account_id=account.id,
+        require_preference=Account.notify_on_violation_review,
+        commit=False,
+    )
     await db.commit()
     await db.refresh(record)
     return record
@@ -469,6 +483,15 @@ async def send_now(record_id: int, db: DbSession, account: ApproverAccount) -> V
             target=record.violation_record_id,
             details={"error": str(exc)},
             severity=ActivitySeverity.WARNING,
+            commit=False,
+        )
+        await notify_roles(
+            db,
+            ATTENDANCE_APPROVE_ROLES,
+            title="Violation email failed to send",
+            body=f"{record.employee_name} — {exc}",
+            link="/attendance-violations",
+            require_preference=Account.notify_on_violation_review,
             commit=False,
         )
         await db.commit()
@@ -645,6 +668,19 @@ async def bulk_send_now(payload: BulkIdsRequest, db: DbSession, account: Approve
             )
         )
 
+    if failed:
+        # One summary notification for the whole batch rather than one per
+        # failed record — a bad batch can fail dozens at once, and nobody
+        # wants a flooded inbox for what's really one event.
+        await notify_roles(
+            db,
+            ATTENDANCE_APPROVE_ROLES,
+            title="Some violation emails failed to send",
+            body=f"{len(failed)} of {len(payload.ids)} failed in this bulk send.",
+            link="/attendance-violations",
+            require_preference=Account.notify_on_violation_review,
+            commit=False,
+        )
     await db.commit()
     return BulkSendResult(sent=sent, failed=failed, skipped=skipped)
 

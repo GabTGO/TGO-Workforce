@@ -36,16 +36,25 @@ export type AccountProfile = {
   notify_anniversaries: boolean;
   notify_birthdays: boolean;
   notify_new_hires: boolean;
+  // Distinct from notify_new_hires above (Dashboard card visibility only) —
+  // these two gate actual in-app notification-inbox events, relevant only to
+  // roles that would ever receive them (see the Settings page).
+  notify_on_violation_review: boolean;
+  notify_on_new_hire_added: boolean;
 };
 
 export type PreferencesPatch = Partial<
   Pick<
     AccountProfile,
+    | "display_name"
+    | "photo_url"
     | "theme"
     | "default_office"
     | "notify_anniversaries"
     | "notify_birthdays"
     | "notify_new_hires"
+    | "notify_on_violation_review"
+    | "notify_on_new_hire_added"
   >
 >;
 

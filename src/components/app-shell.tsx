@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SupportChat } from "@/components/support-chat";
+import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   fetchCurrentAccount,
@@ -113,6 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Breadcrumb>
 
             <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -166,7 +167,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
           <main className="flex-1 p-4 md:p-6">{children}</main>
-          <SupportChat />
         </div>
       </div>
     </SidebarProvider>

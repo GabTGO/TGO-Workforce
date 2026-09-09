@@ -29,6 +29,8 @@ class AccountRead(BaseModel):
     notify_anniversaries: bool
     notify_birthdays: bool
     notify_new_hires: bool
+    notify_on_violation_review: bool
+    notify_on_new_hire_added: bool
 
 
 class AccountUpdate(BaseModel):
@@ -44,11 +46,21 @@ class AccountUpdate(BaseModel):
 class AccountPreferencesUpdate(BaseModel):
     """Self-service personalization — backs PATCH /auth/me/preferences. Every
     field optional so a save only touches what actually changed, same pattern
-    as EmployeeUpdate. Deliberately excludes role/is_active/display_name/
-    photo_url: those are either admin-only (AccountUpdate) or Zoho-sourced."""
+    as EmployeeUpdate. Deliberately excludes role/is_active: those stay
+    admin-only (AccountUpdate). display_name/photo_url used to be excluded
+    too ("Zoho-sourced") but are self-editable here now (2026-09-09) — see
+    the login callback in app/api/routes/auth.py, which only *seeds* these
+    two from Zoho's profile on first-ever sign-in and never overwrites them
+    again afterward, so a self-edit here sticks across future logins.
+    photo_url is a pasted image URL, not a file upload — there's no object
+    storage wired up in this app (see the comment on Account.photo_url)."""
 
+    display_name: str | None = None
+    photo_url: str | None = None
     theme: Theme | None = None
     default_office: str | None = None
     notify_anniversaries: bool | None = None
     notify_birthdays: bool | None = None
     notify_new_hires: bool | None = None
+    notify_on_violation_review: bool | None = None
+    notify_on_new_hire_added: bool | None = None

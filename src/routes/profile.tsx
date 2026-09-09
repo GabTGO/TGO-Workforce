@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Moon, ShieldCheck, Sun } from "lucide-react";
+import { Moon, Pencil, ScrollText, ShieldCheck, Sun } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,7 +14,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { useMyActivityLogs, type ActivitySeverity } from "@/data/activity-log-store";
 import { formatDate } from "@/data/employees";
 import {
   useCurrentAccount,
@@ -41,6 +55,12 @@ export const Route = createFileRoute("/profile")({
   component: ProfilePage,
 });
 
+const SEVERITY_VARIANT: Record<ActivitySeverity, "secondary" | "outline" | "destructive"> = {
+  info: "secondary",
+  warning: "outline",
+  critical: "destructive",
+};
+
 function initials(name: string) {
   return (
     name
@@ -53,9 +73,96 @@ function initials(name: string) {
   );
 }
 
+function EditProfileDialog({
+  displayName,
+  photoUrl,
+}: {
+  displayName: string;
+  photoUrl: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(displayName);
+  const [photo, setPhoto] = useState(photoUrl);
+  const updatePreferences = useUpdateMyPreferences();
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      // Reset to the current saved values every time the dialog opens, so a
+      // cancelled edit from last time doesn't linger in the form.
+      setName(displayName);
+      setPhoto(photoUrl);
+    }
+    setOpen(next);
+  }
+
+  function handleSave() {
+    updatePreferences.mutate(
+      { display_name: name.trim(), photo_url: photo.trim() || null },
+      {
+        onSuccess: () => {
+          toast.success("Profile updated");
+          setOpen(false);
+        },
+        onError: () => toast.error("Couldn't save your profile. Please try again."),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Pencil className="h-3.5 w-3.5" /> Edit
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit profile</DialogTitle>
+          <DialogDescription>
+            Your display name and photo — visible to everyone else in HR Operations.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="profile-name">Display name</Label>
+            <Input
+              id="profile-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="How your name shows up across the portal"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="profile-photo">Photo URL</Label>
+            <Input
+              id="profile-photo"
+              value={photo}
+              onChange={(e) => setPhoto(e.target.value)}
+              placeholder="https://... (link to an image)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Paste a link to an image — there's no file upload here, just a URL (e.g. a
+              Zoho WorkDrive share link or any image already hosted somewhere).
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={updatePreferences.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updatePreferences.isPending || !name.trim()}>
+            {updatePreferences.isPending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ProfilePage() {
   const { data: account, isLoading } = useCurrentAccount();
   const updatePreferences = useUpdateMyPreferences();
+  const { data: myActivity, isLoading: activityLoading } = useMyActivityLogs(account?.id);
 
   const displayName =
     account?.display_name ||
@@ -89,8 +196,7 @@ function ProfilePage() {
         <CardHeader>
           <CardTitle>Account</CardTitle>
           <CardDescription>
-            Synced from your Zoho sign-in — update your name or photo there to
-            change it here.
+            Seeded from your first Zoho sign-in — it's yours to customize from here on.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -118,6 +224,10 @@ function ProfilePage() {
                   </span>
                 </div>
               </div>
+              <EditProfileDialog
+                displayName={displayName}
+                photoUrl={account.photo_url ?? ""}
+              />
             </div>
           )}
         </CardContent>
@@ -178,6 +288,53 @@ function ProfilePage() {
             </Link>{" "}
             page.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ScrollText className="h-4 w-4 text-muted-foreground" />
+            My Activity
+          </CardTitle>
+          <CardDescription>
+            The last things you did across HR Operations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activityLoading && (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          )}
+          {!activityLoading && (myActivity?.length ?? 0) === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nothing recorded yet — actions you take (creating a record, changing a
+              status, etc.) will show up here.
+            </p>
+          )}
+          {myActivity?.map((log) => (
+            <div key={log.id} className="flex items-start justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium">{log.action}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {log.target} · {log.timestamp}
+                </p>
+              </div>
+              <Badge variant={SEVERITY_VARIANT[log.severity]} className="shrink-0 capitalize">
+                {log.category}
+              </Badge>
+            </div>
+          ))}
+          {(myActivity?.length ?? 0) > 0 && (
+            <>
+              <Separator className="my-1" />
+              <Link
+                to="/activity-logs"
+                className="text-xs font-medium text-primary underline underline-offset-2"
+              >
+                View the full activity log
+              </Link>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

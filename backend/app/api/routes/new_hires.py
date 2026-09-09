@@ -25,7 +25,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_account, require_account, require_onboarding_writer
+from app.core.auth import (
+    ONBOARDING_WRITE_ROLES,
+    get_current_account,
+    require_account,
+    require_onboarding_writer,
+)
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivitySeverity
@@ -37,6 +42,7 @@ from app.services.cliq_notify import (
     CliqRejectedError,
     send_cliq_notification,
 )
+from app.services.notify import notify_roles
 
 # Router-level dependency: every route here requires a signed-in account
 # (401 otherwise). The two read routes (list/get) stop there, so every
@@ -141,6 +147,16 @@ async def create_new_hire(
         category=ActivityCategory.ONBOARDING,
         account=account,
         target=hire.name,
+        commit=False,
+    )
+    await notify_roles(
+        db,
+        ONBOARDING_WRITE_ROLES,
+        title="New hire added to onboarding",
+        body=f"{hire.name} — {hire.role_title or 'role not set'}",
+        link="/onboarding",
+        exclude_account_id=account.id,
+        require_preference=Account.notify_on_new_hire_added,
         commit=False,
     )
     await db.commit()

@@ -6,6 +6,7 @@ from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySeverity
 from app.models.employee import Employee, EmployeeStatus
 from app.models.new_hire import NewHire
+from app.models.notification import Notification
 from app.models.pending_invite import PendingInvite
 from app.models.violation import (
     EmailStatus,
@@ -26,6 +27,7 @@ __all__ = [
     "EmployeeStatus",
     "ImportBatch",
     "NewHire",
+    "Notification",
     "Office",
     "PendingInvite",
     "ViolationRecord",

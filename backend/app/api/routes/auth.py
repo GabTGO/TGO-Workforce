@@ -109,7 +109,12 @@ async def zoho_callback(
         account.email = email
         account.first_name = profile.get("First_Name")
         account.last_name = profile.get("Last_Name")
-        account.display_name = profile.get("Display_Name")
+        # display_name is deliberately NOT re-synced here — Zoho's profile
+        # only *seeds* it once, on first-ever sign-in (the `if account is
+        # None` branch above). Once someone's account exists, display_name
+        # is theirs to customize (see PATCH /auth/me/preferences and the
+        # Profile page) — re-syncing it on every login would silently
+        # overwrite that self-edit the next time they signed in.
         account.last_login_at = now
 
     # Bootstrap / standing admin allowlist — see Settings.zoho_admin_emails.

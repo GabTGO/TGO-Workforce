@@ -116,6 +116,18 @@ class Account(Base):
     notify_new_hires: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Distinct from notify_new_hires above (which only controls the Dashboard
+    # "Recent New Hires" card) — these two gate the actual in-app
+    # notification-inbox events from app/services/notify.py, only relevant to
+    # someone whose role would ever receive them (HR/Admin for the first,
+    # Recruitment Lead/Onboarding Specialist/Admin for the second — see the
+    # Settings page, which only shows each toggle to those roles).
+    notify_on_violation_review: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    notify_on_new_hire_added: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

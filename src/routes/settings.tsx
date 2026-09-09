@@ -52,6 +52,14 @@ export const Route = createFileRoute("/settings")({
 // empty string as an item value.
 const NO_DEFAULT = "none";
 
+// Only roles that could ever actually receive each in-app notification see
+// its toggle — showing "notify me when a violation needs review" to someone
+// who can never be notified about that (they're not HR/Admin) would just be
+// a confusing dead switch. Mirrors ATTENDANCE_APPROVE_ROLES /
+// ONBOARDING_WRITE_ROLES in backend/app/core/auth.py.
+const VIOLATION_REVIEW_ROLES = new Set(["admin", "hr"]);
+const NEW_HIRE_ROLES = new Set(["admin", "recruitment_lead", "onboarding_specialist"]);
+
 function SettingsPage() {
   const { data: account, isLoading } = useCurrentAccount();
   const updatePreferences = useUpdateMyPreferences();
@@ -60,6 +68,8 @@ function SettingsPage() {
   const [notifyAnniversaries, setNotifyAnniversaries] = useState(true);
   const [notifyBirthdays, setNotifyBirthdays] = useState(true);
   const [notifyNewHires, setNotifyNewHires] = useState(true);
+  const [notifyOnViolationReview, setNotifyOnViolationReview] = useState(true);
+  const [notifyOnNewHireAdded, setNotifyOnNewHireAdded] = useState(true);
   // Seed local form state from the account exactly once — after that, this
   // page's own edits are the source of truth, so a background refetch of
   // /auth/me (the 60s staleTime query other pages also share) can't quietly
@@ -73,14 +83,21 @@ function SettingsPage() {
     setNotifyAnniversaries(account.notify_anniversaries);
     setNotifyBirthdays(account.notify_birthdays);
     setNotifyNewHires(account.notify_new_hires);
+    setNotifyOnViolationReview(account.notify_on_violation_review);
+    setNotifyOnNewHireAdded(account.notify_on_new_hire_added);
   }, [account]);
+
+  const showViolationReviewToggle = !!account && VIOLATION_REVIEW_ROLES.has(account.role);
+  const showNewHireToggle = !!account && NEW_HIRE_ROLES.has(account.role);
 
   const dirty =
     !!account &&
     (defaultOffice !== (account.default_office ?? NO_DEFAULT) ||
       notifyAnniversaries !== account.notify_anniversaries ||
       notifyBirthdays !== account.notify_birthdays ||
-      notifyNewHires !== account.notify_new_hires);
+      notifyNewHires !== account.notify_new_hires ||
+      notifyOnViolationReview !== account.notify_on_violation_review ||
+      notifyOnNewHireAdded !== account.notify_on_new_hire_added);
 
   function handleSave() {
     const patch: PreferencesPatch = {
@@ -88,6 +105,8 @@ function SettingsPage() {
       notify_anniversaries: notifyAnniversaries,
       notify_birthdays: notifyBirthdays,
       notify_new_hires: notifyNewHires,
+      notify_on_violation_review: notifyOnViolationReview,
+      notify_on_new_hire_added: notifyOnNewHireAdded,
     };
     updatePreferences.mutate(patch, {
       onSuccess: () => toast.success("Settings saved"),
@@ -134,9 +153,55 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
+      {(showViolationReviewToggle || showNewHireToggle) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification Inbox</CardTitle>
+            <CardDescription>
+              What lands in your bell icon at the top of the page. Shown only for the modules
+              your role can act on.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showViolationReviewToggle && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Violation ready for review</p>
+                  <p className="text-xs text-muted-foreground">
+                    Notify me when a violation email is prepared and waiting on HR approval, or
+                    when a send fails.
+                  </p>
+                </div>
+                <Switch
+                  checked={notifyOnViolationReview}
+                  onCheckedChange={setNotifyOnViolationReview}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+            {showViolationReviewToggle && showNewHireToggle && <Separator />}
+            {showNewHireToggle && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">New hire added</p>
+                  <p className="text-xs text-muted-foreground">
+                    Notify me when someone adds a new hire to the onboarding tracker.
+                  </p>
+                </div>
+                <Switch
+                  checked={notifyOnNewHireAdded}
+                  onCheckedChange={setNotifyOnNewHireAdded}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Notifications</CardTitle>
+          <CardTitle>Dashboard Cards</CardTitle>
           <CardDescription>
             What your Dashboard surfaces. Turning one off hides the matching
             card there — it only affects your own view, not anyone else's.

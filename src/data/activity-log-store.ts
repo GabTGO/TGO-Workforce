@@ -67,8 +67,10 @@ function fromBackend(row: BackendActivityLog): ActivityLogEntry {
   };
 }
 
-async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
-  const response = await fetch(apiUrl("/activity-logs?limit=200"), {
+async function fetchActivityLogs(opts?: { accountId?: string; limit?: number }): Promise<ActivityLogEntry[]> {
+  const params = new URLSearchParams({ limit: String(opts?.limit ?? 200) });
+  if (opts?.accountId) params.set("account_id", opts.accountId);
+  const response = await fetch(apiUrl(`/activity-logs?${params.toString()}`), {
     credentials: "include",
   });
   if (!response.ok) {
@@ -85,7 +87,19 @@ const REALTIME_POLL_MS = 15_000;
 export function useActivityLogs() {
   return useQuery({
     queryKey: ["activity-logs"],
-    queryFn: fetchActivityLogs,
+    queryFn: () => fetchActivityLogs(),
+    refetchInterval: REALTIME_POLL_MS,
+  });
+}
+
+/** Backs the Profile page's "My Activity" section — the signed-in account's
+ * own rows only. `enabled` guards against firing before the account id is
+ * known (e.g. while /auth/me is still loading). */
+export function useMyActivityLogs(accountId: string | undefined, limit = 10) {
+  return useQuery({
+    queryKey: ["activity-logs", "mine", accountId, limit],
+    queryFn: () => fetchActivityLogs(accountId ? { accountId, limit } : { limit }),
+    enabled: !!accountId,
     refetchInterval: REALTIME_POLL_MS,
   });
 }
