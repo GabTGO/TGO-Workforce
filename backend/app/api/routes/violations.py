@@ -10,10 +10,16 @@ in code, not left to whoever edits a field.
 
 Auth: every route requires a signed-in account (router-level require_account).
 Write actions (create/update/prepare/mark-ready) additionally require
-require_violation_writer (admin/people_ops/hub_lead). Approve/hold/
-needs-correction/resend/send-now/bulk-send-now/bulk-preview additionally
-require require_violation_approver (admin/people_ops only). Delete/bulk-delete
-require require_admin — same as the source app's admin-only hard delete.
+require_violation_writer (admin/hr/projects — see the TGO Attendance Policy
+Violation Email Automation SOP section 17). Approve/hold/needs-correction/
+resend/send-now/bulk-send-now/bulk-preview additionally require
+require_violation_approver (admin/hr only — SOP section 10's explicit-HR-
+approval gate). Delete/bulk-delete require require_violation_admin (same as
+require_admin elsewhere, admin-only hard delete).
+
+TEMPORARY: all three of those dependencies currently also gate on a single
+developer account regardless of role, while this module is still in
+progress — see app/core/auth.py's _require_attendance_in_progress_dev.
 """
 
 import re
@@ -24,7 +30,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import require_account, require_admin, require_violation_approver, require_violation_writer
+from app.core.auth import (
+    require_account,
+    require_violation_admin,
+    require_violation_approver,
+    require_violation_writer,
+)
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.models.account import Account
@@ -53,7 +64,7 @@ router = APIRouter(prefix="/violations", tags=["violations"], dependencies=[Depe
 
 WriterAccount = Annotated[Account, Depends(require_violation_writer)]
 ApproverAccount = Annotated[Account, Depends(require_violation_approver)]
-AdminAccount = Annotated[Account, Depends(require_admin)]
+AdminAccount = Annotated[Account, Depends(require_violation_admin)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

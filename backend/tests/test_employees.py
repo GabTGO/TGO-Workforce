@@ -225,9 +225,10 @@ async def test_import_defaults_missing_fields(admin_client) -> None:
     assert row["status"] == EmployeeStatus.ACTIVE.value
 
 
-# --- RBAC: viewer is read-only, people_ops/hub_lead have full employee CRUD ---
-# Policy agreed 2026-09-03 — see app/core/auth.py's EMPLOYEE_WRITE_ROLES and
-# src/lib/permissions.ts on the frontend.
+# --- RBAC: viewer is read-only; only people_ops (+ admin) has employee CRUD ---
+# One-role-per-module policy (tightened 2026-09-09 from an earlier version
+# where hub_lead also had full employee access) — see app/core/auth.py's
+# EMPLOYEE_WRITE_ROLES and src/lib/permissions.ts on the frontend.
 
 
 @pytest.mark.asyncio
@@ -287,9 +288,9 @@ async def test_viewer_cannot_bulk_delete_employees(admin_client, viewer_client) 
 
 
 async def _assert_full_employee_crud(writer_client) -> None:
-    """Shared body for the people_ops/hub_lead RBAC tests below — both roles
-    should behave exactly like admin for every employee write route: create,
-    update, delete, bulk-delete, import."""
+    """Shared body for the people_ops RBAC test below — should behave exactly
+    like admin for every employee write route: create, update, delete,
+    bulk-delete, import."""
     create = await writer_client.post(
         "/employees", json={"name": "Writer Created", "start_date": "2026-01-01"}
     )
@@ -322,5 +323,10 @@ async def test_people_ops_has_full_employee_crud(people_ops_client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_hub_lead_has_full_employee_crud(hub_lead_client) -> None:
-    await _assert_full_employee_crud(hub_lead_client)
+async def test_hr_cannot_create_employee(hr_client) -> None:
+    """Locks in the one-role-per-module boundary: hr owns Attendance, not
+    Employee Directory, so it should 403 here exactly like viewer does."""
+    response = await hr_client.post(
+        "/employees", json={"name": "Should Be Blocked", "start_date": "2026-01-01"}
+    )
+    assert response.status_code == 403

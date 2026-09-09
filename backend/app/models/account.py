@@ -22,15 +22,29 @@ if TYPE_CHECKING:
 
 
 class AccountRole(enum.StrEnum):
-    """Assumption: a single role per account, matching the roles already implied by
-    the login page copy ("People Ops and Hub Leads") and the DESIGN_SYSTEM.md
-    `adminOnly` nav pattern. Easy to widen to a many-to-many roles table later if
-    one account ever needs more than one role — say if that changes.
+    """Assumption: a single role per account, matching the one-role-per-module
+    policy (see app/core/auth.py) and the DESIGN_SYSTEM.md `adminOnly` nav
+    pattern. Easy to widen to a many-to-many roles table later if one account
+    ever needs more than one role — say if that changes.
     """
 
     ADMIN = "admin"
     PEOPLE_OPS = "people_ops"
-    HUB_LEAD = "hub_lead"
+    # Attendance is split into two roles, not one — per the TGO Attendance
+    # Policy Violation Email Automation SOP v1.1 section 17 ("Roles and
+    # Responsibilities") and the standalone attendance app's own UserRole
+    # enum (2026-09-09 correction; an earlier single "hub_lead" role covering
+    # the whole module was wrong, same mistake as onboarding's "recruitment").
+    # HR reviews prepared emails and holds sole approve/hold/needs-correction/
+    # resend/send authority (SOP section 10: "The system must never send...
+    # without an explicit HR approval status"). Projects can create/edit/
+    # prepare a violation record (submit it for HR's review) but cannot
+    # approve or send it. See ATTENDANCE_WRITE_ROLES/ATTENDANCE_APPROVE_ROLES
+    # in app/core/auth.py for the exact split. The old "hub_lead" enum value
+    # is retired but not removed from the Postgres type (Postgres can't drop
+    # a single enum value without recreating the whole type).
+    HR = "hr"
+    PROJECTS = "projects"
     # Onboarding is split into two roles, not one — per the New Hire
     # Onboarding Tracker SOP (2026-09-09 correction; an earlier single
     # "recruitment" role was wrong): Recruitment Lead owns checklist items

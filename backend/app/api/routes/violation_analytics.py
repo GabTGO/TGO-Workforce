@@ -17,7 +17,7 @@ from app.schemas.violation import AnalyticsOverview
 
 # Admin-only: this overview is consumed exclusively by the frontend's
 # Analytics page (src/routes/analytics.tsx), which itself is admin-only —
-# Hub Lead already sees full violation detail on its own Attendance
+# HR and Projects already see full violation detail on their own Attendance
 # Violations page, but the cross-module Analytics rollup is reserved for
 # Admin, so this endpoint is gated the same way rather than just relying on
 # the frontend to hide the button.

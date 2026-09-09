@@ -11,10 +11,15 @@
 // non-admin role owns exactly one module; only admin crosses all of them):
 //   admin                  — full access everywhere, including User Management
 //   people_ops              — Employee Directory only (create/edit/delete/import/export)
-//   hub_lead                 — Attendance Violations only (write AND approve/hold/
-//                              send/resend — it's the module's sole non-admin
-//                              owner now, not just the write-only "projects" slice
-//                              it had before)
+//   hr                      — Attendance Violations only, with sole approve/hold/
+//                              send/resend authority (per the TGO Attendance Policy
+//                              Violation Email Automation SOP section 10) — this
+//                              earlier merged with Projects into one "hub_lead"
+//                              role, which was wrong (corrected 2026-09-09)
+//   projects                — Attendance Violations only, and only create/edit/
+//                              prepare a record — cannot approve or send its own
+//                              submission, per the SOP's HR-approval gate. See
+//                              canApproveAttendance below for the narrower check.
 //   recruitment_lead        — Onboarding only, and only checklist items 1-2
 //                              (JO Discussion, Confirmation Sheet Signed) plus
 //                              item 3 (Welcome Email Sent, shared) — per the New
@@ -79,25 +84,47 @@ export function canEditOnboardingField(
 }
 
 // Mirrors ATTENDANCE_WRITE_ROLES in backend/app/core/auth.py. Covers
-// create/edit/prepare/import of a violation record.
+// create/edit/prepare/import of a violation record — both HR and Projects
+// can reach this far; only HR can actually approve/send (see
+// canApproveAttendance below).
 const ATTENDANCE_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
   "admin",
-  "hub_lead",
+  "hr",
+  "projects",
 ]);
 
 export function canManageAttendance(role: AccountRole | undefined): boolean {
   return !!role && ATTENDANCE_WRITE_ROLES.has(role);
 }
 
-// Mirrors ATTENDANCE_APPROVE_ROLES in backend/app/core/auth.py. Same role
-// set as canManageAttendance now that Hub Lead owns the whole module solo —
-// kept as its own function so approve/hold/send/resend stays independently
-// gate-able if a narrower split is ever reintroduced.
+// Mirrors ATTENDANCE_APPROVE_ROLES in backend/app/core/auth.py. Narrower
+// than canManageAttendance — per the SOP (section 10), only HR may approve/
+// hold/needs-correction/resend/send; Projects can prepare a record but never
+// approve its own submission.
 const ATTENDANCE_APPROVE_ROLES: ReadonlySet<AccountRole> = new Set([
   "admin",
-  "hub_lead",
+  "hr",
 ]);
 
 export function canApproveAttendance(role: AccountRole | undefined): boolean {
   return !!role && ATTENDANCE_APPROVE_ROLES.has(role);
+}
+
+// --- TEMPORARY: Attendance Violations is still in progress -----------------
+// Mirrors backend/app/core/auth.py's _require_attendance_in_progress_dev —
+// that's the enforced version of this same check (every write/approve/
+// delete endpoint 403s for anyone but this email, regardless of role); this
+// copy is just the UI-side hint so the buttons everyone still sees (per
+// canManageAttendance/canApproveAttendance above) can show a clear message
+// on click instead of a raw network-error toast. To lift the restriction
+// once the module is ready for general HR/Projects use: delete this
+// constant, isAttendanceDevOnlyBlocked, and its call sites in
+// src/data/violation-store.ts.
+export const ATTENDANCE_DEV_ONLY_EMAIL = "gabriel.battung@tgocorp.com";
+
+export const ATTENDANCE_IN_PROGRESS_MESSAGE =
+  "Attendance Violations is still in progress — only the developer account is authorized to do that right now.";
+
+export function isAttendanceDevOnlyBlocked(email: string | undefined): boolean {
+  return (email ?? "").toLowerCase() !== ATTENDANCE_DEV_ONLY_EMAIL.toLowerCase();
 }

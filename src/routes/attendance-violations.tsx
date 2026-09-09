@@ -170,6 +170,11 @@ function AttendanceViolationsPage() {
       <PageHeader
         title="Attendance Violations"
         description="Track violation records through preparation, approval and automated employee notification."
+        badge={
+          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            In Progress
+          </Badge>
+        }
       />
 
       {overview && (
@@ -442,7 +447,13 @@ function AttendanceViolationsPage() {
         onConfirm={() => {
           if (!confirmTarget) return;
           const action = confirmTarget.action === "send-now" ? "send-now" : "approve";
-          transition.mutate({ id: confirmTarget.id, action }, { onSuccess: () => setConfirmTarget(null) });
+          transition.mutate(
+            { id: confirmTarget.id, action },
+            {
+              onSuccess: () => setConfirmTarget(null),
+              onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed"),
+            },
+          );
         }}
       />
 

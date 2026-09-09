@@ -69,20 +69,20 @@ async def test_get_account_not_found(admin_client) -> None:
 async def test_admin_can_change_another_accounts_role(admin_client, db_session) -> None:
     target = Account(
         zoho_user_id="zuid-test-3",
-        email="hub.lead@tgo.internal",
+        email="hr.person@tgo.internal",
         role=AccountRole.VIEWER,
     )
     db_session.add(target)
     await db_session.commit()
     await db_session.refresh(target)
 
-    response = await admin_client.patch(f"/accounts/{target.id}", json={"role": "hub_lead"})
+    response = await admin_client.patch(f"/accounts/{target.id}", json={"role": "hr"})
 
     assert response.status_code == 200
-    assert response.json()["role"] == "hub_lead"
+    assert response.json()["role"] == "hr"
 
     logs = await admin_client.get("/activity-logs", params={"category": "access"})
-    assert any(row["target"] == "hub.lead@tgo.internal" for row in logs.json())
+    assert any(row["target"] == "hr.person@tgo.internal" for row in logs.json())
 
 
 @pytest.mark.asyncio
@@ -195,12 +195,12 @@ async def test_create_invite_twice_updates_role_instead_of_erroring(admin_client
     first_id = first.json()["id"]
 
     second = await admin_client.post(
-        "/accounts/invites", json={"email": "typo.role@tgo.internal", "role": "hub_lead"}
+        "/accounts/invites", json={"email": "typo.role@tgo.internal", "role": "hr"}
     )
 
     assert second.status_code == 201
     assert second.json()["id"] == first_id
-    assert second.json()["role"] == "hub_lead"
+    assert second.json()["role"] == "hr"
 
     # Still just one row, not a duplicate.
     listing = await admin_client.get("/accounts/invites")

@@ -179,7 +179,7 @@ async def test_zoho_login_consumes_pending_invite(
     db_session.add(
         PendingInvite(
             email="invited.person@tgo.internal",
-            role="hub_lead",
+            role="hr",
             invited_by_label="Test Admin",
         )
     )
@@ -206,7 +206,7 @@ async def test_zoho_login_consumes_pending_invite(
     )
 
     me_response = await client.get("/auth/me")
-    assert me_response.json()["role"] == "hub_lead"
+    assert me_response.json()["role"] == "hr"
 
     remaining = await db_session.execute(
         select(PendingInvite).where(PendingInvite.email == "invited.person@tgo.internal")

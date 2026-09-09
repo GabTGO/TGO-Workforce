@@ -177,15 +177,22 @@ export function PageHeader({
   title,
   description,
   action,
+  badge,
 }: {
   title: string;
   description: string;
   action?: ReactNode;
+  /** Small status pill rendered right next to the title — e.g. an "In
+   * Progress" tag for a module that's still being built/tested. */
+  badge?: ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {badge}
+        </div>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       {action}

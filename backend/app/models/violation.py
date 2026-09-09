@@ -198,8 +198,10 @@ def _format_account_label(account: object | None) -> str | None:
     role_labels = {
         AccountRole.ADMIN: "Admin",
         AccountRole.PEOPLE_OPS: "People Ops",
-        AccountRole.HUB_LEAD: "Hub Lead",
-        AccountRole.RECRUITMENT: "Recruitment",
+        AccountRole.HR: "HR",
+        AccountRole.PROJECTS: "Projects",
+        AccountRole.RECRUITMENT_LEAD: "Recruitment Lead",
+        AccountRole.ONBOARDING_SPECIALIST: "Onboarding Specialist",
         AccountRole.VIEWER: "Viewer",
     }
     name = getattr(account, "display_name", None) or getattr(account, "email", None) or "Unknown"

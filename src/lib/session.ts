@@ -11,7 +11,8 @@ import { apiUrl } from "@/lib/api";
 export type AccountRole =
   | "admin"
   | "people_ops"
-  | "hub_lead"
+  | "hr"
+  | "projects"
   | "recruitment_lead"
   | "onboarding_specialist"
   | "viewer";

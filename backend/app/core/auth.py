@@ -56,8 +56,9 @@ async def require_admin(
 
 # Roles allowed to create/edit/delete/import employee records (RBAC policy
 # tightened to one-role-per-module 2026-09-09: each non-admin role now owns
-# exactly one module — People Ops owns Employee Directory, Hub Lead owns
-# Attendance, Recruitment Lead + Onboarding Specialist split Onboarding by
+# exactly one module — People Ops owns Employee Directory, HR + Projects
+# split Attendance by action (see ATTENDANCE_WRITE_ROLES/ATTENDANCE_APPROVE_ROLES
+# below), Recruitment Lead + Onboarding Specialist split Onboarding by
 # checklist field (see ROLE_FIELD_ACCESS below) — only Admin crosses modules.
 # Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts on the frontend —
 # keep the two in sync. Viewer is deliberately excluded: read (list/get) and
@@ -106,27 +107,51 @@ async def require_onboarding_writer(
     return account
 
 
-# Roles allowed to create/edit/import attendance violation records, ported
-# from the standalone attendance app (formerly "hr"/"projects"/"admin").
-# One-role-per-module policy (2026-09-09): Hub Lead is now the sole
-# non-admin owner of the whole Attendance module (write AND approve — see
-# ATTENDANCE_APPROVE_ROLES below), not just the "projects" write-only slice
-# it inherited from the standalone app. People Ops no longer reaches into
-# Attendance at all; it's scoped to Employee Directory only.
-# Mirrors ATTENDANCE_WRITE_ROLES in src/lib/permissions.ts.
-ATTENDANCE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.HUB_LEAD}
+# --- TEMPORARY: Attendance Violations is still in progress -----------------
+# While this module is being built and tested, every write/approve/delete
+# action is restricted to a single developer account regardless of role —
+# everyone else can still view records (read routes stay on plain
+# require_account, untouched by this), but any attempt to create, edit,
+# prepare, approve, hold, send, import, or delete gets this message instead.
+# To lift the restriction once the module is ready for general HR/Projects
+# use: delete this constant, this function, and its call sites below
+# (require_violation_writer, require_violation_approver, require_violation_admin).
+ATTENDANCE_DEV_ONLY_EMAIL = "gabriel.battung@tgocorp.com"
 
-# Same role set as ATTENDANCE_WRITE_ROLES now that Hub Lead owns the whole
-# module solo — kept as a separate function/constant (rather than collapsing
-# into one) so approve/hold/send/resend stays independently gate-able if a
-# narrower split is ever reintroduced. Mirrors ATTENDANCE_APPROVE_ROLES in
+
+def _require_attendance_in_progress_dev(account: Account) -> None:
+    if account.email.lower() != ATTENDANCE_DEV_ONLY_EMAIL.lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Attendance Violations is still in progress — only the developer "
+                "account is authorized to do that right now."
+            ),
+        )
+
+
+# Roles allowed to create/edit/prepare/import attendance violation records —
+# per the SOP's section 17 ("Projects Team" builds/submits) and section 3's
+# workflow (someone adds/updates the tracker row and moves it to Ready to
+# Prepare; that doesn't have to be HR itself). Both HR and Projects can reach
+# this far; only HR (+Admin) can actually approve/send — see
+# ATTENDANCE_APPROVE_ROLES below. Mirrors ATTENDANCE_WRITE_ROLES in
 # src/lib/permissions.ts.
-ATTENDANCE_APPROVE_ROLES = {AccountRole.ADMIN, AccountRole.HUB_LEAD}
+ATTENDANCE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.HR, AccountRole.PROJECTS}
+
+# Narrower than ATTENDANCE_WRITE_ROLES: only HR (+Admin) may approve/hold/
+# needs-correction/resend/send a violation record — the SOP is explicit
+# (section 10): "The system must never send a newly prepared attendance
+# violation email without an explicit HR approval status." Projects can
+# prepare a record but never approve its own submission. Mirrors
+# ATTENDANCE_APPROVE_ROLES in src/lib/permissions.ts.
+ATTENDANCE_APPROVE_ROLES = {AccountRole.ADMIN, AccountRole.HR}
 
 
 async def require_violation_writer(
     account: Account = Depends(require_account),
 ) -> Account:
+    _require_attendance_in_progress_dev(account)
     if account.role not in ATTENDANCE_WRITE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -138,9 +163,21 @@ async def require_violation_writer(
 async def require_violation_approver(
     account: Account = Depends(require_account),
 ) -> Account:
+    _require_attendance_in_progress_dev(account)
     if account.role not in ATTENDANCE_APPROVE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to approve, hold, or send attendance violation records",
         )
+    return account
+
+
+async def require_violation_admin(
+    account: Account = Depends(require_admin),
+) -> Account:
+    """Same as require_admin, plus the temporary in-progress gate above — used
+    in place of plain require_admin for violations.py's hard-delete routes
+    only, so this module-specific restriction doesn't leak into /accounts or
+    any other admin-only route that also depends on require_admin."""
+    _require_attendance_in_progress_dev(account)
     return account

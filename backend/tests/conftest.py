@@ -133,12 +133,26 @@ async def people_ops_client(db_session, monkeypatch):
 
 
 @pytest_asyncio.fixture
-async def hub_lead_client(db_session, monkeypatch):
-    """Same pattern as admin_client, promoted to hub_lead — currently granted
-    the same employee-write access as people_ops (see app/core/auth.py's
-    EMPLOYEE_WRITE_ROLES and src/lib/permissions.ts on the frontend)."""
-    ac = await _signed_in_client(monkeypatch, "hub-lead")
-    await _promote(db_session, ac, AccountRole.HUB_LEAD)
+async def hr_client(db_session, monkeypatch):
+    """Same pattern as admin_client, promoted to hr — the Attendance module's
+    approve/hold/send role (see app/core/auth.py's ATTENDANCE_APPROVE_ROLES
+    and src/lib/permissions.ts on the frontend). Not Employee Directory —
+    that's people_ops-only under the one-role-per-module policy."""
+    ac = await _signed_in_client(monkeypatch, "hr")
+    await _promote(db_session, ac, AccountRole.HR)
+    try:
+        yield ac
+    finally:
+        await ac.aclose()
+
+
+@pytest_asyncio.fixture
+async def projects_client(db_session, monkeypatch):
+    """Same pattern as admin_client, promoted to projects — the Attendance
+    module's write-only role (create/edit/prepare a violation record, but
+    never approve/send it — see app/core/auth.py's ATTENDANCE_WRITE_ROLES)."""
+    ac = await _signed_in_client(monkeypatch, "projects")
+    await _promote(db_session, ac, AccountRole.PROJECTS)
     try:
         yield ac
     finally:

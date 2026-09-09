@@ -26,6 +26,23 @@ import {
   type ViolationFilters,
   type ViolationUpdateInput,
 } from "@/data/violation-api";
+import { ATTENDANCE_IN_PROGRESS_MESSAGE, isAttendanceDevOnlyBlocked } from "@/lib/permissions";
+import { useCurrentAccount } from "@/lib/session";
+
+// TEMPORARY: Attendance Violations is still in progress — see
+// src/lib/permissions.ts's isAttendanceDevOnlyBlocked for why this exists.
+// Every write hook below calls this at the top of its mutationFn; a
+// synchronous throw here is caught the same way a rejected request would be,
+// so every dialog's existing onError toast shows this message unchanged. To
+// lift the restriction: delete this hook and its call sites below.
+function useAttendanceDevGuard() {
+  const { data: account } = useCurrentAccount();
+  return () => {
+    if (isAttendanceDevOnlyBlocked(account?.email)) {
+      throw new Error(ATTENDANCE_IN_PROGRESS_MESSAGE);
+    }
+  };
+}
 
 // The Attendance Violations table, wizard, edit/bulk dialogs and import flow
 // all read and write through these hooks — a React Query cache keyed on
@@ -90,16 +107,24 @@ function useInvalidateViolations() {
 
 export function useCreateViolation() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: (input: NewViolationInput) => createViolation(input),
+    mutationFn: (input: NewViolationInput) => {
+      guardDev();
+      return createViolation(input);
+    },
     onSuccess: invalidate,
   });
 }
 
 export function useUpdateViolation() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: ({ id, changes }: { id: number; changes: ViolationUpdateInput }) => updateViolation(id, changes),
+    mutationFn: ({ id, changes }: { id: number; changes: ViolationUpdateInput }) => {
+      guardDev();
+      return updateViolation(id, changes);
+    },
     onSuccess: invalidate,
   });
 }
@@ -109,8 +134,10 @@ export function useUpdateViolation() {
  * hook covers all seven rather than seven near-identical ones. */
 export function useViolationTransition() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
     mutationFn: ({ id, action }: { id: number; action: TransitionAction }) => {
+      guardDev();
       switch (action) {
         case "prepare":
           return prepareViolation(id);
@@ -143,24 +170,36 @@ export type TransitionAction =
 
 export function useDeleteViolation() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: (id: number) => deleteViolation(id),
+    mutationFn: (id: number) => {
+      guardDev();
+      return deleteViolation(id);
+    },
     onSuccess: invalidate,
   });
 }
 
 export function useBulkDeleteViolations() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: (ids: number[]) => bulkDeleteViolations(ids),
+    mutationFn: (ids: number[]) => {
+      guardDev();
+      return bulkDeleteViolations(ids);
+    },
     onSuccess: invalidate,
   });
 }
 
 export function useBulkSendNowViolations() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: (ids: number[]) => bulkSendNowViolations(ids),
+    mutationFn: (ids: number[]) => {
+      guardDev();
+      return bulkSendNowViolations(ids);
+    },
     onSuccess: invalidate,
   });
 }
@@ -174,16 +213,23 @@ export function useBulkPreviewViolationsQuery(ids: number[], enabled: boolean) {
 }
 
 export function usePreviewImport() {
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: (file: File) => previewImport(file),
+    mutationFn: (file: File) => {
+      guardDev();
+      return previewImport(file);
+    },
   });
 }
 
 export function useCommitImport() {
   const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
   return useMutation({
-    mutationFn: ({ filename, rows }: { filename: string; rows: ImportPreviewRow[] }) =>
-      commitImport(filename, rows),
+    mutationFn: ({ filename, rows }: { filename: string; rows: ImportPreviewRow[] }) => {
+      guardDev();
+      return commitImport(filename, rows);
+    },
     onSuccess: invalidate,
   });
 }
