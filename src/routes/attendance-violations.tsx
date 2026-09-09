@@ -28,6 +28,7 @@ import { ViolationWizard } from "@/components/attendance/violation-wizard";
 import { ImportViolationsDialog } from "@/components/attendance/import-violations-dialog";
 import { BulkDeleteDialog } from "@/components/attendance/bulk-delete-dialog";
 import { BulkSendDialog } from "@/components/attendance/bulk-send-dialog";
+import { DeleteViolationDialog } from "@/components/attendance/delete-violation-dialog";
 import { canEditViolation, EditViolationDialog } from "@/components/attendance/edit-violation-dialog";
 import { SendConfirmDialog, type ConfirmableAction } from "@/components/attendance/send-confirm-dialog";
 import {
@@ -43,7 +44,6 @@ import {
 import {
   useAnalyticsOverviewQuery,
   useCreateViolation,
-  useDeleteViolation,
   useViolationTransition,
   useViolationsQuery,
   type TransitionAction,
@@ -115,6 +115,7 @@ function AttendanceViolationsPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [editTargetId, setEditTargetId] = useState<number | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   const updateFilter = (patch: Partial<typeof filters>) => {
     setFilters((f) => ({ ...f, ...patch }));
@@ -138,6 +139,7 @@ function AttendanceViolationsPage() {
 
   const checkedRecords = records.filter((r) => checkedIds.has(r.id));
   const editTarget = records.find((r) => r.id === editTargetId) ?? null;
+  const deleteTarget = records.find((r) => r.id === deleteTargetId) ?? null;
   const allOnPageChecked = records.length > 0 && records.every((r) => checkedIds.has(r.id));
   const toggleAllOnPage = () => {
     setCheckedIds((prev) => {
@@ -157,7 +159,6 @@ function AttendanceViolationsPage() {
   };
 
   const transition = useViolationTransition();
-  const deleteMutation = useDeleteViolation();
 
   function runTransition(id: number, action: TransitionAction) {
     transition.mutate({ id, action }, { onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed") });
@@ -391,14 +392,7 @@ function AttendanceViolationsPage() {
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => {
-                            if (window.confirm(`Delete the record for ${r.employeeName}? This is kept for the audit trail, not fully erased.`)) {
-                              deleteMutation.mutate(r.id, {
-                                onSuccess: () => toast.success(`Deleted the record for ${r.employeeName}`),
-                                onError: (err) => toast.error(err instanceof Error ? err.message : "Delete failed"),
-                              });
-                            }
-                          }}
+                          onClick={() => setDeleteTargetId(r.id)}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
@@ -455,6 +449,13 @@ function AttendanceViolationsPage() {
             },
           );
         }}
+      />
+
+      <DeleteViolationDialog
+        record={deleteTarget}
+        open={deleteTargetId !== null}
+        onOpenChange={(open) => setDeleteTargetId(open ? deleteTargetId : null)}
+        onDeleted={() => setDeleteTargetId(null)}
       />
 
       <BulkDeleteDialog

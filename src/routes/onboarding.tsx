@@ -165,13 +165,28 @@ function OnboardingPage() {
     setPage(1);
   }
 
-  // One checkbox, one field — no cross-step cascade. The SOP's protected
-  // ranges mean Recruitment Lead and Onboarding Specialist each only ever
-  // touch their own half of the checklist (see canEditOnboardingField), so
-  // ticking a later step can't imply earlier ones the acting role may not
-  // even be able to see confirmed, let alone write.
+  // Checking a later step implies every earlier step already happened, so
+  // ticking it also ticks anything before it — but only the earlier steps
+  // the acting role is actually allowed to write (see canEditOnboardingField).
+  // A Recruitment Lead checking step 3 also fills in steps 1-2 (all three are
+  // theirs); an Onboarding Specialist checking step 4 only fills in step 3
+  // (the shared step) and leaves 1-2 alone, since those are Recruitment
+  // Lead's exclusive fields and this account can't attest to them. Admin
+  // always fills in everything earlier, since every field is theirs.
+  // Unchecking only clears the one box; it doesn't cascade backwards.
   async function handleToggle(hire: NewHire, field: ChecklistKey) {
-    const patch: NewHirePatch = { [field]: !hire[field] };
+    const turningOn = !hire[field];
+    const patch: NewHirePatch = { [field]: turningOn };
+
+    if (turningOn) {
+      const clickedIndex = CHECKLIST_COLUMNS.findIndex((c) => c.key === field);
+      for (const col of CHECKLIST_COLUMNS.slice(0, clickedIndex)) {
+        if (!hire[col.key] && canEditOnboardingField(account?.role, col.key)) {
+          patch[col.key] = true;
+        }
+      }
+    }
+
     try {
       await updateMutation.mutateAsync({ id: hire.id, patch });
     } catch (error) {
