@@ -38,7 +38,16 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    # transaction_per_migration=True: without this, every pending migration
+    # applied by a single `alembic upgrade` invocation shares ONE transaction
+    # (Alembic's default), which breaks any migration that adds a Postgres
+    # enum value and a later migration that uses it — Postgres refuses to use
+    # a new enum value before its own ADD VALUE is committed (see
+    # e642378655d7 / f7a1b2c3d4e5). Committing after each migration avoids
+    # that without needing every such split to fight the shared transaction.
+    context.configure(
+        connection=connection, target_metadata=target_metadata, transaction_per_migration=True
+    )
     with context.begin_transaction():
         context.run_migrations()
 

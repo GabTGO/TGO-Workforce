@@ -1,12 +1,17 @@
-"""split onboarding roles into recruitment_lead and onboarding_specialist
+"""split onboarding roles: add recruitment_lead and onboarding_specialist enum values
 
 Corrects an earlier merge decision: onboarding was modeled as one "recruitment"
 role, but the New Hire Onboarding Tracker SOP requires two distinct roles with
 different checklist-field write access (Recruitment Lead: items 1-2,
-Onboarding Specialist: items 4-7, item 3 shared). Adds the two correct enum
-values; the old "recruitment" value is left in place (Postgres can't drop a
-single enum value without recreating the whole type) but nothing in the app
-reads or writes it anymore.
+Onboarding Specialist: items 4-7, item 3 shared).
+
+This migration ONLY adds the two new enum values — it must NOT also use them
+(e.g. in an UPDATE) in the same migration/transaction: Postgres refuses to use
+a new enum value before it's committed ("unsafe use of new value ... enum
+values must be committed before they can be used"), and Alembic runs each
+migration in one transaction. The data backfill that actually assigns these
+roles to accounts is the next migration (f7a1b2c3d4e5), which runs in its own,
+later transaction once these values are safely committed.
 
 Revision ID: e642378655d7
 Revises: e1c5959113bd
@@ -29,14 +34,9 @@ def upgrade() -> None:
     op.execute("ALTER TYPE account_role ADD VALUE IF NOT EXISTS 'recruitment_lead'")
     op.execute("ALTER TYPE account_role ADD VALUE IF NOT EXISTS 'onboarding_specialist'")
 
-    # No account should have role='recruitment' yet (this value only existed
-    # since e1c5959113bd, and nothing in the UI has offered it as a choice
-    # since roles.ts was corrected in the same change as this migration) —
-    # but reassign defensively in case anyone was seeded with it directly.
-    op.execute("UPDATE accounts SET role = 'recruitment_lead' WHERE role = 'recruitment'")
-
 
 def downgrade() -> None:
-    # Reverse the reassignment; the added enum values themselves are left in
-    # place — see the module docstring for why they can't be cleanly dropped.
-    op.execute("UPDATE accounts SET role = 'recruitment' WHERE role IN ('recruitment_lead', 'onboarding_specialist')")
+    # Postgres can't drop a single enum value without recreating the whole
+    # type — nothing to do here (see the module docstring in the previous
+    # migration for the same limitation on 'recruitment').
+    pass
