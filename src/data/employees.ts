@@ -72,7 +72,7 @@ export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
  * A full backend timestamp (createdAt/updatedAt) isn't a plain date-only
  * string, so it falls through to a normal parse and keeps converting from
  * UTC to the viewer's local time as it should. */
-function parseCalendarDate(value: string): Date {
+export function parseCalendarDate(value: string): Date {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? new Date(`${value}T00:00:00`)
     : new Date(value);

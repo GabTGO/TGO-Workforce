@@ -37,6 +37,7 @@ import {
   formatDate,
   metrics,
   officeDistribution,
+  parseCalendarDate,
   tenureDays,
   upcomingBirthdays,
 } from "@/data/employees";
@@ -125,6 +126,11 @@ function Dashboard() {
   const recentNewHires = employees
     .filter((e) => e.status === "Active" && tenureDays(e.startDate) <= RECENT_HIRE_DAYS)
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const recentExits = employees.filter((e) => {
+    if (!e.exitDate) return false;
+    const daysAgo = Math.round((Date.now() - parseCalendarDate(e.exitDate).getTime()) / 86_400_000);
+    return daysAgo >= 0 && daysAgo <= RECENT_MILESTONE_DAYS;
+  });
 
   // Cross-module snapshot — every signed-in role sees this, same as every
   // other read in the app (reads stay open across modules; only writes and
@@ -200,28 +206,48 @@ function Dashboard() {
               `${bannerAnniversaries.length} anniversar${bannerAnniversaries.length === 1 ? "y" : "ies"}`}{" "}
             in the last {RECENT_MILESTONE_DAYS} days
           </AlertTitle>
-          <AlertDescription>
+          <AlertDescription className="space-y-2.5">
             {bannerBirthdays.length > 0 && (
-              <span className="block">
-                Birthdays:{" "}
-                {bannerBirthdays
-                  .slice(0, 4)
-                  .map((e) => `${e.name} (${e.monthName} ${e.day})`)
-                  .join(", ")}
-                {bannerBirthdays.length > 4 && ` and ${bannerBirthdays.length - 4} more`}
-              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Birthdays ({bannerBirthdays.length})
+                </p>
+                <div className="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                  {bannerBirthdays.map((e) => (
+                    <span
+                      key={e.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs"
+                    >
+                      <span className="font-semibold text-foreground">{e.name}</span>
+                      <span className="text-muted-foreground">
+                        {e.monthName} {e.day}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
             {bannerAnniversaries.length > 0 && (
-              <span className="block">
-                Anniversaries:{" "}
-                {bannerAnniversaries
-                  .slice(0, 4)
-                  .map((e) => `${e.name} (${e.years} yr${e.years === 1 ? "" : "s"})`)
-                  .join(", ")}
-                {bannerAnniversaries.length > 4 && ` and ${bannerAnniversaries.length - 4} more`}
-              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Anniversaries ({bannerAnniversaries.length})
+                </p>
+                <div className="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                  {bannerAnniversaries.map((e) => (
+                    <span
+                      key={e.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs"
+                    >
+                      <span className="font-semibold text-foreground">{e.name}</span>
+                      <span className="text-muted-foreground">
+                        {e.years} yr{e.years === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
-            Turn these off on the Settings page.
+            <p className="text-xs text-muted-foreground">Turn these off on the Settings page.</p>
           </AlertDescription>
         </Alert>
       )}
@@ -248,14 +274,14 @@ function Dashboard() {
         />
         <MetricCard
           title="New Hires"
-          value={m.newHires}
-          hint="Started in last 12 months"
+          value={recentNewHires.length}
+          hint={`Started in last ${RECENT_HIRE_DAYS} days`}
           icon={UserPlus}
         />
         <MetricCard
           title="Exits"
-          value={m.exits}
-          hint="Departures in last 12 months"
+          value={recentExits.length}
+          hint={`Departures in last ${RECENT_MILESTONE_DAYS} days`}
           icon={LogOut}
         />
         <MetricCard
@@ -300,7 +326,7 @@ function Dashboard() {
                     <p className="text-xs text-muted-foreground">Terminated</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-semibold">{m.newHires}</p>
+                    <p className="text-2xl font-semibold">{recentNewHires.length}</p>
                     <p className="text-xs text-muted-foreground">New Hires</p>
                   </div>
                 </div>
@@ -432,13 +458,13 @@ function Dashboard() {
                 </CardTitle>
                 <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="max-h-80 space-y-3 overflow-y-auto">
                 {recentNewHires.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No new hires in the last {RECENT_HIRE_DAYS} days.
                   </p>
                 ) : (
-                  recentNewHires.slice(0, 5).map((e) => (
+                  recentNewHires.map((e) => (
                     <div
                       key={e.id}
                       className="flex items-center justify-between gap-3 text-sm"
@@ -468,13 +494,13 @@ function Dashboard() {
                 </CardTitle>
                 <CardDescription>Work anniversaries in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="max-h-80 space-y-3 overflow-y-auto">
                 {recentAnniversaries.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No anniversaries in the last {RECENT_MILESTONE_DAYS} days.
                   </p>
                 ) : (
-                  recentAnniversaries.slice(0, 5).map((e) => (
+                  recentAnniversaries.map((e) => (
                     <div
                       key={e.id}
                       className="flex items-center justify-between gap-3 text-sm"
@@ -502,13 +528,13 @@ function Dashboard() {
                 </CardTitle>
                 <CardDescription>Celebrations in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="max-h-80 space-y-3 overflow-y-auto">
                 {recentBirthdays.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No birthdays in the last {RECENT_MILESTONE_DAYS} days.
                   </p>
                 ) : (
-                  recentBirthdays.slice(0, 5).map((e) => (
+                  recentBirthdays.map((e) => (
                     <div
                       key={e.id}
                       className="flex items-center justify-between gap-3 text-sm"
