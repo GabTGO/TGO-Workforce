@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Loader2, Send } from "lucide-react";
+import { ExternalLink, Loader2, Send, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -169,6 +169,13 @@ export function SendConfirmDialog({
 
         {outlookMode && record && !waitingOnSettings && (
           <div className="flex flex-col gap-3 rounded-lg border p-3">
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Please make sure Outlook is already open before continuing — this marks the record Sent
+                right away, so it's easiest to have the compose window land somewhere you'll actually see it.
+              </span>
+            </div>
             <p className="text-xs font-medium text-muted-foreground">Before opening Outlook</p>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground">Send from</label>

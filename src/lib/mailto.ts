@@ -52,10 +52,18 @@ export function buildMailtoUrl(options: {
   if (options.cc) params.set("cc", options.cc);
   params.set("subject", options.subject);
   params.set("body", options.body);
+  // The "to" address sits before the "?" in a mailto: URI, not inside the
+  // query string — it must stay a literal, unencoded address ("a@b.com").
+  // Running it through encodeURIComponent turns "@" into "%40", and
+  // whatever mailto: handler is registered here doesn't decode that back
+  // into a real "@" before handing off to Outlook, so the To field showed
+  // up empty even though everything else (Cc, subject, body — all real
+  // query params) came through fine.
+  //
   // URLSearchParams encodes spaces as "+", which most mail clients (Outlook
   // included) don't decode back in a mailto: context — encode them as %20
   // instead, matching how a real mailto: URI should escape a body/subject.
-  return `mailto:${encodeURIComponent(options.to)}?${params.toString().replace(/\+/g, "%20")}`;
+  return `mailto:${options.to}?${params.toString().replace(/\+/g, "%20")}`;
 }
 
 /** Hands the mailto: URI to the OS/browser's registered mail client. Uses a
