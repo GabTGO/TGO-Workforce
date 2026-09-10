@@ -54,8 +54,13 @@ DEFAULT_GRANTS = {
 
 
 def upgrade() -> None:
+    # Don't call permission_enum.create(...) explicitly here — op.create_table
+    # below already creates any Postgres enum type used by one of its columns
+    # (via a before_create hook on the table, same as every plain sa.Enum
+    # column in this repo's other migrations, e.g. 736a9e1f335b). Creating it
+    # twice makes Postgres raise "type already exists" the moment
+    # create_table tries to create it again for the table.
     permission_enum = postgresql.ENUM(*PERMISSION_VALUES, name="permission")
-    permission_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "role_permissions",
@@ -88,5 +93,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # No separate DROP TYPE needed — drop_table's after_drop hook drops the
+    # permission enum type automatically once the table (its only user) is
+    # gone, mirroring how create_table creates it above. An explicit
+    # op.execute("DROP TYPE permission") here would 42704 ("does not exist")
+    # for the same reason the duplicate CREATE TYPE above failed.
     op.drop_table("role_permissions")
-    op.execute("DROP TYPE permission")
