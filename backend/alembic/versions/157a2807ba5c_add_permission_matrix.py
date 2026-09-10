@@ -60,27 +60,31 @@ def upgrade() -> None:
     # column in this repo's other migrations, e.g. 736a9e1f335b). Creating it
     # twice makes Postgres raise "type already exists" the moment
     # create_table tries to create it again for the table.
+    account_role_enum = postgresql.ENUM(
+        "super_admin", "admin", "people_ops", "hr", "projects",
+        "recruitment_lead", "onboarding_specialist", "viewer",
+        name="account_role", create_type=False,
+    )
     permission_enum = postgresql.ENUM(*PERMISSION_VALUES, name="permission")
 
     op.create_table(
         "role_permissions",
-        sa.Column(
-            "role",
-            postgresql.ENUM(
-                "super_admin", "admin", "people_ops", "hr", "projects",
-                "recruitment_lead", "onboarding_specialist", "viewer",
-                name="account_role", create_type=False,
-            ),
-            nullable=False,
-        ),
+        sa.Column("role", account_role_enum, nullable=False),
         sa.Column("permission", permission_enum, nullable=False),
         sa.PrimaryKeyConstraint("role", "permission"),
     )
 
+    # The ad-hoc table below must reuse these same Enum objects (not
+    # sa.String) — asyncpg binds each parameter with an explicit Postgres
+    # type based on the column's SQLAlchemy type, and a plain VARCHAR bind
+    # can't implicitly cast to a custom enum column ("column "role" is of
+    # type account_role but expression is of type character varying").
+    # Enum columns render as `$1::account_role` / `$2::permission`, which
+    # asyncpg accepts.
     role_permissions = sa.table(
         "role_permissions",
-        sa.column("role", sa.String),
-        sa.column("permission", sa.String),
+        sa.column("role", account_role_enum),
+        sa.column("permission", permission_enum),
     )
     op.bulk_insert(
         role_permissions,
