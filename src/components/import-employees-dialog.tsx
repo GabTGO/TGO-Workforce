@@ -100,12 +100,38 @@ function normalizeDate(value: unknown): string {
 // Status is the one field the backend validates strictly (it's a real enum, not free
 // text) — a source sheet that uses "Status" for something else entirely (an onboarding
 // tracker's "Complete", say, rather than an employment status) would otherwise fail the
-// whole import. Only carry the value over when it actually matches Active/Resigned/
-// Terminated; anything else is left for the reviewer to set explicitly.
+// whole import. Only carry the value over when it actually matches (directly or via a
+// known synonym) Active/Resigned/Terminated; anything else is left for the reviewer to
+// set explicitly.
+//
+// The synonyms exist specifically for cross-imports from another system's export, which
+// won't use this app's exact enum labels — e.g. the old site this was built to import
+// from uses "Termed" for what this app calls "Terminated". Without this, that row's
+// status came back unrecognized (silently left unset), which the backend then defaults
+// to "Active" on import — a terminated employee quietly reappearing as Active, with
+// nothing in the review screen calling it out. Add new aliases here as other source
+// systems turn up different wording for the same three statuses.
+const STATUS_ALIASES: Record<string, EmployeeStatus> = {
+  active: "Active",
+  employed: "Active",
+  resigned: "Resigned",
+  resign: "Resigned",
+  resignation: "Resigned",
+  quit: "Resigned",
+  voluntary: "Resigned",
+  terminated: "Terminated",
+  termed: "Terminated",
+  term: "Terminated",
+  terminate: "Terminated",
+  fired: "Terminated",
+  dismissed: "Terminated",
+  involuntary: "Terminated",
+};
+
 function normalizeStatus(value: unknown): EmployeeStatus | undefined {
   if (value == null || value === "") return undefined;
   const raw = String(value).trim().toLowerCase();
-  return STATUSES.find((s) => s.toLowerCase() === raw);
+  return STATUS_ALIASES[raw];
 }
 
 // One parsed row, plus a stable key for React and for the review table's selection state —
@@ -437,7 +463,11 @@ export function ImportEmployeesDialog() {
                   Department, Position (or Role), Start Date, Birthday, Status,
                   Date Resigned, Job Offer Date. Only Full Name is required —
                   any other columns in the file (onboarding checklists,
-                  recruiter notes, and so on) are simply ignored.
+                  recruiter notes, and so on) are simply ignored. Status also
+                  understands common variants from other systems — e.g.
+                  "Termed" or "Fired" both map to Terminated, "Quit" maps to
+                  Resigned — so you don't need to relabel a source export
+                  before importing it.
                 </p>
               </div>
 
