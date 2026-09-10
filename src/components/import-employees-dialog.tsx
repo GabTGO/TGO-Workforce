@@ -1,12 +1,15 @@
 import { useRef, useState } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
   ChevronLeft,
+  ChevronUp,
   FileSpreadsheet,
   Loader2,
   Plus,
   Trash2,
   Upload,
+  UserCheck,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +40,7 @@ import {
 } from "@/components/ui/table";
 import type { Employee, EmployeeStatus } from "@/data/employees";
 import { STATUSES } from "@/data/employees";
-import { useImportEmployees } from "@/data/employee-store";
+import { useEmployeesQuery, useImportEmployees } from "@/data/employee-store";
 
 // Recognized column headers, matched case-insensitively with spaces/underscores stripped —
 // so "Employee ID", "employee_id" and "EmployeeID" all map to the same field. This is the
@@ -110,6 +113,34 @@ function normalizeStatus(value: unknown): EmployeeStatus | undefined {
 // addressable even before it has one.
 type ReviewRow = Partial<Employee> & { key: string };
 
+// A row moved to the "already in your directory" panel additionally carries
+// which existing employee it matched, purely for display — stripped again
+// before the row is ever added back to the importable list (see
+// "Add anyway" below), since the import payload has no use for it.
+type DuplicateRow = ReviewRow & { matchedId: string; matchedName: string };
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// The "cross import" comparison this dialog exists for: a row exported from
+// the old system rarely shares a real foreign key with this database, so the
+// best available signal is an exact Employee ID match (when the sheet has
+// one) or, failing that, an exact full-name match against the current
+// directory. Good enough to separate "already here" from "genuinely new" for
+// a human to review — not a fuzzy/typo-tolerant match, since a false
+// duplicate silently hides someone who should have been added.
+function findExistingMatch(row: ReviewRow, employees: Employee[]): Employee | null {
+  const rowId = (row.id ?? "").trim().toLowerCase();
+  if (rowId) {
+    const byId = employees.find((e) => e.id.trim().toLowerCase() === rowId);
+    if (byId) return byId;
+  }
+  const rowName = normalizeName(row.name ?? "");
+  if (!rowName) return null;
+  return employees.find((e) => normalizeName(e.name) === rowName) ?? null;
+}
+
 let rowKeySeq = 0;
 function nextRowKey(): string {
   rowKeySeq += 1;
@@ -169,8 +200,16 @@ export function ImportEmployeesDialog() {
   const [importing, setImporting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
+  const [duplicateRows, setDuplicateRows] = useState<DuplicateRow[]>([]);
+  const [showDuplicates, setShowDuplicates] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Loading (not just an empty result) matters here: this list is what the
+  // scan compares against, so a query that's still in flight must never be
+  // read as "the directory is empty" — that would silently let real
+  // duplicates through as if the database had nothing in it yet.
+  const { data: employeesData, isLoading: employeesLoading } = useEmployeesQuery();
+  const employees = employeesData ?? [];
   const importMutation = useImportEmployees();
 
   function reset() {
@@ -179,6 +218,8 @@ export function ImportEmployeesDialog() {
     setImporting(false);
     setFile(null);
     setRows([]);
+    setDuplicateRows([]);
+    setShowDuplicates(false);
     setSelected(new Set());
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -192,7 +233,19 @@ export function ImportEmployeesDialog() {
         toast.error("No rows found in that file.");
         return;
       }
-      setRows(parsed);
+      // The cross-import comparison: split the scanned rows into ones that
+      // already match someone in the current directory and ones that don't,
+      // so the review table defaults to showing only who's actually new.
+      const newRows: ReviewRow[] = [];
+      const existingRows: DuplicateRow[] = [];
+      for (const row of parsed) {
+        const match = findExistingMatch(row, employees);
+        if (match) existingRows.push({ ...row, matchedId: match.id, matchedName: match.name });
+        else newRows.push(row);
+      }
+      setRows(newRows);
+      setDuplicateRows(existingRows);
+      setShowDuplicates(false);
       setSelected(new Set());
       setStep("review");
     } catch (error) {
@@ -203,6 +256,19 @@ export function ImportEmployeesDialog() {
     } finally {
       setScanning(false);
     }
+  }
+
+  // Pulls a row out of the "already in your directory" panel and into the
+  // editable/importable table below — for the rare case the name match was
+  // a false positive (two different people who happen to share a name).
+  function addDuplicateAnyway(key: string) {
+    setDuplicateRows((prev) => {
+      const found = prev.find((r) => r.key === key);
+      if (!found) return prev;
+      const { matchedId: _matchedId, matchedName: _matchedName, ...clean } = found;
+      setRows((rs) => [...rs, clean]);
+      return prev.filter((r) => r.key !== key);
+    });
   }
 
   function setRowField(
@@ -335,9 +401,12 @@ export function ImportEmployeesDialog() {
               <div className="pb-1">
                 <h2 className="text-base font-semibold">Import from Excel</h2>
                 <p className="text-sm text-muted-foreground">
-                  Upload a .xlsx, .xls or .csv file. We'll scan it, match its
-                  columns to employee fields, and show you a preview to edit
-                  before anything is added.
+                  Upload a .xlsx, .xls or .csv file — an export from another
+                  system works fine. We'll scan it, match its columns to
+                  employee fields, and cross-check every row against your
+                  current directory (by Employee ID, or by name when there's
+                  no ID column) so rows that already exist here are called out
+                  separately from ones that look genuinely new.
                 </p>
               </div>
 
@@ -372,11 +441,17 @@ export function ImportEmployeesDialog() {
                 </p>
               </div>
 
+              {employeesLoading && (
+                <p className="text-xs text-muted-foreground">
+                  Loading your current directory to compare against…
+                </p>
+              )}
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleScan} disabled={!file}>
+                <Button onClick={handleScan} disabled={!file || employeesLoading}>
                   Scan File
                 </Button>
               </DialogFooter>
@@ -403,9 +478,14 @@ export function ImportEmployeesDialog() {
                   <div>
                     <h2 className="text-base font-semibold">Review import</h2>
                     <p className="text-sm text-muted-foreground">
-                      Found {rows.length} row{rows.length === 1 ? "" : "s"} in{" "}
-                      {file?.name}. Edit, delete or add rows below — nothing is
-                      saved until you import.
+                      Found {rows.length + duplicateRows.length} row
+                      {rows.length + duplicateRows.length === 1 ? "" : "s"} in{" "}
+                      {file?.name}.{" "}
+                      {duplicateRows.length > 0
+                        ? `${duplicateRows.length} already ${duplicateRows.length === 1 ? "matches" : "match"} someone in your directory (hidden below, by default) — ${rows.length} look new.`
+                        : "None of them matched your existing directory — all look new."}{" "}
+                      Edit, delete or add rows below — nothing is saved until
+                      you import.
                     </p>
                   </div>
                   <Button
@@ -414,12 +494,60 @@ export function ImportEmployeesDialog() {
                     onClick={() => {
                       setStep("select");
                       setRows([]);
+                      setDuplicateRows([]);
                       setSelected(new Set());
                     }}
                   >
                     <ChevronLeft className="mr-1 h-4 w-4" /> Back
                   </Button>
                 </div>
+
+                {duplicateRows.length > 0 && (
+                  <div className="rounded-md border">
+                    <button
+                      type="button"
+                      onClick={() => setShowDuplicates((v) => !v)}
+                      className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left"
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <UserCheck className="h-4 w-4 text-muted-foreground" />
+                        {duplicateRows.length} already in your directory — skipped by default
+                      </span>
+                      {showDuplicates ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                    {showDuplicates && (
+                      <div className="max-h-48 overflow-auto border-t">
+                        <Table>
+                          <TableBody>
+                            {duplicateRows.map((r) => (
+                              <TableRow key={r.key}>
+                                <TableCell className="text-sm">
+                                  <p className="font-medium">{r.name || "(no name)"}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Matches existing {r.matchedId} · {r.matchedName}
+                                  </p>
+                                </TableCell>
+                                <TableCell className="w-40 text-right">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => addDuplicateAnyway(r.key)}
+                                  >
+                                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add anyway
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {someSelected && (
                   <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5">
@@ -485,8 +613,9 @@ export function ImportEmployeesDialog() {
                           colSpan={13}
                           className="h-24 text-center text-muted-foreground"
                         >
-                          No rows left. Add one below or go back and pick a
-                          different file.
+                          {duplicateRows.length > 0
+                            ? "Everyone in this file already matched someone in your directory. Add one below, expand the panel above to add a match anyway, or go back and pick a different file."
+                            : "No rows left. Add one below or go back and pick a different file."}
                         </TableCell>
                       </TableRow>
                     )}

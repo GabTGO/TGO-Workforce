@@ -35,6 +35,7 @@ import {
   formatDate,
   metrics,
   officeDistribution,
+  tenureDays,
   upcomingBirthdays,
 } from "@/data/employees";
 import { computeStatus } from "@/data/new-hire-api";
@@ -67,6 +68,22 @@ function isWithinNextWeek(monthIndex: number, day: number): boolean {
   const diffDays = (next.getTime() - startOfToday.getTime()) / 86_400_000;
   return diffDays >= 0 && diffDays < 7;
 }
+
+// How many days ago a recurring month/day (birthday, anniversary) last
+// occurred — rolls back a year when this year's date hasn't happened yet, so
+// e.g. a Jan 5 birthday checked in December still reads as "~330 days ago"
+// rather than a negative, still-upcoming number. Backs the Dashboard's
+// "last 30 days" milestone cards below.
+function daysSinceLastOccurrence(monthIndex: number, day: number): number {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let occurrence = new Date(now.getFullYear(), monthIndex, day);
+  if (occurrence > startOfToday) occurrence = new Date(now.getFullYear() - 1, monthIndex, day);
+  return Math.round((startOfToday.getTime() - occurrence.getTime()) / 86_400_000);
+}
+
+const RECENT_MILESTONE_DAYS = 30;
+const RECENT_HIRE_DAYS = 14;
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -105,10 +122,25 @@ function Dashboard() {
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
-  const upcoming = anniversaries(employees).slice(0, 5);
   const birthdaysThisWeek = upcomingBirthdays(employees).filter((e) =>
     isWithinNextWeek(e.monthIndex, e.day),
   );
+
+  // Dashboard "recent activity" windows: milestones (birthdays,
+  // anniversaries) that occurred in the last 30 days, and new hires who
+  // started in the last 14 — recently-happened events worth a recap, not an
+  // indefinite backlog. Sorted most-recent-first (ascending days-ago).
+  const recentAnniversaries = anniversaries(employees)
+    .map((e) => ({ ...e, daysAgo: daysSinceLastOccurrence(e.monthIndex, e.day) }))
+    .filter((e) => e.daysAgo <= RECENT_MILESTONE_DAYS)
+    .sort((a, b) => a.daysAgo - b.daysAgo);
+  const recentBirthdays = upcomingBirthdays(employees)
+    .map((e) => ({ ...e, daysAgo: daysSinceLastOccurrence(e.monthIndex, e.day) }))
+    .filter((e) => e.daysAgo <= RECENT_MILESTONE_DAYS)
+    .sort((a, b) => a.daysAgo - b.daysAgo);
+  const recentNewHires = employees
+    .filter((e) => e.status === "Active" && tenureDays(e.startDate) <= RECENT_HIRE_DAYS)
+    .sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   // Cross-module snapshot — every signed-in role sees this, same as every
   // other read in the app (reads stay open across modules; only writes and
@@ -142,8 +174,8 @@ function Dashboard() {
   // module-scoped card, so it stays with the rest of that section.
   const showNewHires = isFullAccess && (account?.notify_new_hires ?? true);
   const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
-  const showBirthdayBanner =
-    canViewMilestonesModule && (account?.notify_birthdays ?? true) && birthdaysThisWeek.length > 0;
+  const showBirthdaysCard = canViewMilestonesModule && (account?.notify_birthdays ?? true);
+  const showBirthdayBanner = showBirthdaysCard && birthdaysThisWeek.length > 0;
 
   return (
     <div className="space-y-6">
@@ -370,60 +402,101 @@ function Dashboard() {
         </div>
       )}
 
-      {(showNewHires || showAnniversaries) && (
-        <div className="grid gap-4 lg:grid-cols-2">
+      {(showNewHires || showAnniversaries || showBirthdaysCard) && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {showNewHires && (
-            <Card className={showAnniversaries ? undefined : "lg:col-span-2"}>
+            <Card>
               <CardHeader>
                 <CardTitle>Recent New Hires</CardTitle>
-                <CardDescription>
-                  Latest additions to the workforce
-                </CardDescription>
+                <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {m.newHireList.slice(0, 5).map((e) => (
-                  <div
-                    key={e.id}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{e.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {e.position} · {e.office}
-                      </p>
+                {recentNewHires.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No new hires in the last {RECENT_HIRE_DAYS} days.
+                  </p>
+                ) : (
+                  recentNewHires.slice(0, 5).map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{e.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {e.position} · {e.office}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatDate(e.startDate)}
+                      </span>
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatDate(e.startDate)}
-                    </span>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           )}
 
           {showAnniversaries && (
-            <Card className={showNewHires ? undefined : "lg:col-span-2"}>
+            <Card>
               <CardHeader>
-                <CardTitle>Upcoming Milestones</CardTitle>
-                <CardDescription>
-                  Work anniversaries to recognise
-                </CardDescription>
+                <CardTitle>Recent Anniversaries</CardTitle>
+                <CardDescription>Work anniversaries in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {upcoming.map((e) => (
-                  <div
-                    key={e.id}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{e.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {e.monthName} {e.day} · {e.department}
-                      </p>
+                {recentAnniversaries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No anniversaries in the last {RECENT_MILESTONE_DAYS} days.
+                  </p>
+                ) : (
+                  recentAnniversaries.slice(0, 5).map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{e.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {e.monthName} {e.day} · {e.department}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">{e.years} yrs</Badge>
                     </div>
-                    <Badge variant="secondary">{e.years} yrs</Badge>
-                  </div>
-                ))}
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {showBirthdaysCard && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Birthdays</CardTitle>
+                <CardDescription>Celebrations in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentBirthdays.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No birthdays in the last {RECENT_MILESTONE_DAYS} days.
+                  </p>
+                ) : (
+                  recentBirthdays.slice(0, 5).map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{e.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {e.office}
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {e.monthName.slice(0, 3)} {e.day}
+                      </Badge>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           )}

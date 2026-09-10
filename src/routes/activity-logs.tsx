@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, AlertTriangle, Info, Search, ScrollText } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronLeft, ChevronRight, Info, Search, ScrollText } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { MetricCard } from "@/components/metric-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -66,6 +67,8 @@ export const Route = createFileRoute("/activity-logs")({
   component: ActivityLogsPage,
 });
 
+const PAGE_SIZE = 15;
+
 function ActivityLogsPage() {
   const { data, isLoading, isError } = useActivityLogs();
   const logs = data ?? [];
@@ -73,8 +76,9 @@ function ActivityLogsPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [severity, setSeverity] = useState<string>("all");
+  const [page, setPage] = useState(1);
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return logs.filter((log) => {
       const matchesQuery =
@@ -85,6 +89,10 @@ function ActivityLogsPage() {
       return matchesQuery && matchesCategory && matchesSeverity;
     });
   }, [logs, query, category, severity]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const critical = logs.filter((l) => l.severity === "critical").length;
   const warning = logs.filter((l) => l.severity === "warning").length;
@@ -112,9 +120,7 @@ function ActivityLogsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Recent activity</CardTitle>
-          <CardDescription>
-            Showing {rows.length} of {logs.length} events.
-          </CardDescription>
+          <CardDescription>Filter and page through the full audit trail.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -122,12 +128,21 @@ function ActivityLogsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search actor, action or record..."
                 className="pl-8"
               />
             </div>
-            <Select value={category} onValueChange={setCategory}>
+            <Select
+              value={category}
+              onValueChange={(v) => {
+                setCategory(v);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Module" />
               </SelectTrigger>
@@ -140,7 +155,13 @@ function ActivityLogsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={severity} onValueChange={setSeverity}>
+            <Select
+              value={severity}
+              onValueChange={(v) => {
+                setSeverity(v);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Severity" />
               </SelectTrigger>
@@ -209,6 +230,35 @@ function ActivityLogsPage() {
               </TableBody>
             </Table>
           </div>
+
+          {rows.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Showing {rows.length} of {filtered.length} events
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === pageCount}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Next <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
