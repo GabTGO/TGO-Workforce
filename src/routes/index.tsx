@@ -3,10 +3,12 @@ import {
   Users,
   UserMinus,
   UserPlus,
+  UserX,
   LogOut,
   Building2,
   Globe2,
   ArrowRight,
+  Award,
   Cake,
   ClipboardCheck,
   ShieldAlert,
@@ -51,23 +53,6 @@ import {
   getEffectiveRole,
   isFullAccessRole,
 } from "@/lib/permissions";
-
-// Whether a month/day (as returned by upcomingBirthdays) falls within the
-// next 7 days, wrapping into next year for a birthday that's already passed
-// this year's date — backs the "Birthday reminders" toggle on Settings.
-function isWithinNextWeek(monthIndex: number, day: number): boolean {
-  const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
-  let next = new Date(now.getFullYear(), monthIndex, day);
-  if (next < startOfToday)
-    next = new Date(now.getFullYear() + 1, monthIndex, day);
-  const diffDays = (next.getTime() - startOfToday.getTime()) / 86_400_000;
-  return diffDays >= 0 && diffDays < 7;
-}
 
 // How many days ago a recurring month/day (birthday, anniversary) last
 // occurred — rolls back a year when this year's date hasn't happened yet, so
@@ -122,9 +107,8 @@ function Dashboard() {
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
-  const birthdaysThisWeek = upcomingBirthdays(employees).filter((e) =>
-    isWithinNextWeek(e.monthIndex, e.day),
-  );
+  const resignedCount = employees.filter((e) => e.status === "Resigned").length;
+  const terminatedCount = employees.filter((e) => e.status === "Terminated").length;
 
   // Dashboard "recent activity" windows: milestones (birthdays,
   // anniversaries) that occurred in the last 30 days, and new hires who
@@ -175,7 +159,14 @@ function Dashboard() {
   const showNewHires = isFullAccess && (account?.notify_new_hires ?? true);
   const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
   const showBirthdaysCard = canViewMilestonesModule && (account?.notify_birthdays ?? true);
-  const showBirthdayBanner = showBirthdaysCard && birthdaysThisWeek.length > 0;
+
+  // The top-of-page reminder banner: same last-30-days lists as the cards
+  // below, filtered again by each preference independently (a person who's
+  // turned off anniversary notifications but kept birthdays on should still
+  // get a birthdays-only banner, not nothing).
+  const bannerBirthdays = showBirthdaysCard ? recentBirthdays : [];
+  const bannerAnniversaries = showAnniversaries ? recentAnniversaries : [];
+  const showMilestoneBanner = bannerBirthdays.length > 0 || bannerAnniversaries.length > 0;
 
   return (
     <div className="space-y-6">
@@ -198,27 +189,45 @@ function Dashboard() {
         }
       />
 
-      {showBirthdayBanner && (
+      {showMilestoneBanner && (
         <Alert>
           <Cake className="h-4 w-4" />
           <AlertTitle>
-            {birthdaysThisWeek.length} birthday
-            {birthdaysThisWeek.length === 1 ? "" : "s"} this week
+            {bannerBirthdays.length > 0 &&
+              `${bannerBirthdays.length} birthday${bannerBirthdays.length === 1 ? "" : "s"}`}
+            {bannerBirthdays.length > 0 && bannerAnniversaries.length > 0 && " and "}
+            {bannerAnniversaries.length > 0 &&
+              `${bannerAnniversaries.length} anniversar${bannerAnniversaries.length === 1 ? "y" : "ies"}`}{" "}
+            in the last {RECENT_MILESTONE_DAYS} days
           </AlertTitle>
           <AlertDescription>
-            {birthdaysThisWeek
-              .slice(0, 4)
-              .map((e) => `${e.name} (${e.monthName} ${e.day})`)
-              .join(", ")}
-            {birthdaysThisWeek.length > 4 &&
-              ` and ${birthdaysThisWeek.length - 4} more`}
-            . Turn this off on the Settings page.
+            {bannerBirthdays.length > 0 && (
+              <span className="block">
+                Birthdays:{" "}
+                {bannerBirthdays
+                  .slice(0, 4)
+                  .map((e) => `${e.name} (${e.monthName} ${e.day})`)
+                  .join(", ")}
+                {bannerBirthdays.length > 4 && ` and ${bannerBirthdays.length - 4} more`}
+              </span>
+            )}
+            {bannerAnniversaries.length > 0 && (
+              <span className="block">
+                Anniversaries:{" "}
+                {bannerAnniversaries
+                  .slice(0, 4)
+                  .map((e) => `${e.name} (${e.years} yr${e.years === 1 ? "" : "s"})`)
+                  .join(", ")}
+                {bannerAnniversaries.length > 4 && ` and ${bannerAnniversaries.length - 4} more`}
+              </span>
+            )}
+            Turn these off on the Settings page.
           </AlertDescription>
         </Alert>
       )}
 
       {isFullAccess && (
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <MetricCard
           title="Active Employees"
           value={m.active}
@@ -226,10 +235,16 @@ function Dashboard() {
           icon={Users}
         />
         <MetricCard
-          title="Inactive Employees"
-          value={m.inactive}
-          hint="Resigned or terminated"
+          title="Resigned"
+          value={resignedCount}
+          hint="Voluntarily left"
           icon={UserMinus}
+        />
+        <MetricCard
+          title="Terminated"
+          value={terminatedCount}
+          hint="Involuntarily separated"
+          icon={UserX}
         />
         <MetricCard
           title="New Hires"
@@ -271,14 +286,18 @@ function Dashboard() {
                 <CardDescription>Headcount at a glance</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="grid grid-cols-4 gap-3 text-center">
                   <div>
                     <p className="text-2xl font-semibold">{m.active}</p>
                     <p className="text-xs text-muted-foreground">Active</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-semibold">{m.inactive}</p>
-                    <p className="text-xs text-muted-foreground">Inactive</p>
+                    <p className="text-2xl font-semibold">{resignedCount}</p>
+                    <p className="text-xs text-muted-foreground">Resigned</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{terminatedCount}</p>
+                    <p className="text-xs text-muted-foreground">Terminated</p>
                   </div>
                   <div>
                     <p className="text-2xl font-semibold">{m.newHires}</p>
@@ -407,7 +426,10 @@ function Dashboard() {
           {showNewHires && (
             <Card>
               <CardHeader>
-                <CardTitle>Recent New Hires</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  Recent New Hires
+                </CardTitle>
                 <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -440,7 +462,10 @@ function Dashboard() {
           {showAnniversaries && (
             <Card>
               <CardHeader>
-                <CardTitle>Recent Anniversaries</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-4 w-4 text-muted-foreground" />
+                  Recent Anniversaries
+                </CardTitle>
                 <CardDescription>Work anniversaries in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -471,7 +496,10 @@ function Dashboard() {
           {showBirthdaysCard && (
             <Card>
               <CardHeader>
-                <CardTitle>Recent Birthdays</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Cake className="h-4 w-4 text-muted-foreground" />
+                  Recent Birthdays
+                </CardTitle>
                 <CardDescription>Celebrations in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
