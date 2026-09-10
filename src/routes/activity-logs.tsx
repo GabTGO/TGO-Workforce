@@ -22,12 +22,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useActivityLogs, type ActivitySeverity } from "@/data/activity-log-store";
+import { useActivityLogs, type ActivityCategory, type ActivitySeverity } from "@/data/activity-log-store";
 
 const SEVERITY_VARIANT: Record<ActivitySeverity, "secondary" | "outline" | "destructive"> = {
   info: "secondary",
   warning: "outline",
   critical: "destructive",
+};
+
+// Friendlier names for the module a log entry belongs to — this IS the
+// module (each category maps 1:1 to a module, or to "admin-only" for
+// Access/Data/System — see CATEGORY_PERMISSION in
+// backend/app/services/permissions.py, which is what actually decides
+// whether a given signed-in account sees rows in each of these at all).
+const CATEGORY_LABELS: Record<ActivityCategory, string> = {
+  Employee: "Employee Directory",
+  Onboarding: "Onboarding",
+  Attendance: "Attendance",
+  Access: "Access & Security",
+  Data: "Data",
+  System: "System",
 };
 
 export const Route = createFileRoute("/activity-logs")({
@@ -114,17 +128,16 @@ function ActivityLogsPage() {
               />
             </div>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-[170px]">
-                <SelectValue placeholder="Category" />
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Module" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                <SelectItem value="Employee">Employee</SelectItem>
-                <SelectItem value="Access">Access</SelectItem>
-                <SelectItem value="Data">Data</SelectItem>
-                <SelectItem value="System">System</SelectItem>
-                <SelectItem value="Onboarding">Onboarding</SelectItem>
-                <SelectItem value="Attendance">Attendance</SelectItem>
+                <SelectItem value="all">All modules</SelectItem>
+                {(Object.keys(CATEGORY_LABELS) as ActivityCategory[]).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {CATEGORY_LABELS[value]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={severity} onValueChange={setSeverity}>
@@ -149,7 +162,7 @@ function ActivityLogsPage() {
                   <TableHead>Actor</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Target</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Module</TableHead>
                   <TableHead className="text-right">Severity</TableHead>
                 </TableRow>
               </TableHeader>
@@ -183,7 +196,7 @@ function ActivityLogsPage() {
                       <TableCell>{log.action}</TableCell>
                       <TableCell className="text-muted-foreground">{log.target}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{log.category}</Badge>
+                        <Badge variant="outline">{CATEGORY_LABELS[log.category]}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge variant={SEVERITY_VARIANT[log.severity]} className="capitalize">

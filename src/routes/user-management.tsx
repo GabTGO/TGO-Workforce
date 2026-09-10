@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Lock,
   Mail,
   ShieldAlert,
   ShieldCheck,
@@ -45,9 +46,10 @@ import {
   useRevokePendingInvite,
   useUpdateAccount,
 } from "@/data/account-store";
+import { useAppSettingsQuery, useUpdateAppSettings } from "@/data/app-settings-store";
 import { useCurrentAccount, type AccountRole } from "@/lib/session";
 import { assignableRoleOptions, ROLE_LABELS } from "@/lib/roles";
-import { isFullAccessRole } from "@/lib/permissions";
+import { getEffectiveRole, isFullAccessRole } from "@/lib/permissions";
 
 export const Route = createFileRoute("/user-management")({
   head: () => ({
@@ -91,13 +93,16 @@ function formatDateTime(value: string | null) {
 function UserManagementPage() {
   const { data: currentAccount, isLoading: currentLoading } =
     useCurrentAccount();
-  const isAdmin = isFullAccessRole(currentAccount?.role);
-  const isSuperAdmin = currentAccount?.role === "super_admin";
+  const effectiveRole = getEffectiveRole(currentAccount);
+  const isAdmin = isFullAccessRole(effectiveRole);
+  const isSuperAdmin = effectiveRole === "super_admin";
 
   const accountsQuery = useAccountsQuery(isAdmin);
   const updateAccount = useUpdateAccount();
   const invitesQuery = usePendingInvitesQuery(isAdmin);
   const revokeInvite = useRevokePendingInvite();
+  const appSettingsQuery = useAppSettingsQuery(isSuperAdmin);
+  const updateAppSettings = useUpdateAppSettings();
 
   if (currentLoading) {
     return (
@@ -176,6 +181,32 @@ function UserManagementPage() {
     }
   }
 
+  async function handleRestrictToggle(accountId: string, isRestricted: boolean) {
+    try {
+      await updateAccount.mutateAsync({ id: accountId, patch: { isRestricted } });
+      toast.success(isRestricted ? "Account restricted to view-only" : "Restriction lifted");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't update account",
+      );
+    }
+  }
+
+  async function handleInviteOnlyToggle(inviteOnlySignup: boolean) {
+    try {
+      await updateAppSettings.mutateAsync({ inviteOnlySignup });
+      toast.success(
+        inviteOnlySignup
+          ? "Sign-in is now invite-only"
+          : "Anyone with a Zoho account can sign in again",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't update sign-in access",
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -220,6 +251,7 @@ function UserManagementPage() {
                 <TableHead>Person</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
+                {isSuperAdmin && <TableHead>Restrict</TableHead>}
                 <TableHead>Last sign-in</TableHead>
                 <TableHead className="text-right">Joined</TableHead>
               </TableRow>
@@ -228,7 +260,7 @@ function UserManagementPage() {
               {accountsQuery.isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={isSuperAdmin ? 6 : 5}
                     className="h-24 text-center text-muted-foreground"
                   >
                     Loading accounts...
@@ -237,7 +269,7 @@ function UserManagementPage() {
               ) : accountsQuery.isError ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={isSuperAdmin ? 6 : 5}
                     className="h-24 text-center text-muted-foreground"
                   >
                     Couldn't load accounts. Try refreshing the page.
@@ -246,7 +278,7 @@ function UserManagementPage() {
               ) : accounts.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={isSuperAdmin ? 6 : 5}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No one has signed in yet.
@@ -328,6 +360,24 @@ function UserManagementPage() {
                           </Badge>
                         </div>
                       </TableCell>
+                      {isSuperAdmin && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={account.isRestricted}
+                              disabled={isSelf || updateAccount.isPending}
+                              onCheckedChange={(checked) =>
+                                handleRestrictToggle(account.id, checked)
+                              }
+                            />
+                            {account.isRestricted && (
+                              <Badge variant="outline" className="gap-1 text-amber-600 dark:text-amber-400">
+                                <Lock className="h-3 w-3" /> View-only
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDateTime(account.lastLoginAt)}
                       </TableCell>
@@ -433,6 +483,37 @@ function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-muted-foreground" />
+              Sign-in Access
+            </CardTitle>
+            <CardDescription>
+              Control who can create a brand-new account by signing in with Zoho for the first
+              time. Doesn't affect anyone who has already signed in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <p className="text-sm font-medium">Require an invite to sign in</p>
+                <p className="text-sm text-muted-foreground">
+                  When on, only emails pre-assigned a role via "Add User" above (or the standing
+                  admin allowlist) can create a new account. Existing accounts sign in as always.
+                </p>
+              </div>
+              <Switch
+                checked={appSettingsQuery.data?.inviteOnlySignup ?? false}
+                disabled={appSettingsQuery.isLoading || updateAppSettings.isPending}
+                onCheckedChange={handleInviteOnlyToggle}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isSuperAdmin && <PermissionMatrixEditor />}
     </div>

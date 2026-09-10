@@ -36,3 +36,17 @@ export function assignableRoleOptions(
   if (actingRole === "super_admin") return ROLE_OPTIONS;
   return ROLE_OPTIONS.filter((role) => role !== "super_admin");
 }
+
+// Mirrors MATRIX_ROLES in backend/app/services/permissions.py — the six
+// roles a Super Admin can sandbox as (see useEnterSandbox in @/lib/session).
+// Admin/Super Admin are excluded: sandboxing as Admin would be a no-op
+// (Super Admin already has every Admin capability), and there's nothing
+// "above" Super Admin to sandbox as.
+export const SANDBOXABLE_ROLES: AccountRole[] = [
+  "people_ops",
+  "hr",
+  "projects",
+  "recruitment_lead",
+  "onboarding_specialist",
+  "viewer",
+];

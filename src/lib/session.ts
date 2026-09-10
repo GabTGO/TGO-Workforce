@@ -40,7 +40,20 @@ export type AccountProfile = {
   photo_url: string | null;
   role: AccountRole;
   is_active: boolean;
+  // Distinct from is_active (which blocks sign-in entirely): a restricted
+  // account can still sign in and see what its role normally would, but
+  // every create/edit/delete/approve action is denied app-wide regardless
+  // of role — see backend/app/services/permissions.py. Super Admin-only to
+  // set (see the User Management page).
+  is_restricted: boolean;
   last_login_at: string | null;
+  // Non-null only for a genuine Super Admin with an active sandbox override
+  // (see useEnterSandbox/useExitSandbox below) — `role` above always stays
+  // the real persisted role; `permissions` is computed from whichever of the
+  // two is currently in effect. Every admin/super-admin-gated page or nav
+  // item should check getEffectiveRole(account) from @/lib/permissions, not
+  // `role` directly, so sandboxing actually changes what's reachable.
+  sandbox_role: AccountRole | null;
   // Every permission this account currently holds, computed server-side from
   // its role against the live matrix (see backend/app/services/permissions.py
   // and GET /auth/me) — admin/super_admin get every permission there is.
@@ -137,6 +150,47 @@ export function useUpdateMyPreferences() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updateMyPreferences,
+    onSuccess: (account) => {
+      queryClient.setQueryData(CURRENT_ACCOUNT_KEY, account);
+    },
+  });
+}
+
+async function postForAccount(path: string, body?: unknown): Promise<AccountProfile> {
+  const response = await fetch(apiUrl(path), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request to ${path} failed (${response.status})`);
+  }
+  return (await response.json()) as AccountProfile;
+}
+
+/** Super Admin only — temporarily switches the caller's *effective* role for
+ * this session to one of the six matrix-configurable roles. A real,
+ * backend-enforced switch (see backend/app/core/auth.py's get_effective_role),
+ * not just a UI preview: nav, pages and every write action all start
+ * enforcing exactly what that role can do. Directly overwrites the cached
+ * account (same pattern as useUpdateMyPreferences) so the whole app re-renders
+ * under the new effective role immediately, without waiting on staleTime. */
+export function useEnterSandbox() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (role: AccountRole) => postForAccount("/auth/sandbox/enter", { role }),
+    onSuccess: (account) => {
+      queryClient.setQueryData(CURRENT_ACCOUNT_KEY, account);
+    },
+  });
+}
+
+export function useExitSandbox() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => postForAccount("/auth/sandbox/exit"),
     onSuccess: (account) => {
       queryClient.setQueryData(CURRENT_ACCOUNT_KEY, account);
     },

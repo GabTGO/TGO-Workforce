@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useCurrentAccount } from "@/lib/session";
 import type { Permission } from "@/lib/session";
-import { hasPermission, isFullAccessRole } from "@/lib/permissions";
+import { getEffectiveRole, isFullAccessRole, hasPermission } from "@/lib/permissions";
 
 type NavItem = {
   title: string;
@@ -106,7 +106,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { data: account } = useCurrentAccount();
-  const isAdmin = isFullAccessRole(account?.role);
+  const isAdmin = isFullAccessRole(getEffectiveRole(account));
 
   return (
     <Sidebar collapsible="icon">

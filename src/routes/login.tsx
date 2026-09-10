@@ -53,6 +53,10 @@ function LoginPage() {
     const error = new URLSearchParams(window.location.search).get("error");
     if (error === "inactive") {
       toast.error("Your account isn't active yet. Contact your admin.");
+    } else if (error === "invite_only") {
+      toast.error(
+        "Sign-in is currently invite-only. Ask an admin to add you from User Management before you can sign in.",
+      );
     } else if (error === "zoho") {
       toast.error("Zoho sign-in didn't go through. Please try again.");
     }

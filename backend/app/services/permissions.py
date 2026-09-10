@@ -6,10 +6,30 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountRole
+from app.models.activity_log import ActivityCategory
 from app.models.permission import Permission, RolePermission
 
 # Bypass the matrix entirely — always every permission, matrix rows or not.
 FULL_ACCESS_ROLES = {AccountRole.ADMIN, AccountRole.SUPER_ADMIN}
+
+# Every "view" permission — what a restricted account (Account.is_restricted)
+# keeps regardless of role; every "manage"/"approve" permission is stripped.
+VIEW_PERMISSIONS: frozenset[Permission] = frozenset(
+    {Permission.EMPLOYEES_VIEW, Permission.ONBOARDING_VIEW, Permission.ATTENDANCE_VIEW}
+)
+
+# Which permission governs seeing each Activity Log category — None means
+# "admin/super_admin only, not matrix-configurable" (Access/Data/System are
+# security- and infrastructure-level, not a specific module a non-admin role
+# owns). See visible_activity_categories below.
+CATEGORY_PERMISSION: dict[ActivityCategory, Permission | None] = {
+    ActivityCategory.EMPLOYEE: Permission.EMPLOYEES_VIEW,
+    ActivityCategory.ONBOARDING: Permission.ONBOARDING_VIEW,
+    ActivityCategory.ATTENDANCE: Permission.ATTENDANCE_VIEW,
+    ActivityCategory.ACCESS: None,
+    ActivityCategory.DATA: None,
+    ActivityCategory.SYSTEM: None,
+}
 
 # The six roles a Super Admin actually configures. Admin/Super Admin are
 # deliberately excluded — they're never anything but full-access, so a row
@@ -82,25 +102,49 @@ DEFAULT_GRANTS: dict[AccountRole, set[Permission]] = {
 }
 
 
-async def get_account_permissions(db: AsyncSession, account: Account) -> set[Permission]:
-    """Every permission this specific account currently has, computed fresh
-    from its role — used both by has_permission() below and to populate
-    AccountRead.permissions for the frontend's own nav/page gating."""
-    if account.role in FULL_ACCESS_ROLES:
-        return set(Permission)
-    result = await db.execute(select(RolePermission.permission).where(RolePermission.role == account.role))
-    return set(result.scalars().all())
+async def get_account_permissions(db: AsyncSession, account: Account, *, role: AccountRole) -> set[Permission]:
+    """Every permission this account currently has, computed against `role` —
+    always pass the *effective* role for this request (see
+    app/core/auth.py's get_effective_role), which is account.role unless a
+    Super Admin has an active sandbox override. Used both by has_permission()
+    below and to populate AccountRead.permissions for the frontend's own
+    nav/page gating.
+
+    A restricted account (account.is_restricted) is capped to view-only here
+    regardless of what `role` would otherwise grant — including a Super
+    Admin's own FULL_ACCESS_ROLES bypass, so restriction really does mean
+    "view only everywhere."""
+    if role in FULL_ACCESS_ROLES:
+        granted = set(Permission)
+    else:
+        result = await db.execute(select(RolePermission.permission).where(RolePermission.role == role))
+        granted = set(result.scalars().all())
+    if account.is_restricted:
+        granted &= VIEW_PERMISSIONS
+    return granted
 
 
-async def has_permission(db: AsyncSession, account: Account, permission: Permission) -> bool:
-    if account.role in FULL_ACCESS_ROLES:
-        return True
-    result = await db.execute(
-        select(RolePermission).where(
-            RolePermission.role == account.role, RolePermission.permission == permission
-        )
-    )
-    return result.scalar_one_or_none() is not None
+async def has_permission(db: AsyncSession, account: Account, permission: Permission, *, role: AccountRole) -> bool:
+    return permission in await get_account_permissions(db, account, role=role)
+
+
+async def visible_activity_categories(
+    db: AsyncSession, account: Account, *, role: AccountRole
+) -> set[ActivityCategory]:
+    """Which Activity Log categories this account may currently see — mirrors
+    the module-siloed rule everywhere else in the app: Admin/Super Admin
+    (unrestricted) see every category, including the admin-only Access/Data/
+    System ones; every other account (and any restricted account, full-
+    access or not) only sees the categories whose CATEGORY_PERMISSION they
+    currently hold."""
+    permissions = await get_account_permissions(db, account, role=role)
+    if role in FULL_ACCESS_ROLES and not account.is_restricted:
+        return set(ActivityCategory)
+    return {
+        category
+        for category, required in CATEGORY_PERMISSION.items()
+        if required is not None and required in permissions
+    }
 
 
 async def get_full_matrix(db: AsyncSession) -> dict[AccountRole, set[Permission]]:

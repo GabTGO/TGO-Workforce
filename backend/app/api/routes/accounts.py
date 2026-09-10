@@ -168,6 +168,11 @@ async def update_account(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You can't deactivate your own account.",
             )
+        if changes.get("is_restricted") is True:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can't restrict your own account.",
+            )
 
     # Only a Super Admin can grant or take away the Super Admin role itself —
     # otherwise a regular Admin could hand matrix-editing power to any account
@@ -180,6 +185,16 @@ async def update_account(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only a Super Admin can grant or change the Super Admin role.",
             )
+
+    # Restricting an account (forcing it to view-only regardless of role,
+    # even a full-access one) is Super Admin-only, same reasoning as the
+    # Super Admin role grant above — a regular Admin shouldn't be able to
+    # neutralize another Admin's write access unilaterally.
+    if "is_restricted" in changes and current_admin.role != AccountRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a Super Admin can restrict or unrestrict an account.",
+        )
 
     for field, value in changes.items():
         setattr(account, field, value)

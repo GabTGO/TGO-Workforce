@@ -9,12 +9,13 @@ app/services/notify.py.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.db import Base
+from app.models.permission import Permission
 
 
 class Notification(Base):
@@ -36,6 +37,23 @@ class Notification(Base):
     link: Mapped[str | None] = mapped_column(String(500))
 
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+
+    # The permission notify_permission_holders() gated this notification on
+    # when it was created (see app/services/notify.py) — null for a
+    # notification with no module tie (e.g. notify_account()'s general-
+    # purpose sends). GET /notifications re-checks this against the caller's
+    # *current* permissions (not a snapshot), so a notification stops showing
+    # up the moment a Super Admin revokes the matrix grant that qualified the
+    # recipient for it in the first place — same module-siloed rule as
+    # Activity Logs, not just at creation time.
+    required_permission: Mapped[Permission | None] = mapped_column(
+        Enum(
+            Permission,
+            name="permission",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            create_type=False,
+        ),
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True

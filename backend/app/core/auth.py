@@ -24,6 +24,32 @@ from app.models.account import Account, AccountRole
 from app.models.permission import Permission
 from app.services.permissions import PERMISSION_LABELS, has_permission
 
+# Session key for a Super Admin's active "sandbox" — see /auth/sandbox/enter
+# and /auth/sandbox/exit in app/api/routes/auth.py. Only ever consulted for
+# an account whose *real* role is SUPER_ADMIN (see get_effective_role below),
+# so this can't be used to smuggle in extra access for anyone else even if a
+# session somehow carried a stale value.
+SANDBOX_SESSION_KEY = "sandbox_role"
+
+
+def get_effective_role(account: Account, request: Request) -> AccountRole:
+    """The role every permission check in this module actually uses — the
+    real persisted account.role, unless account is a genuine Super Admin
+    with an active sandbox override in their session. This is a *live* role
+    switch (not just a UI preview): every dependency below enforces exactly
+    what the sandboxed role could do, including losing admin/super-admin
+    access — that's the point, it's how a Super Admin proves the matrix
+    really works instead of just how it looks. See /auth/sandbox/enter."""
+    if account.role != AccountRole.SUPER_ADMIN:
+        return account.role
+    raw = request.session.get(SANDBOX_SESSION_KEY)
+    if not raw:
+        return account.role
+    try:
+        return AccountRole(raw)
+    except ValueError:
+        return account.role
+
 
 async def get_current_account(
     request: Request,
@@ -52,44 +78,60 @@ async def require_account(
 
 async def require_admin(
     account: Account = Depends(require_account),
+    request: Request = None,  # type: ignore[assignment]
 ) -> Account:
     """Same as require_account, but also rejects anyone who isn't Admin or
-    Super Admin with 403. Used to gate /accounts (user management) and
-    anything else that should only ever be reachable by one of those two —
-    Super Admin has every Admin capability plus permission-matrix editing
-    (require_super_admin below), it's never a *narrower* role than Admin."""
-    if account.role not in (AccountRole.ADMIN, AccountRole.SUPER_ADMIN):
+    Super Admin with 403 — and anyone whose account is restricted
+    (Account.is_restricted), regardless of role. Used to gate /accounts
+    (user management) and anything else that should only ever be reachable
+    by one of those two — Super Admin has every Admin capability plus
+    permission-matrix editing (require_super_admin below), it's never a
+    *narrower* role than Admin. Uses the effective role (real role, unless
+    sandboxed — see get_effective_role), so a Super Admin sandboxing as a
+    non-admin role genuinely loses this access too."""
+    if account.is_restricted or get_effective_role(account, request) not in (
+        AccountRole.ADMIN,
+        AccountRole.SUPER_ADMIN,
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return account
 
 
 async def require_super_admin(
     account: Account = Depends(require_account),
+    request: Request = None,  # type: ignore[assignment]
 ) -> Account:
     """Gates the permission-matrix endpoints only (GET/PUT
     app/api/routes/permissions.py) — deliberately narrower than require_admin.
     A regular Admin has full access to every module already; reconfiguring
-    *what every other role* is allowed to do is Super Admin's alone."""
-    if account.role != AccountRole.SUPER_ADMIN:
+    *what every other role* is allowed to do is Super Admin's alone. Uses the
+    effective role, same as require_admin — deliberately NOT used to gate
+    /auth/sandbox/enter or /exit themselves, which always check the real
+    account.role directly so a sandboxed Super Admin can always get back."""
+    if account.is_restricted or get_effective_role(account, request) != AccountRole.SUPER_ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super Admin access required")
     return account
 
 
 def require_permission(
     permission: Permission,
-) -> Callable[[Account, AsyncSession], Awaitable[Account]]:
+) -> Callable[[Account, AsyncSession, Request], Awaitable[Account]]:
     """Dependency factory: Depends(require_permission(Permission.X)) rejects
-    with 403 any signed-in account whose role doesn't currently hold that
-    permission (Admin/Super Admin always pass — see FULL_ACCESS_ROLES in
-    app/services/permissions.py). Use this instead of hardcoding a role set
-    inline, so a Super Admin's matrix edit actually takes effect everywhere
-    that permission is checked."""
+    with 403 any signed-in account whose *effective* role doesn't currently
+    hold that permission (Admin/Super Admin always pass — see
+    FULL_ACCESS_ROLES in app/services/permissions.py; a restricted account
+    never passes for anything but a view permission, regardless of role).
+    Use this instead of hardcoding a role set inline, so a Super Admin's
+    matrix edit — or sandbox switch — actually takes effect everywhere that
+    permission is checked."""
 
     async def _dependency(
         account: Account = Depends(require_account),
         db: AsyncSession = Depends(get_db),
+        request: Request = None,  # type: ignore[assignment]
     ) -> Account:
-        if not await has_permission(db, account, permission):
+        role = get_effective_role(account, request)
+        if not await has_permission(db, account, permission, role=role):
             title = PERMISSION_LABELS[permission]["title"]
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -140,6 +182,7 @@ def _require_attendance_in_progress_dev(account: Account) -> None:
 async def require_violation_writer(
     account: Account = Depends(require_account),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,  # type: ignore[assignment]
 ) -> Account:
     """Create/edit/prepare/import a violation record — per the SOP's section
     17 ("Projects Team" builds/submits) and section 3's workflow (someone
@@ -148,7 +191,8 @@ async def require_violation_writer(
     both hold it by default); only HR can actually approve/send — see
     require_violation_approver below. Also temporarily dev-only — see above."""
     _require_attendance_in_progress_dev(account)
-    if not await has_permission(db, account, Permission.ATTENDANCE_MANAGE):
+    role = get_effective_role(account, request)
+    if not await has_permission(db, account, Permission.ATTENDANCE_MANAGE, role=role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to modify attendance violation records",
@@ -159,6 +203,7 @@ async def require_violation_writer(
 async def require_violation_approver(
     account: Account = Depends(require_account),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,  # type: ignore[assignment]
 ) -> Account:
     """Approve/hold/needs-correction/resend/send a violation record. The SOP
     is explicit (section 10): "The system must never send a newly prepared
@@ -167,7 +212,8 @@ async def require_violation_approver(
     holds it by default; Projects can prepare a record but never approve its
     own submission). Also temporarily dev-only — see above."""
     _require_attendance_in_progress_dev(account)
-    if not await has_permission(db, account, Permission.ATTENDANCE_APPROVE):
+    role = get_effective_role(account, request)
+    if not await has_permission(db, account, Permission.ATTENDANCE_APPROVE, role=role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to approve, hold, or send attendance violation records",

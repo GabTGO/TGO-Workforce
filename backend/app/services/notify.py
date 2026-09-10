@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.notification import Notification
 from app.models.permission import Permission, RolePermission
-from app.services.permissions import FULL_ACCESS_ROLES
+from app.services.permissions import FULL_ACCESS_ROLES, VIEW_PERMISSIONS
 
 
 async def notify_account(
@@ -65,6 +65,13 @@ async def notify_permission_holders(
     target_roles = set(granted_roles.scalars().all()) | FULL_ACCESS_ROLES
 
     stmt = select(Account.id).where(Account.role.in_(list(target_roles)), Account.is_active.is_(True))
+    if permission not in VIEW_PERMISSIONS:
+        # A restricted account (Account.is_restricted) never actually holds
+        # a manage/approve permission regardless of role (see
+        # get_account_permissions) — notifying it about something it can no
+        # longer act on ("ready for your approval") would just be noise, so
+        # it's excluded from any notification gated on such a permission.
+        stmt = stmt.where(Account.is_restricted.is_(False))
     if exclude_account_id is not None:
         stmt = stmt.where(Account.id != exclude_account_id)
     if require_preference is not None:
@@ -72,7 +79,10 @@ async def notify_permission_holders(
     result = await db.execute(stmt)
     account_ids = list(result.scalars().all())
 
-    entries = [Notification(account_id=account_id, title=title, body=body, link=link) for account_id in account_ids]
+    entries = [
+        Notification(account_id=account_id, title=title, body=body, link=link, required_permission=permission)
+        for account_id in account_ids
+    ]
     db.add_all(entries)
     await db.flush()
     if commit:

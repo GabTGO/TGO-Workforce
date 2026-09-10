@@ -16,6 +16,7 @@ export type Account = {
   photoUrl: string | null;
   role: AccountRole;
   isActive: boolean;
+  isRestricted: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 };
@@ -29,6 +30,7 @@ type BackendAccount = {
   photo_url: string | null;
   role: AccountRole;
   is_active: boolean;
+  is_restricted: boolean;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
@@ -44,6 +46,7 @@ function fromBackend(row: BackendAccount): Account {
     photoUrl: row.photo_url,
     role: row.role,
     isActive: row.is_active,
+    isRestricted: row.is_restricted,
     lastLoginAt: row.last_login_at,
     createdAt: row.created_at,
   };
@@ -98,7 +101,7 @@ export async function fetchAccounts(): Promise<Account[]> {
   return rows.map(fromBackend);
 }
 
-export type AccountPatch = { role?: AccountRole; isActive?: boolean };
+export type AccountPatch = { role?: AccountRole; isActive?: boolean; isRestricted?: boolean };
 
 export async function updateAccount(
   id: string,
@@ -107,6 +110,7 @@ export async function updateAccount(
   const payload: Record<string, unknown> = {};
   if (patch.role !== undefined) payload["role"] = patch.role;
   if (patch.isActive !== undefined) payload["is_active"] = patch.isActive;
+  if (patch.isRestricted !== undefined) payload["is_restricted"] = patch.isRestricted;
   const row = await request<BackendAccount>(
     `/accounts/${encodeURIComponent(id)}`,
     {

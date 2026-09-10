@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, LogOut, User, LifeBuoy, ShieldCheck } from "lucide-react";
+import { ChevronDown, FlaskConical, LogOut, User, LifeBuoy, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { AppSidebar, NAV_ITEMS } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -9,13 +10,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { SandboxBanner } from "@/components/sandbox-banner";
 import { Button } from "@/components/ui/button";
-import {
-  fetchCurrentAccount,
-  signOut,
-  type AccountProfile,
-} from "@/lib/session";
-import { ROLE_LABELS } from "@/lib/roles";
+import { signOut, useCurrentAccount, useEnterSandbox } from "@/lib/session";
+import { ROLE_LABELS, SANDBOXABLE_ROLES } from "@/lib/roles";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -30,6 +28,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -47,35 +48,37 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // Auth guard — runs client-side only (TanStack Start's beforeLoad executes
   // during SSR, where there's no cookie-bearing fetch context to check
-  // against, so we check post-mount here instead). Asks the backend who (if
-  // anyone) the session cookie belongs to, and bounces to /login if it's
-  // nobody. Render nothing until that check resolves so a signed-out visitor
-  // never sees a flash of the dashboard.
-  const [account, setAccount] = useState<AccountProfile | null>(null);
-  const [checkedAuth, setCheckedAuth] = useState(false);
+  // against, so we check post-mount here instead). Backed by the same
+  // React Query cache every other page reads (useCurrentAccount) rather than
+  // a one-off fetch into local state, so this shell picks up changes made
+  // elsewhere — a sandbox switch, a preferences save — without a full
+  // reload. Bounces to /login once the query resolves to "nobody"; renders
+  // nothing until then so a signed-out visitor never sees a dashboard flash.
+  const { data: account, isLoading } = useCurrentAccount();
 
   useEffect(() => {
-    let cancelled = false;
-    fetchCurrentAccount().then((profile) => {
-      if (cancelled) return;
-      if (!profile) {
-        navigate({ to: "/login" });
-        return;
-      }
-      setAccount(profile);
-      setCheckedAuth(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
+    if (!isLoading && !account) {
+      navigate({ to: "/login" });
+    }
+  }, [isLoading, account, navigate]);
 
   async function handleSignOut() {
     await signOut();
     navigate({ to: "/login" });
   }
 
-  if (!checkedAuth || !account) {
+  const enterSandbox = useEnterSandbox();
+
+  async function handleEnterSandbox(role: (typeof SANDBOXABLE_ROLES)[number]) {
+    try {
+      await enterSandbox.mutateAsync(role);
+      toast.success(`Sandboxing as ${ROLE_LABELS[role]}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't enter sandbox");
+    }
+  }
+
+  if (isLoading || !account) {
     return null;
   }
 
@@ -158,6 +161,28 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <DropdownMenuItem>
                     <LifeBuoy className="mr-2 h-4 w-4" /> Support
                   </DropdownMenuItem>
+                  {/* Keyed off the REAL role, not the effective one — this
+                      control (and its sibling in SandboxBanner) must stay
+                      reachable no matter what role is currently sandboxed,
+                      since it's the only way back. */}
+                  {account.role === "super_admin" && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <FlaskConical className="mr-2 h-4 w-4" /> Sandbox as...
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {SANDBOXABLE_ROLES.map((role) => (
+                          <DropdownMenuItem
+                            key={role}
+                            disabled={enterSandbox.isPending || account.sandbox_role === role}
+                            onClick={() => handleEnterSandbox(role)}
+                          >
+                            {ROLE_LABELS[role]}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" /> Sign out
@@ -166,6 +191,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenu>
             </div>
           </header>
+          <SandboxBanner account={account} />
           <main className="flex-1 p-4 md:p-6">{children}</main>
         </div>
       </div>

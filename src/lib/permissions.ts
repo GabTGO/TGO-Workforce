@@ -20,7 +20,7 @@
 //     canEditOnboardingField below and the backend's ROLE_FIELD_ACCESS /
 //     require_violation_approver.
 
-import type { AccountRole, Permission } from "@/lib/session";
+import type { AccountProfile, AccountRole, Permission } from "@/lib/session";
 
 // Mirrors FULL_ACCESS_ROLES in backend/app/services/permissions.py.
 export const FULL_ACCESS_ROLES: ReadonlySet<AccountRole> = new Set([
@@ -30,6 +30,19 @@ export const FULL_ACCESS_ROLES: ReadonlySet<AccountRole> = new Set([
 
 export function isFullAccessRole(role: AccountRole | undefined): boolean {
   return !!role && FULL_ACCESS_ROLES.has(role);
+}
+
+// Mirrors backend/app/core/auth.py's get_effective_role: the role every
+// admin/super-admin gate and nav/page permission check should actually use —
+// the real persisted role, unless a Super Admin has an active sandbox
+// override (see useEnterSandbox/useExitSandbox in @/lib/session). Use this
+// instead of reading account.role directly anywhere access is being decided;
+// `role` itself stays meaningful only for "who am I really" contexts like the
+// Profile page badge and the sandbox control's own visibility.
+export function getEffectiveRole(
+  account: Pick<AccountProfile, "role" | "sandbox_role"> | null | undefined,
+): AccountRole | undefined {
+  return account?.sandbox_role ?? account?.role;
 }
 
 export function hasPermission(

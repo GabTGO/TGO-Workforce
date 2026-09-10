@@ -26,7 +26,7 @@ import { useNewHires } from "@/data/new-hire-store";
 import { useAnalyticsOverviewQuery } from "@/data/violation-store";
 import { ROLE_LABELS } from "@/lib/roles";
 import { useCurrentAccount } from "@/lib/session";
-import { isFullAccessRole } from "@/lib/permissions";
+import { getEffectiveRole, isFullAccessRole } from "@/lib/permissions";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({
@@ -160,7 +160,7 @@ function ViolationsByOfficeChart() {
 function AnalyticsPage() {
   const employees = useEmployees();
   const { data: account, isLoading: accountLoading } = useCurrentAccount();
-  const isAdmin = isFullAccessRole(account?.role);
+  const isAdmin = isFullAccessRole(getEffectiveRole(account));
 
   // Analytics rolls up numbers across every module (Employee Directory,
   // Onboarding, Attendance) — no single module-siloed role should see the

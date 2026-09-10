@@ -7,13 +7,20 @@
                      cookie. A brand-new account's role comes from a matching
                      PendingInvite (see app/models/pending_invite.py) if an
                      admin registered one via POST /accounts/invites, or the
-                     usual VIEWER default otherwise.
+                     usual VIEWER default otherwise — unless invite-only
+                     sign-in is on (see app/models/app_settings.py), in which
+                     case a brand-new account with no invite is rejected.
 /auth/me           tells the frontend who (if anyone) is currently signed in.
 /auth/me/preferences lets that same person update their own personalization
                      (theme, default office, notification toggles) — see
                      AccountPreferencesUpdate. Nothing here needs admin rights;
                      it's always "change my own preferences", never someone
                      else's (that's PATCH /accounts/{id}, admin-only).
+/auth/sandbox/enter and /exit let a genuine Super Admin temporarily act as one
+                     of the six matrix-configurable roles — a *live* switch
+                     (see app/core/auth.py's get_effective_role), not just a
+                     UI preview, so they can actually prove the permission
+                     matrix works end to end.
 /auth/logout       clears the session cookie.
 """
 
@@ -26,16 +33,34 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_account, require_account
+from app.core.auth import SANDBOX_SESSION_KEY, get_current_account, get_effective_role, require_account
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
+from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.pending_invite import PendingInvite
-from app.schemas.account import AccountPreferencesUpdate, AccountRead
+from app.schemas.account import AccountPreferencesUpdate, AccountRead, SandboxRoleRequest
 from app.services import zoho
-from app.services.permissions import get_account_permissions
+from app.services.activity_log import record_activity
+from app.services.app_settings import get_app_settings
+from app.services.permissions import MATRIX_ROLES, get_account_permissions
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def _account_read(db: AsyncSession, account: Account, request: Request) -> AccountRead:
+    """Shared builder for every response that hands the signed-in caller back
+    their own account — /auth/me, /auth/me/preferences, and both sandbox
+    endpoints. Computes `permissions` from the *effective* role (real role,
+    unless a Super Admin has an active sandbox override) and surfaces that
+    override as `sandbox_role` so the frontend can bannner it, while `role`
+    itself always stays the real persisted value."""
+    role = get_effective_role(account, request)
+    permissions = await get_account_permissions(db, account, role=role)
+    account_read = AccountRead.model_validate(account)
+    account_read.permissions = sorted(permissions, key=lambda p: p.value)
+    account_read.sandbox_role = role if role != account.role else None
+    return account_read
 
 
 @router.get("/zoho/login")
@@ -94,6 +119,16 @@ async def zoho_callback(
         )
         pending_invite = invite_result.scalar_one_or_none()
 
+        # A Super Admin can lock the portal down to invited emails only (see
+        # app/models/app_settings.py) — the standing admin allowlist still
+        # bootstraps in regardless, since that's the one way in without any
+        # database access at all if every invite were somehow lost.
+        if pending_invite is None and email.lower() not in settings.admin_email_set:
+            app_settings = await get_app_settings(db)
+            if app_settings.invite_only_signup:
+                await db.commit()  # persist the get-or-create'd settings row, if it was just created
+                return RedirectResponse(f"{settings.frontend_url}/login?error=invite_only")
+
         account = Account(
             zoho_user_id=zuid,
             email=email,
@@ -137,23 +172,22 @@ async def zoho_callback(
 
 @router.get("/me", response_model=AccountRead | None)
 async def me(
+    request: Request,
     account: Account | None = Depends(get_current_account),
     db: AsyncSession = Depends(get_db),
 ):
     if account is None:
         return None
-    permissions = await get_account_permissions(db, account)
-    account_read = AccountRead.model_validate(account)
-    account_read.permissions = sorted(permissions, key=lambda p: p.value)
-    return account_read
+    return await _account_read(db, account, request)
 
 
 @router.patch("/me/preferences", response_model=AccountRead)
 async def update_my_preferences(
     payload: AccountPreferencesUpdate,
+    request: Request,
     account: Account = Depends(require_account),
     db: AsyncSession = Depends(get_db),
-) -> Account:
+) -> AccountRead:
     """Backs the Profile and Settings pages' personalization controls (theme,
     default office, notification toggles). Deliberately not routed through
     the admin-only /accounts router — anyone signed in can change their own
@@ -164,7 +198,60 @@ async def update_my_preferences(
     if changes:
         await db.commit()
         await db.refresh(account)
-    return account
+    return await _account_read(db, account, request)
+
+
+@router.post("/sandbox/enter", response_model=AccountRead)
+async def enter_sandbox(
+    payload: SandboxRoleRequest,
+    request: Request,
+    account: Account = Depends(require_account),
+    db: AsyncSession = Depends(get_db),
+) -> AccountRead:
+    """Temporarily switches the caller's *effective* role for this session to
+    one of the six matrix-configurable roles — every permission check from
+    here on (nav, pages, every write endpoint) enforces exactly what that
+    role can do, until /auth/sandbox/exit is called. Deliberately checks the
+    real account.role directly rather than going through require_super_admin
+    (which would use the *effective* role) — a Super Admin sandboxing as
+    Viewer must still be able to reach this endpoint's sibling, /exit, to get
+    back."""
+    if account.role != AccountRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only a Super Admin can sandbox a role")
+    if payload.role not in MATRIX_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only sandbox one of the configurable roles",
+        )
+    request.session[SANDBOX_SESSION_KEY] = payload.role.value
+    await record_activity(
+        db,
+        action=f"Entered sandbox as {payload.role.value}",
+        category=ActivityCategory.ACCESS,
+        account=account,
+        severity=ActivitySeverity.WARNING,
+        commit=True,
+    )
+    return await _account_read(db, account, request)
+
+
+@router.post("/sandbox/exit", response_model=AccountRead)
+async def exit_sandbox(
+    request: Request,
+    account: Account = Depends(require_account),
+    db: AsyncSession = Depends(get_db),
+) -> AccountRead:
+    had_sandbox = request.session.pop(SANDBOX_SESSION_KEY, None)
+    if had_sandbox:
+        await record_activity(
+            db,
+            action="Exited sandbox",
+            category=ActivityCategory.ACCESS,
+            account=account,
+            severity=ActivitySeverity.INFO,
+            commit=True,
+        )
+    return await _account_read(db, account, request)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

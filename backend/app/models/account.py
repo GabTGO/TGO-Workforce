@@ -101,6 +101,19 @@ class Account(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Distinct from is_active (which blocks sign-in entirely): a restricted
+    # account can still sign in and see everything its role normally would,
+    # but every create/edit/delete/approve action is denied app-wide —
+    # regardless of what the permission matrix grants that role. See
+    # get_account_permissions in app/services/permissions.py, which
+    # intersects a restricted account's permissions down to view-only, and
+    # the matching guard in app/core/auth.py's require_admin/require_super_admin.
+    # A Super Admin can't restrict their own account (see the guard in
+    # app/api/routes/accounts.py) — the only way back is another Super Admin
+    # lifting it, same reasoning as the role self-lockout guard.
+    is_restricted: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

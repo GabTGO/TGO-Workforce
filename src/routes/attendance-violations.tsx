@@ -53,6 +53,7 @@ import {
   canApproveAttendance,
   canManageAttendance,
   canViewAttendance,
+  getEffectiveRole,
   isFullAccessRole,
 } from "@/lib/permissions";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -104,7 +105,7 @@ function AttendanceViolationsPage() {
   const canView = canViewAttendance(account?.permissions);
   const canWrite = canManageAttendance(account?.permissions);
   const canApprove = canApproveAttendance(account?.permissions);
-  const isAdmin = isFullAccessRole(account?.role);
+  const isAdmin = isFullAccessRole(getEffectiveRole(account));
 
   const [filters, setFilters] = useState({
     office: "",

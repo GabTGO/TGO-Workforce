@@ -22,6 +22,7 @@ class AccountRead(BaseModel):
     photo_url: str | None
     role: AccountRole
     is_active: bool
+    is_restricted: bool
     last_login_at: datetime | None
     created_at: datetime
     updated_at: datetime
@@ -41,6 +42,11 @@ class AccountRead(BaseModel):
     # so it comes back as an empty list; something worth revisiting if the
     # frontend ever needs another *account's* permissions, not just its own.
     permissions: list[Permission] = []
+    # Non-null only on the signed-in caller's own /auth/me (and /auth/sandbox/*)
+    # response, and only for a genuine Super Admin with an active sandbox —
+    # see app/core/auth.py's get_effective_role. `role` above always stays the
+    # real persisted role; this is what's actually being enforced right now.
+    sandbox_role: AccountRole | None = None
 
 
 class AccountUpdate(BaseModel):
@@ -51,6 +57,7 @@ class AccountUpdate(BaseModel):
     photo_url: str | None = None
     role: AccountRole | None = None
     is_active: bool | None = None
+    is_restricted: bool | None = None
 
 
 class AccountPreferencesUpdate(BaseModel):
@@ -74,3 +81,11 @@ class AccountPreferencesUpdate(BaseModel):
     notify_new_hires: bool | None = None
     notify_on_violation_review: bool | None = None
     notify_on_new_hire_added: bool | None = None
+
+
+class SandboxRoleRequest(BaseModel):
+    """Backs POST /auth/sandbox/enter — the role a Super Admin wants to
+    temporarily act as. Restricted to the six matrix-configurable roles at
+    the route level (sandboxing as Admin/Super Admin would be a no-op)."""
+
+    role: AccountRole
