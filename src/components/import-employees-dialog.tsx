@@ -7,6 +7,7 @@ import {
   FileSpreadsheet,
   Loader2,
   Plus,
+  RefreshCw,
   Trash2,
   Upload,
   UserCheck,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -40,7 +42,11 @@ import {
 } from "@/components/ui/table";
 import type { Employee, EmployeeStatus } from "@/data/employees";
 import { STATUSES } from "@/data/employees";
-import { useEmployeesQuery, useImportEmployees } from "@/data/employee-store";
+import {
+  useEmployeesQuery,
+  useImportEmployees,
+  useUpdateEmployee,
+} from "@/data/employee-store";
 
 // Recognized column headers, matched case-insensitively with spaces/underscores stripped —
 // so "Employee ID", "employee_id" and "EmployeeID" all map to the same field. This is the
@@ -140,10 +146,22 @@ function normalizeStatus(value: unknown): EmployeeStatus | undefined {
 type ReviewRow = Partial<Employee> & { key: string };
 
 // A row moved to the "already in your directory" panel additionally carries
-// which existing employee it matched, purely for display — stripped again
-// before the row is ever added back to the importable list (see
-// "Add anyway" below), since the import payload has no use for it.
-type DuplicateRow = ReviewRow & { matchedId: string; matchedName: string };
+// the full existing employee it matched — used for display, and as the base
+// record for the "Fix status" action below (a full Employee is needed there
+// since updateEmployee() PATCHes the whole record, not just one field).
+// Stripped again before the row is ever added back to the importable list
+// (see "Add anyway"), since the import payload has no use for it.
+type DuplicateRow = ReviewRow & { matchedEmployee: Employee };
+
+// The one field this dialog actively reconciles for an already-matched row:
+// a cross-import's whole reason for existing is that the source system uses
+// different status wording (see STATUS_ALIASES above) or has simply drifted
+// out of sync with what's in this database — office/department/position
+// mismatches are far more likely to be intentional edits made here since the
+// export, so only Status gets a callout + one-click fix.
+function statusMismatch(row: DuplicateRow): boolean {
+  return !!row.status && row.status !== row.matchedEmployee.status;
+}
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
@@ -237,6 +255,8 @@ export function ImportEmployeesDialog() {
   const { data: employeesData, isLoading: employeesLoading } = useEmployeesQuery();
   const employees = employeesData ?? [];
   const importMutation = useImportEmployees();
+  const updateEmployeeMutation = useUpdateEmployee();
+  const [fixingKey, setFixingKey] = useState<string | null>(null);
 
   function reset() {
     setStep("select");
@@ -266,12 +286,18 @@ export function ImportEmployeesDialog() {
       const existingRows: DuplicateRow[] = [];
       for (const row of parsed) {
         const match = findExistingMatch(row, employees);
-        if (match) existingRows.push({ ...row, matchedId: match.id, matchedName: match.name });
+        if (match) existingRows.push({ ...row, matchedEmployee: match });
         else newRows.push(row);
       }
+      // Status mismatches first — that's the discrepancy this panel exists to
+      // surface, so it shouldn't be buried among plain "already here, nothing
+      // to fix" matches.
+      existingRows.sort((a, b) => Number(statusMismatch(b)) - Number(statusMismatch(a)));
       setRows(newRows);
       setDuplicateRows(existingRows);
-      setShowDuplicates(false);
+      // Default the panel open when there's something worth seeing right
+      // away — a status discrepancy, not just an ordinary "already exists".
+      setShowDuplicates(existingRows.some(statusMismatch));
       setSelected(new Set());
       setStep("review");
     } catch (error) {
@@ -291,10 +317,33 @@ export function ImportEmployeesDialog() {
     setDuplicateRows((prev) => {
       const found = prev.find((r) => r.key === key);
       if (!found) return prev;
-      const { matchedId: _matchedId, matchedName: _matchedName, ...clean } = found;
+      const { matchedEmployee: _matchedEmployee, ...clean } = found;
       setRows((rs) => [...rs, clean]);
       return prev.filter((r) => r.key !== key);
     });
+  }
+
+  // Applies the imported file's status to the already-matched existing
+  // employee — a real PATCH to the directory, not just a review-screen edit,
+  // since this row isn't going through the normal import path at all. Needs
+  // the full existing record (not just its id) because updateEmployee()
+  // PATCHes the whole employee, and status is the only field being changed.
+  async function fixStatusMismatch(row: DuplicateRow) {
+    if (!row.status) return;
+    setFixingKey(row.key);
+    try {
+      await updateEmployeeMutation.mutateAsync({
+        originalId: row.matchedEmployee.id,
+        employee: { ...row.matchedEmployee, status: row.status },
+      });
+      toast.success(`Updated ${row.matchedEmployee.name} to ${row.status}`);
+      setDuplicateRows((prev) => prev.filter((r) => r.key !== row.key));
+    } catch (error) {
+      console.error(error);
+      toast.error("Couldn't update that record's status. Please try again.");
+    } finally {
+      setFixingKey(null);
+    }
   }
 
   function setRowField(
@@ -395,6 +444,7 @@ export function ImportEmployeesDialog() {
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.key));
   const someSelected = rows.some((r) => selected.has(r.key));
   const usableCount = rows.filter((r) => (r.name ?? "").trim()).length;
+  const statusMismatchCount = duplicateRows.filter(statusMismatch).length;
 
   return (
     <Dialog
@@ -514,6 +564,8 @@ export function ImportEmployeesDialog() {
                       {duplicateRows.length > 0
                         ? `${duplicateRows.length} already ${duplicateRows.length === 1 ? "matches" : "match"} someone in your directory (hidden below, by default) — ${rows.length} look new.`
                         : "None of them matched your existing directory — all look new."}{" "}
+                      {statusMismatchCount > 0 &&
+                        `${statusMismatchCount} of those matches ${statusMismatchCount === 1 ? "has" : "have"} a Status that differs from what's on file here — see below.`}{" "}
                       Edit, delete or add rows below — nothing is saved until
                       you import.
                     </p>
@@ -542,6 +594,14 @@ export function ImportEmployeesDialog() {
                       <span className="flex items-center gap-2 text-sm font-medium">
                         <UserCheck className="h-4 w-4 text-muted-foreground" />
                         {duplicateRows.length} already in your directory — skipped by default
+                        {statusMismatchCount > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          >
+                            {statusMismatchCount} status mismatch{statusMismatchCount === 1 ? "" : "es"}
+                          </Badge>
+                        )}
                       </span>
                       {showDuplicates ? (
                         <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -553,25 +613,52 @@ export function ImportEmployeesDialog() {
                       <div className="max-h-48 overflow-auto border-t">
                         <Table>
                           <TableBody>
-                            {duplicateRows.map((r) => (
-                              <TableRow key={r.key}>
-                                <TableCell className="text-sm">
-                                  <p className="font-medium">{r.name || "(no name)"}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Matches existing {r.matchedId} · {r.matchedName}
-                                  </p>
-                                </TableCell>
-                                <TableCell className="w-40 text-right">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => addDuplicateAnyway(r.key)}
-                                  >
-                                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add anyway
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {duplicateRows.map((r) => {
+                              const mismatch = statusMismatch(r);
+                              return (
+                                <TableRow key={r.key} className={mismatch ? "bg-amber-500/5" : undefined}>
+                                  <TableCell className="text-sm">
+                                    <p className="font-medium">{r.name || "(no name)"}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Matches existing {r.matchedEmployee.id} · {r.matchedEmployee.name}
+                                    </p>
+                                    {mismatch && (
+                                      <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                                        Status differs — file says <strong>{r.status}</strong>, current
+                                        record says <strong>{r.matchedEmployee.status}</strong>
+                                      </p>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="w-56 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      {mismatch && (
+                                        <Button
+                                          size="sm"
+                                          disabled={fixingKey === r.key}
+                                          onClick={() => fixStatusMismatch(r)}
+                                        >
+                                          {fixingKey === r.key ? (
+                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                          ) : (
+                                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                          )}
+                                          Update to {r.status}
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={fixingKey === r.key}
+                                        onClick={() => addDuplicateAnyway(r.key)}
+                                      >
+                                        <Plus className="mr-1.5 h-3.5 w-3.5" /> Add anyway
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
