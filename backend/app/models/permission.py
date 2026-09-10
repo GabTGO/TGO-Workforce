@@ -26,6 +26,13 @@ from app.models.account import AccountRole
 class Permission(enum.StrEnum):
     EMPLOYEES_VIEW = "employees.view"
     EMPLOYEES_MANAGE = "employees.manage"
+    # Anniversaries + Birthdays — both are read-only lenses over Employee
+    # Directory data (see src/routes/anniversaries.tsx and birthdays.tsx),
+    # not their own backend module, so there's no matching *_MANAGE: nothing
+    # is ever created/edited/deleted there. Gated separately from
+    # EMPLOYEES_VIEW so a Super Admin can hide Milestones for a role without
+    # hiding the whole Employee Directory (or vice versa).
+    MILESTONES_VIEW = "milestones.view"
     ONBOARDING_VIEW = "onboarding.view"
     ONBOARDING_MANAGE = "onboarding.manage"
     ATTENDANCE_VIEW = "attendance.view"

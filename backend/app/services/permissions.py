@@ -15,7 +15,12 @@ FULL_ACCESS_ROLES = {AccountRole.ADMIN, AccountRole.SUPER_ADMIN}
 # Every "view" permission — what a restricted account (Account.is_restricted)
 # keeps regardless of role; every "manage"/"approve" permission is stripped.
 VIEW_PERMISSIONS: frozenset[Permission] = frozenset(
-    {Permission.EMPLOYEES_VIEW, Permission.ONBOARDING_VIEW, Permission.ATTENDANCE_VIEW}
+    {
+        Permission.EMPLOYEES_VIEW,
+        Permission.MILESTONES_VIEW,
+        Permission.ONBOARDING_VIEW,
+        Permission.ATTENDANCE_VIEW,
+    }
 )
 
 # Which permission governs seeing each Activity Log category — None means
@@ -52,6 +57,10 @@ PERMISSION_LABELS: dict[Permission, dict[str, str]] = {
         "title": "Manage Employees",
         "description": "Create, edit, delete and import employee records.",
     },
+    Permission.MILESTONES_VIEW: {
+        "title": "View Milestones",
+        "description": "See the Anniversaries and Birthdays pages.",
+    },
     Permission.ONBOARDING_VIEW: {
         "title": "View Onboarding",
         "description": "See the onboarding checklist tracker.",
@@ -78,27 +87,41 @@ PERMISSION_LABELS: dict[Permission, dict[str, str]] = {
 # Default grants — matches this app's behavior from *before* the matrix
 # existed, so turning the matrix on doesn't silently change anyone's access
 # until a Super Admin actually edits it. The migration that creates
-# role_permissions seeds exactly this.
+# role_permissions seeds exactly this (a later migration adds
+# MILESTONES_VIEW to every one of these, matching Milestones' own
+# previously-ungated "open to every signed-in role" behavior).
 DEFAULT_GRANTS: dict[AccountRole, set[Permission]] = {
-    AccountRole.PEOPLE_OPS: {Permission.EMPLOYEES_VIEW, Permission.EMPLOYEES_MANAGE},
+    AccountRole.PEOPLE_OPS: {
+        Permission.EMPLOYEES_VIEW,
+        Permission.EMPLOYEES_MANAGE,
+        Permission.MILESTONES_VIEW,
+    },
     AccountRole.HR: {
         Permission.EMPLOYEES_VIEW,
+        Permission.MILESTONES_VIEW,
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
         Permission.ATTENDANCE_APPROVE,
     },
-    AccountRole.PROJECTS: {Permission.EMPLOYEES_VIEW, Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_MANAGE},
+    AccountRole.PROJECTS: {
+        Permission.EMPLOYEES_VIEW,
+        Permission.MILESTONES_VIEW,
+        Permission.ATTENDANCE_VIEW,
+        Permission.ATTENDANCE_MANAGE,
+    },
     AccountRole.RECRUITMENT_LEAD: {
         Permission.EMPLOYEES_VIEW,
+        Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ONBOARDING_MANAGE,
     },
     AccountRole.ONBOARDING_SPECIALIST: {
         Permission.EMPLOYEES_VIEW,
+        Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ONBOARDING_MANAGE,
     },
-    AccountRole.VIEWER: {Permission.EMPLOYEES_VIEW},
+    AccountRole.VIEWER: {Permission.EMPLOYEES_VIEW, Permission.MILESTONES_VIEW},
 }
 
 

@@ -60,6 +60,15 @@ export function canManageEmployees(permissions: Permission[] | undefined): boole
   return hasPermission(permissions, "employees.manage");
 }
 
+// Anniversaries + Birthdays — see Permission.MILESTONES_VIEW's own comment
+// in backend/app/models/permission.py. Both pages also read from the
+// Employee Directory data itself (GET /employees), so a role realistically
+// needs employees.view too for the pages to show anything; nav gating in
+// @/components/app-sidebar checks both, not just this one.
+export function canViewMilestones(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "milestones.view");
+}
+
 export function canViewOnboarding(permissions: Permission[] | undefined): boolean {
   return hasPermission(permissions, "onboarding.view");
 }

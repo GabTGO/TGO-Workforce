@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Award, CalendarClock, Star, Trophy } from "lucide-react";
+import { Award, CalendarClock, ShieldAlert, Star, Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { MetricCard } from "@/components/metric-card";
@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { anniversaries, formatDate } from "@/data/employees";
 import { useEmployees } from "@/data/employee-store";
+import { canViewMilestones } from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/roles";
+import { useCurrentAccount } from "@/lib/session";
 
 export const Route = createFileRoute("/anniversaries")({
   head: () => ({
@@ -39,6 +42,8 @@ function initials(name: string) {
 }
 
 function AnniversariesPage() {
+  const { data: account, isLoading: accountLoading } = useCurrentAccount();
+  const canView = canViewMilestones(account?.permissions);
   const employees = useEmployees();
   const list = anniversaries(employees);
   const months = [...new Set(list.map((e) => e.monthName))];
@@ -46,6 +51,42 @@ function AnniversariesPage() {
   const thisMonth = list.filter((e) => e.monthName === currentMonthName).length;
   const milestoneYears = list.filter((e) => e.years > 0);
   const longestTenure = milestoneYears.reduce((max, e) => Math.max(max, e.years), 0);
+
+  if (accountLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Anniversaries"
+          description="Tenure milestones grouped by month for recognition planning."
+        />
+        <p className="text-sm text-muted-foreground">Checking access…</p>
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Anniversaries"
+          description="Tenure milestones grouped by month for recognition planning."
+        />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-medium">No access</p>
+              <p className="text-sm text-muted-foreground">
+                Your account ({account ? ROLE_LABELS[account.role] : "signed out"}) doesn't have
+                access to Milestones. Ask a Super Admin to grant it from the permission matrix on
+                User Management if you need it.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -43,10 +43,13 @@ type NavItem = {
    * route itself also checks this (and the backend 403s regardless), this
    * just keeps everyone else from seeing a link to a page they can't use. */
   adminOnly?: boolean;
-  /** Hidden unless the signed-in account's permission matrix grants this —
-   * see @/lib/permissions' hasPermission. Module-level view gating, driven
-   * by the Super-Admin-editable matrix rather than a fixed role list. */
-  permission?: Permission;
+  /** Hidden unless the signed-in account's permission matrix grants this (or
+   * — if an array — every permission in it). See @/lib/permissions'
+   * hasPermission. Module-level view gating, driven by the Super-Admin-
+   * editable matrix rather than a fixed role list. Milestones needs an
+   * array: its pages read Employee Directory data directly, so without
+   * employees.view too they'd load and show nothing. */
+  permission?: Permission | Permission[];
 };
 
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
@@ -73,8 +76,18 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Milestones",
     items: [
-      { title: "Anniversaries", url: "/anniversaries", icon: Award },
-      { title: "Birthdays", url: "/birthdays", icon: Cake },
+      {
+        title: "Anniversaries",
+        url: "/anniversaries",
+        icon: Award,
+        permission: ["employees.view", "milestones.view"],
+      },
+      {
+        title: "Birthdays",
+        url: "/birthdays",
+        icon: Cake,
+        permission: ["employees.view", "milestones.view"],
+      },
     ],
   },
   {
@@ -100,6 +113,14 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
+
+function isNavItemVisible(
+  permissions: Permission[] | undefined,
+  required: Permission | Permission[],
+): boolean {
+  const requiredList = Array.isArray(required) ? required : [required];
+  return requiredList.every((permission) => hasPermission(permissions, permission));
+}
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -142,18 +163,25 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items
-                  .filter(
-                    (item) =>
-                      (!item.adminOnly || isAdmin) &&
-                      (!item.permission || hasPermission(account?.permissions, item.permission)),
-                  )
-                  .map((item) => (
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = group.items.filter(
+            (item) =>
+              (!item.adminOnly || isAdmin) &&
+              (!item.permission || isNavItemVisible(account?.permissions, item.permission)),
+          );
+          // Skip the whole group (label included) once nothing under it is
+          // visible — a bare "Attendance" or "Milestones" header with no
+          // links under it (e.g. for a Recruitment Lead with neither
+          // attendance.view nor milestones.view) was worse than just not
+          // showing the group at all.
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <SidebarGroup key={group.label}>
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
                         asChild
@@ -167,10 +195,11 @@ export function AppSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border" />

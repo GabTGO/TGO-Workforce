@@ -25,6 +25,7 @@ export type Theme = "light" | "dark";
 export type Permission =
   | "employees.view"
   | "employees.manage"
+  | "milestones.view"
   | "onboarding.view"
   | "onboarding.manage"
   | "attendance.view"

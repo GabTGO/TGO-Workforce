@@ -41,7 +41,12 @@ import { computeStatus } from "@/data/new-hire-api";
 import { useNewHires } from "@/data/new-hire-store";
 import { useViolationsQuery } from "@/data/violation-store";
 import { useCurrentAccount } from "@/lib/session";
-import { canManageEmployees, canViewAttendance, canViewOnboarding } from "@/lib/permissions";
+import {
+  canManageEmployees,
+  canViewAttendance,
+  canViewMilestones,
+  canViewOnboarding,
+} from "@/lib/permissions";
 
 // Whether a month/day (as returned by upcomingBirthdays) falls within the
 // next 7 days, wrapping into next year for a birthday that's already passed
@@ -120,10 +125,11 @@ function Dashboard() {
   // Personalization from Settings — each person's Dashboard only shows the
   // cards they've asked to see. Default to shown while the account is still
   // loading, so there's no flash of an empty dashboard.
+  const canViewMilestonesModule = canViewMilestones(account?.permissions);
   const showNewHires = account?.notify_new_hires ?? true;
-  const showAnniversaries = account?.notify_anniversaries ?? true;
+  const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
   const showBirthdayBanner =
-    (account?.notify_birthdays ?? true) && birthdaysThisWeek.length > 0;
+    canViewMilestonesModule && (account?.notify_birthdays ?? true) && birthdaysThisWeek.length > 0;
 
   return (
     <div className="space-y-6">
