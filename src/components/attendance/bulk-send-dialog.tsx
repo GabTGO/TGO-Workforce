@@ -63,7 +63,12 @@ export function BulkSendDialog({
 
   const { data: previews, isLoading } = useBulkPreviewViolationsQuery(ids, open);
   const { data: config } = useEmailSenderConfigQuery(open);
-  const { data: appSettings } = useAppSettingsQuery(open);
+  // See the matching comment in send-confirm-dialog.tsx: appSettings can
+  // still be undefined for a render or two right after this dialog opens,
+  // and confirming before it resolves would fall through to the real Zoho
+  // bulk-send-now path even with Outlook mode on — settingsLoading keeps the
+  // Confirm button disabled until it's certain which mode applies.
+  const { data: appSettings, isLoading: settingsLoading } = useAppSettingsQuery(open);
   const outlookMode = !!appSettings?.useOutlookForViolations;
   const sendMutation = useBulkSendNowViolations();
   const outlookMutation = useBulkSendViaOutlook();
@@ -231,7 +236,10 @@ export function BulkSendDialog({
           <Button variant="outline" disabled={busy} onClick={resetAndClose}>
             Cancel
           </Button>
-          <Button disabled={eligible.length === 0 || !allChecked || busy} onClick={handleConfirm}>
+          <Button
+            disabled={eligible.length === 0 || !allChecked || busy || settingsLoading}
+            onClick={handleConfirm}
+          >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             {outlookMode ? `Mark sent & open in Outlook` : `Confirm — send ${eligible.length}`}
           </Button>

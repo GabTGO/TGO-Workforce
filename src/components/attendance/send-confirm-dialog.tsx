@@ -69,8 +69,19 @@ export function SendConfirmDialog({
 }) {
   const { data: record } = useViolationQuery(open ? recordId : null);
   const { data: config } = useEmailSenderConfigQuery(open);
-  const { data: appSettings } = useAppSettingsQuery(open);
+  // For "send-now" specifically, whether this dialog behaves as the Outlook
+  // path or the real Zoho send depends entirely on this setting — and
+  // useAppSettingsQuery has no cache guarantee, so `appSettings` can still be
+  // undefined for a render or two right after the dialog opens (e.g. the
+  // very first time it's opened this session). Treating that "not loaded
+  // yet" as settingsLoading (rather than defaulting outlookMode to false)
+  // keeps the dialog from ever briefly rendering the wrong action button —
+  // it showed the real Zoho "Send now" button for a moment even with
+  // Outlook mode on, and clicking it in that window fired a real send
+  // instead of the Outlook one.
+  const { data: appSettings, isLoading: settingsLoading } = useAppSettingsQuery(open);
   const outlookMode = action === "send-now" && !!appSettings?.useOutlookForViolations;
+  const waitingOnSettings = action === "send-now" && settingsLoading;
   const sendViaOutlook = useSendViaOutlook();
 
   const [fromOverride, setFromOverride] = useState("");
@@ -89,7 +100,6 @@ export function SendConfirmDialog({
   const copy = ACTION_COPY[action];
   const fromAddress = record?.fromPreview ?? config?.fromAddress ?? "…";
   const ccAddress = record?.ccPreview ?? config?.fromAddress ?? "…";
-  const defaultAddress = config?.fromAddress ?? "the configured default";
 
   async function handleOutlookConfirm() {
     if (!record) return;
@@ -126,7 +136,7 @@ export function SendConfirmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {!record ? (
+        {!record || waitingOnSettings ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
@@ -157,14 +167,14 @@ export function SendConfirmDialog({
           </div>
         )}
 
-        {outlookMode && record && (
+        {outlookMode && record && !waitingOnSettings && (
           <div className="flex flex-col gap-3 rounded-lg border p-3">
             <p className="text-xs font-medium text-muted-foreground">Before opening Outlook</p>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground">Send from</label>
               <Input
                 type="email"
-                placeholder={`Use default (${defaultAddress})`}
+                placeholder="Use default sender"
                 value={fromOverride}
                 onChange={(e) => setFromOverride(e.target.value)}
               />
@@ -178,7 +188,7 @@ export function SendConfirmDialog({
               <label className="text-xs text-muted-foreground">Additional Cc addresses</label>
               <EmailChipInput value={ccOverride} onChange={setCcOverride} placeholder="Type an email…" />
               <p className="text-[11px] text-muted-foreground">
-                {defaultAddress} always stays Cc'd regardless — these are added on top of it.
+                The default sender always stays Cc'd regardless — these are added on top of it.
               </p>
             </div>
           </div>
@@ -189,12 +199,12 @@ export function SendConfirmDialog({
             Cancel
           </Button>
           {outlookMode ? (
-            <Button disabled={outlookBusy || !record} onClick={handleOutlookConfirm}>
+            <Button disabled={outlookBusy || !record || waitingOnSettings} onClick={handleOutlookConfirm}>
               {outlookBusy ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
               Open in Outlook
             </Button>
           ) : (
-            <Button disabled={busy || !record} onClick={onConfirm}>
+            <Button disabled={busy || !record || waitingOnSettings} onClick={onConfirm}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               {copy.confirmLabel}
             </Button>
