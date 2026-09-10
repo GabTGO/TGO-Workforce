@@ -54,6 +54,12 @@ async def create_pending_invite(
     VIEWER default (see app/api/routes/auth.py's zoho_callback). Sends no
     email or notification of any kind; the admin still has to tell that
     person out-of-band to go sign in."""
+    if payload.role == AccountRole.SUPER_ADMIN and current_admin.role != AccountRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a Super Admin can pre-assign the Super Admin role.",
+        )
+
     email = payload.email.strip().lower()
 
     existing_account = await db.execute(select(Account).where(Account.email == email))
@@ -148,9 +154,11 @@ async def update_account(
     changes = payload.model_dump(exclude_unset=True)
 
     # Guard against an admin locking themselves out — there's no other way
-    # back into user management once the last admin loses that role.
+    # back into user management once the last admin loses that role. Covers
+    # both full-access roles (a Super Admin keeping their own row at
+    # super_admin is just as valid as an admin keeping theirs at admin).
     if account.id == current_admin.id:
-        if "role" in changes and changes["role"] != AccountRole.ADMIN:
+        if "role" in changes and changes["role"] not in (AccountRole.ADMIN, AccountRole.SUPER_ADMIN):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You can't change your own role away from admin.",
@@ -159,6 +167,18 @@ async def update_account(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You can't deactivate your own account.",
+            )
+
+    # Only a Super Admin can grant or take away the Super Admin role itself —
+    # otherwise a regular Admin could hand matrix-editing power to any account
+    # (including a second account they control), bypassing the whole point of
+    # having a role "above Admin" that alone can reconfigure the permission
+    # matrix (see app/services/permissions.py).
+    if "role" in changes and current_admin.role != AccountRole.SUPER_ADMIN:
+        if changes["role"] == AccountRole.SUPER_ADMIN or account.role == AccountRole.SUPER_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only a Super Admin can grant or change the Super Admin role.",
             )
 
     for field, value in changes.items():

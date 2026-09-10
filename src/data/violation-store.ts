@@ -57,11 +57,22 @@ const ANALYTICS_KEY = ["violations", "analytics-overview"] as const;
 // employee-store.ts.
 const REALTIME_POLL_MS = 15_000;
 
-export function useViolationsQuery(filters: ViolationFilters, page: number, pageSize: number) {
+/** `enabled` defaults to true for existing callers; pass false when the
+ * signed-in account lacks Permission.ATTENDANCE_VIEW (see @/lib/permissions'
+ * canViewAttendance) so this doesn't fire a request the backend will just
+ * 403 — e.g. the Dashboard's cross-module snapshot, which every role loads
+ * regardless of whether it can actually see the Attendance module. */
+export function useViolationsQuery(
+  filters: ViolationFilters,
+  page: number,
+  pageSize: number,
+  enabled = true,
+) {
   return useQuery({
     queryKey: [...VIOLATIONS_KEY, "list", filters, page, pageSize],
     queryFn: () => fetchViolations(filters, page, pageSize),
-    refetchInterval: REALTIME_POLL_MS,
+    enabled,
+    refetchInterval: enabled ? REALTIME_POLL_MS : false,
   });
 }
 
@@ -81,11 +92,12 @@ export function useViolationHistoryQuery(id: number | null) {
   });
 }
 
-export function useAnalyticsOverviewQuery() {
+export function useAnalyticsOverviewQuery(enabled = true) {
   return useQuery({
     queryKey: ANALYTICS_KEY,
     queryFn: fetchAnalyticsOverview,
-    refetchInterval: REALTIME_POLL_MS,
+    enabled,
+    refetchInterval: enabled ? REALTIME_POLL_MS : false,
   });
 }
 

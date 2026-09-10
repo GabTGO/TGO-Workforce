@@ -27,6 +27,7 @@ import {
   useUpdateMyPreferences,
   type PreferencesPatch,
 } from "@/lib/session";
+import { canApproveAttendance, canManageOnboarding } from "@/lib/permissions";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -52,13 +53,15 @@ export const Route = createFileRoute("/settings")({
 // empty string as an item value.
 const NO_DEFAULT = "none";
 
-// Only roles that could ever actually receive each in-app notification see
-// its toggle — showing "notify me when a violation needs review" to someone
-// who can never be notified about that (they're not HR/Admin) would just be
-// a confusing dead switch. Mirrors ATTENDANCE_APPROVE_ROLES /
-// ONBOARDING_WRITE_ROLES in backend/app/core/auth.py.
-const VIOLATION_REVIEW_ROLES = new Set(["admin", "hr"]);
-const NEW_HIRE_ROLES = new Set(["admin", "recruitment_lead", "onboarding_specialist"]);
+// Only accounts that could ever actually receive each in-app notification
+// see its toggle — showing "notify me when a violation needs review" to
+// someone who can never be notified about that would just be a confusing
+// dead switch. Driven by the same permissions the backend's
+// notify_permission_holders() call actually checks (see
+// Permission.ATTENDANCE_APPROVE / ONBOARDING_MANAGE in
+// backend/app/api/routes/violations.py and new_hires.py) rather than a
+// hardcoded role list, so a Super Admin granting these permissions to a
+// different role makes the toggle appear for them too, with no redeploy.
 
 function SettingsPage() {
   const { data: account, isLoading } = useCurrentAccount();
@@ -87,8 +90,8 @@ function SettingsPage() {
     setNotifyOnNewHireAdded(account.notify_on_new_hire_added);
   }, [account]);
 
-  const showViolationReviewToggle = !!account && VIOLATION_REVIEW_ROLES.has(account.role);
-  const showNewHireToggle = !!account && NEW_HIRE_ROLES.has(account.role);
+  const showViolationReviewToggle = canApproveAttendance(account?.permissions);
+  const showNewHireToggle = canManageOnboarding(account?.permissions);
 
   const dirty =
     !!account &&

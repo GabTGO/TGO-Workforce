@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
 
 export type AccountRole =
+  | "super_admin"
   | "admin"
   | "people_ops"
   | "hr"
@@ -17,6 +18,18 @@ export type AccountRole =
   | "onboarding_specialist"
   | "viewer";
 export type Theme = "light" | "dark";
+
+// Mirrors backend/app/models/permission.py's Permission enum exactly — the
+// permission matrix's fixed catalog of module-level capabilities. See
+// @/lib/permissions.ts for the hasPermission() helper this backs.
+export type Permission =
+  | "employees.view"
+  | "employees.manage"
+  | "onboarding.view"
+  | "onboarding.manage"
+  | "attendance.view"
+  | "attendance.manage"
+  | "attendance.approve";
 
 export type AccountProfile = {
   id: string;
@@ -28,6 +41,13 @@ export type AccountProfile = {
   role: AccountRole;
   is_active: boolean;
   last_login_at: string | null;
+  // Every permission this account currently holds, computed server-side from
+  // its role against the live matrix (see backend/app/services/permissions.py
+  // and GET /auth/me) — admin/super_admin get every permission there is.
+  // Nav gating, page-level access walls and canManageX() checks all read
+  // this instead of hardcoding a role list, so they stay correct as soon as
+  // a Super Admin edits the matrix, with no frontend redeploy needed.
+  permissions: Permission[];
   // Personalization — see backend/app/schemas/account.py's
   // AccountPreferencesUpdate. Set by the signed-in person themselves (Profile
   // and Settings pages), never by an admin editing someone else's account.

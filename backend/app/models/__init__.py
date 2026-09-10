@@ -8,6 +8,7 @@ from app.models.employee import Employee, EmployeeStatus
 from app.models.new_hire import NewHire
 from app.models.notification import Notification
 from app.models.pending_invite import PendingInvite
+from app.models.permission import Permission, RolePermission
 from app.models.violation import (
     EmailStatus,
     ImportBatch,
@@ -30,6 +31,8 @@ __all__ = [
     "Notification",
     "Office",
     "PendingInvite",
+    "Permission",
+    "RolePermission",
     "ViolationRecord",
     "ViolationType",
 ]

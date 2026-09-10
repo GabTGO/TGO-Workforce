@@ -227,8 +227,10 @@ async def test_import_defaults_missing_fields(admin_client) -> None:
 
 # --- RBAC: viewer is read-only; only people_ops (+ admin) has employee CRUD ---
 # One-role-per-module policy (tightened 2026-09-09 from an earlier version
-# where hub_lead also had full employee access) — see app/core/auth.py's
-# EMPLOYEE_WRITE_ROLES and src/lib/permissions.ts on the frontend.
+# where hub_lead also had full employee access; permission checks moved from
+# a hardcoded role set to the database-backed permission matrix on
+# 2026-09-10 — see DEFAULT_GRANTS in app/services/permissions.py and
+# src/lib/permissions.ts on the frontend, same defaults either way).
 
 
 @pytest.mark.asyncio

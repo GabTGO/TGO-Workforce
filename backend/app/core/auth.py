@@ -7,15 +7,22 @@ that id to a live Account row (or None if there's no session, the account was
 deleted, or it's been deactivated). require_account() is the same check for
 routes that should outright reject a signed-out request instead of treating
 it as "acting as System" (see app/api/routes/employees.py for that pattern).
+
+Module-level access (can this role see/use Onboarding at all, etc.) is
+governed by the dynamic permission matrix — see require_permission() below
+and app/services/permissions.py. Admin and Super Admin bypass it entirely.
 """
 
 import uuid
+from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
+from app.models.permission import Permission
+from app.services.permissions import PERMISSION_LABELS, has_permission
 
 
 async def get_current_account(
@@ -46,75 +53,75 @@ async def require_account(
 async def require_admin(
     account: Account = Depends(require_account),
 ) -> Account:
-    """Same as require_account, but also rejects a signed-in non-admin with
-    403. Used to gate /accounts (user management) and anything else that
-    should only ever be reachable by an admin."""
-    if account.role != AccountRole.ADMIN:
+    """Same as require_account, but also rejects anyone who isn't Admin or
+    Super Admin with 403. Used to gate /accounts (user management) and
+    anything else that should only ever be reachable by one of those two —
+    Super Admin has every Admin capability plus permission-matrix editing
+    (require_super_admin below), it's never a *narrower* role than Admin."""
+    if account.role not in (AccountRole.ADMIN, AccountRole.SUPER_ADMIN):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return account
 
 
-# Roles allowed to create/edit/delete/import employee records (RBAC policy
-# tightened to one-role-per-module 2026-09-09: each non-admin role now owns
-# exactly one module — People Ops owns Employee Directory, HR + Projects
-# split Attendance by action (see ATTENDANCE_WRITE_ROLES/ATTENDANCE_APPROVE_ROLES
-# below), Recruitment Lead + Onboarding Specialist split Onboarding by
-# checklist field (see ROLE_FIELD_ACCESS below) — only Admin crosses modules.
-# Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts on the frontend —
-# keep the two in sync. Viewer is deliberately excluded: read (list/get) and
-# export stay open to every signed-in role, but any mutation to the employee
-# roster requires one of these two.
-EMPLOYEE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.PEOPLE_OPS}
-
-
-async def require_employee_writer(
+async def require_super_admin(
     account: Account = Depends(require_account),
 ) -> Account:
-    """Same as require_account, but also rejects a signed-in viewer with 403.
-    Used to gate the write routes in app/api/routes/employees.py (create,
-    update, delete, bulk-delete, import) — the read routes stay on plain
-    require_account so viewers can still search/filter/export."""
-    if account.role not in EMPLOYEE_WRITE_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to modify employee records",
-        )
+    """Gates the permission-matrix endpoints only (GET/PUT
+    app/api/routes/permissions.py) — deliberately narrower than require_admin.
+    A regular Admin has full access to every module already; reconfiguring
+    *what every other role* is allowed to do is Super Admin's alone."""
+    if account.role != AccountRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super Admin access required")
     return account
 
 
-# Roles allowed to touch the onboarding checklist at all (new hires tracker,
-# ported from the standalone onboarding app). This is the broad "reaches this
-# router" check — Recruitment Lead and Onboarding Specialist are further
-# restricted to their own checklist fields by ROLE_FIELD_ACCESS in
-# app/api/routes/new_hires.py (per the New Hire Onboarding Tracker SOP), not
-# by this constant. Mirrors ONBOARDING_WRITE_ROLES in src/lib/permissions.ts
-# — keep the two in sync.
-ONBOARDING_WRITE_ROLES = {
-    AccountRole.ADMIN,
-    AccountRole.RECRUITMENT_LEAD,
-    AccountRole.ONBOARDING_SPECIALIST,
-}
+def require_permission(
+    permission: Permission,
+) -> Callable[[Account, AsyncSession], Awaitable[Account]]:
+    """Dependency factory: Depends(require_permission(Permission.X)) rejects
+    with 403 any signed-in account whose role doesn't currently hold that
+    permission (Admin/Super Admin always pass — see FULL_ACCESS_ROLES in
+    app/services/permissions.py). Use this instead of hardcoding a role set
+    inline, so a Super Admin's matrix edit actually takes effect everywhere
+    that permission is checked."""
+
+    async def _dependency(
+        account: Account = Depends(require_account),
+        db: AsyncSession = Depends(get_db),
+    ) -> Account:
+        if not await has_permission(db, account, permission):
+            title = PERMISSION_LABELS[permission]["title"]
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"You don't have the '{title}' permission",
+            )
+        return account
+
+    return _dependency
 
 
-async def require_onboarding_writer(
-    account: Account = Depends(require_account),
-) -> Account:
-    if account.role not in ONBOARDING_WRITE_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to modify onboarding records",
-        )
-    return account
+# Mirrors EMPLOYEE_WRITE_ROLES in src/lib/permissions.ts (kept as a name
+# there for the frontend's own gating, though the source of truth for what
+# it actually means now lives in the database, not a hardcoded role set).
+require_employee_writer = require_permission(Permission.EMPLOYEES_MANAGE)
+
+# Mirrors ONBOARDING_WRITE_ROLES in src/lib/permissions.ts. This is the broad
+# "may touch the onboarding module at all" check — Recruitment Lead and
+# Onboarding Specialist are further restricted to their own checklist fields
+# by ROLE_FIELD_ACCESS in app/api/routes/new_hires.py (per the New Hire
+# Onboarding Tracker SOP), which stays fixed in code regardless of what the
+# matrix says — the matrix only decides whether a role reaches this far at all.
+require_onboarding_writer = require_permission(Permission.ONBOARDING_MANAGE)
 
 
 # --- TEMPORARY: Attendance Violations is still in progress -----------------
 # While this module is being built and tested, every write/approve/delete
 # action is restricted to a single developer account regardless of role —
-# everyone else can still view records (read routes stay on plain
-# require_account, untouched by this), but any attempt to create, edit,
-# prepare, approve, hold, send, import, or delete gets this message instead.
-# To lift the restriction once the module is ready for general HR/Projects
-# use: delete this constant, this function, and its call sites below
+# everyone else can still view records (the plain view-permission dependency
+# below is untouched by this), but any attempt to create, edit, prepare,
+# approve, hold, send, import, or delete gets this message instead. To lift
+# the restriction once the module is ready for general HR/Projects use:
+# delete this constant, this function, and its three call sites below
 # (require_violation_writer, require_violation_approver, require_violation_admin).
 ATTENDANCE_DEV_ONLY_EMAIL = "gabriel.battung@tgocorp.com"
 
@@ -130,29 +137,18 @@ def _require_attendance_in_progress_dev(account: Account) -> None:
         )
 
 
-# Roles allowed to create/edit/prepare/import attendance violation records —
-# per the SOP's section 17 ("Projects Team" builds/submits) and section 3's
-# workflow (someone adds/updates the tracker row and moves it to Ready to
-# Prepare; that doesn't have to be HR itself). Both HR and Projects can reach
-# this far; only HR (+Admin) can actually approve/send — see
-# ATTENDANCE_APPROVE_ROLES below. Mirrors ATTENDANCE_WRITE_ROLES in
-# src/lib/permissions.ts.
-ATTENDANCE_WRITE_ROLES = {AccountRole.ADMIN, AccountRole.HR, AccountRole.PROJECTS}
-
-# Narrower than ATTENDANCE_WRITE_ROLES: only HR (+Admin) may approve/hold/
-# needs-correction/resend/send a violation record — the SOP is explicit
-# (section 10): "The system must never send a newly prepared attendance
-# violation email without an explicit HR approval status." Projects can
-# prepare a record but never approve its own submission. Mirrors
-# ATTENDANCE_APPROVE_ROLES in src/lib/permissions.ts.
-ATTENDANCE_APPROVE_ROLES = {AccountRole.ADMIN, AccountRole.HR}
-
-
 async def require_violation_writer(
     account: Account = Depends(require_account),
+    db: AsyncSession = Depends(get_db),
 ) -> Account:
+    """Create/edit/prepare/import a violation record — per the SOP's section
+    17 ("Projects Team" builds/submits) and section 3's workflow (someone
+    adds/updates the tracker row; that doesn't have to be HR itself). Gated
+    on Permission.ATTENDANCE_MANAGE (matrix-configurable — HR and Projects
+    both hold it by default); only HR can actually approve/send — see
+    require_violation_approver below. Also temporarily dev-only — see above."""
     _require_attendance_in_progress_dev(account)
-    if account.role not in ATTENDANCE_WRITE_ROLES:
+    if not await has_permission(db, account, Permission.ATTENDANCE_MANAGE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to modify attendance violation records",
@@ -162,9 +158,16 @@ async def require_violation_writer(
 
 async def require_violation_approver(
     account: Account = Depends(require_account),
+    db: AsyncSession = Depends(get_db),
 ) -> Account:
+    """Approve/hold/needs-correction/resend/send a violation record. The SOP
+    is explicit (section 10): "The system must never send a newly prepared
+    attendance violation email without an explicit HR approval status."
+    Gated on Permission.ATTENDANCE_APPROVE (matrix-configurable — only HR
+    holds it by default; Projects can prepare a record but never approve its
+    own submission). Also temporarily dev-only — see above."""
     _require_attendance_in_progress_dev(account)
-    if account.role not in ATTENDANCE_APPROVE_ROLES:
+    if not await has_permission(db, account, Permission.ATTENDANCE_APPROVE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to approve, hold, or send attendance violation records",

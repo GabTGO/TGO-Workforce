@@ -1,79 +1,94 @@
-// Single source of truth for "which roles can write to which module" on the
-// frontend — mirrors the *_WRITE_ROLES / *_APPROVE_ROLES constants in
-// backend/app/core/auth.py. Every button that creates/edits/deletes/imports
-// data should gate on the matching canManageX() rather than re-deriving its
-// own role list, so the two stay in sync. Hiding the button is a UX nicety,
-// not the real access control — the backend enforces the same rule on every
-// write endpoint regardless of what the UI shows, so this is safe to get
-// slightly wrong without it becoming a security hole.
+// Module-level access ("can this role touch Employees/Onboarding/Attendance
+// at all") is governed by the configurable permission matrix a Super Admin
+// edits on the User Management page — see backend/app/services/permissions.py
+// and PermissionMatrixEditor (@/components/permission-matrix.tsx). It is NOT
+// a hardcoded role list on the frontend anymore: every check below reads the
+// signed-in account's own `permissions` array (populated by GET /auth/me),
+// so a matrix edit takes effect immediately without a frontend redeploy.
+// Hiding a button/nav item/page here is a UX nicety, not the real access
+// control — the backend enforces the same permission on every route
+// regardless of what the UI shows (see app/core/auth.py's require_permission).
 //
-// Role matrix (one-role-per-module policy, agreed 2026-09-09 — each
-// non-admin role owns exactly one module; only admin crosses all of them):
-//   admin                  — full access everywhere, including User Management
-//   people_ops              — Employee Directory only (create/edit/delete/import/export)
-//   hr                      — Attendance Violations only, with sole approve/hold/
-//                              send/resend authority (per the TGO Attendance Policy
-//                              Violation Email Automation SOP section 10) — this
-//                              earlier merged with Projects into one "hub_lead"
-//                              role, which was wrong (corrected 2026-09-09)
-//   projects                — Attendance Violations only, and only create/edit/
-//                              prepare a record — cannot approve or send its own
-//                              submission, per the SOP's HR-approval gate. See
-//                              canApproveAttendance below for the narrower check.
-//   recruitment_lead        — Onboarding only, and only checklist items 1-2
-//                              (JO Discussion, Confirmation Sheet Signed) plus
-//                              item 3 (Welcome Email Sent, shared) — per the New
-//                              Hire Onboarding Tracker SOP. See
-//                              canEditOnboardingField below for the field split;
-//                              this earlier merged the two onboarding roles into
-//                              one, which was wrong (corrected 2026-09-09).
-//   onboarding_specialist   — Onboarding only, checklist items 4-7 plus the
-//                              shared item 3 — see canEditOnboardingField.
-//   viewer                   — read-only everywhere: search/filter/sort/pagination/
-//                              export in every module, but no create/edit/delete/
-//                              import in any
+// Two things stay OUT of the matrix, fixed in code on both ends:
+//   - Admin and Super Admin bypass the matrix entirely — always full access
+//     everywhere except editing the matrix itself, which is Super Admin only.
+//     See FULL_ACCESS_ROLES/isFullAccessRole below.
+//   - The SOP-mandated *field-level* splits inside Onboarding (Recruitment
+//     Lead vs Onboarding Specialist's checklist columns) and Attendance
+//     (Projects prepares, only HR approves/sends) — these come from written
+//     SOPs, not a configurable preference, so they stay role-based via
+//     canEditOnboardingField below and the backend's ROLE_FIELD_ACCESS /
+//     require_violation_approver.
 
-import type { AccountRole } from "@/lib/session";
+import type { AccountRole, Permission } from "@/lib/session";
 
-const EMPLOYEE_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
+// Mirrors FULL_ACCESS_ROLES in backend/app/services/permissions.py.
+export const FULL_ACCESS_ROLES: ReadonlySet<AccountRole> = new Set([
   "admin",
-  "people_ops",
+  "super_admin",
 ]);
 
-export function canManageEmployees(role: AccountRole | undefined): boolean {
-  return !!role && EMPLOYEE_WRITE_ROLES.has(role);
+export function isFullAccessRole(role: AccountRole | undefined): boolean {
+  return !!role && FULL_ACCESS_ROLES.has(role);
 }
 
-// Mirrors ONBOARDING_WRITE_ROLES in backend/app/core/auth.py — the broad
-// "may touch the onboarding module at all" check (create/delete a row,
-// import/export, send a Cliq notification). Which *checklist fields* a role
-// may edit is a separate, narrower question — see canEditOnboardingField.
-const ONBOARDING_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
-  "admin",
-  "recruitment_lead",
-  "onboarding_specialist",
-]);
+export function hasPermission(
+  permissions: Permission[] | undefined,
+  permission: Permission,
+): boolean {
+  return !!permissions?.includes(permission);
+}
 
-export function canManageOnboarding(role: AccountRole | undefined): boolean {
-  return !!role && ONBOARDING_WRITE_ROLES.has(role);
+export function canViewEmployees(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "employees.view");
+}
+
+export function canManageEmployees(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "employees.manage");
+}
+
+export function canViewOnboarding(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "onboarding.view");
+}
+
+export function canManageOnboarding(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "onboarding.manage");
+}
+
+export function canViewAttendance(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "attendance.view");
+}
+
+export function canManageAttendance(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "attendance.manage");
+}
+
+export function canApproveAttendance(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "attendance.approve");
 }
 
 // Mirrors ROLE_FIELD_ACCESS in backend/app/api/routes/new_hires.py — the New
 // Hire Onboarding Tracker SOP's protected-range split: Recruitment Lead owns
 // items 1-2, Onboarding Specialist owns items 4-7, item 3 (Welcome Email
 // Sent) is shared since it depends on whichever person is available first.
+// Fixed by the SOP, not matrix-configurable — see the module comment above.
 // Used to disable individual checklist checkboxes per role in
 // src/routes/onboarding.tsx — hiding/disabling is a UX nicety here too; the
 // backend enforces the same matrix on every PATCH regardless of what the UI
 // allows clicking.
 const ONBOARDING_FIELD_ACCESS: Record<string, ReadonlySet<AccountRole>> = {
-  joDiscussion: new Set(["admin", "recruitment_lead"]),
-  confirmationSigned: new Set(["admin", "recruitment_lead"]),
-  welcomeEmailSent: new Set(["admin", "recruitment_lead", "onboarding_specialist"]),
-  newHireInfo: new Set(["admin", "onboarding_specialist"]),
-  idPhoto: new Set(["admin", "onboarding_specialist"]),
-  credentialsCreated: new Set(["admin", "onboarding_specialist"]),
-  onboardingDay: new Set(["admin", "onboarding_specialist"]),
+  joDiscussion: new Set(["admin", "super_admin", "recruitment_lead"]),
+  confirmationSigned: new Set(["admin", "super_admin", "recruitment_lead"]),
+  welcomeEmailSent: new Set([
+    "admin",
+    "super_admin",
+    "recruitment_lead",
+    "onboarding_specialist",
+  ]),
+  newHireInfo: new Set(["admin", "super_admin", "onboarding_specialist"]),
+  idPhoto: new Set(["admin", "super_admin", "onboarding_specialist"]),
+  credentialsCreated: new Set(["admin", "super_admin", "onboarding_specialist"]),
+  onboardingDay: new Set(["admin", "super_admin", "onboarding_specialist"]),
 };
 
 export function canEditOnboardingField(
@@ -81,33 +96,6 @@ export function canEditOnboardingField(
   field: keyof typeof ONBOARDING_FIELD_ACCESS,
 ): boolean {
   return !!role && (ONBOARDING_FIELD_ACCESS[field]?.has(role) ?? false);
-}
-
-// Mirrors ATTENDANCE_WRITE_ROLES in backend/app/core/auth.py. Covers
-// create/edit/prepare/import of a violation record — both HR and Projects
-// can reach this far; only HR can actually approve/send (see
-// canApproveAttendance below).
-const ATTENDANCE_WRITE_ROLES: ReadonlySet<AccountRole> = new Set([
-  "admin",
-  "hr",
-  "projects",
-]);
-
-export function canManageAttendance(role: AccountRole | undefined): boolean {
-  return !!role && ATTENDANCE_WRITE_ROLES.has(role);
-}
-
-// Mirrors ATTENDANCE_APPROVE_ROLES in backend/app/core/auth.py. Narrower
-// than canManageAttendance — per the SOP (section 10), only HR may approve/
-// hold/needs-correction/resend/send; Projects can prepare a record but never
-// approve its own submission.
-const ATTENDANCE_APPROVE_ROLES: ReadonlySet<AccountRole> = new Set([
-  "admin",
-  "hr",
-]);
-
-export function canApproveAttendance(role: AccountRole | undefined): boolean {
-  return !!role && ATTENDANCE_APPROVE_ROLES.has(role);
 }
 
 // --- TEMPORARY: Attendance Violations is still in progress -----------------

@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 from app.models.account import AccountRole
+from app.models.permission import Permission
 
 Theme = Literal["light", "dark"]
 
@@ -31,6 +32,15 @@ class AccountRead(BaseModel):
     notify_new_hires: bool
     notify_on_violation_review: bool
     notify_on_new_hire_added: bool
+    # Not a mapped column — populated by the /auth/me route (and anywhere else
+    # that returns AccountRead for "the signed-in caller") via
+    # get_account_permissions(). The frontend uses this instead of hardcoding
+    # role checks, so it stays correct as Super Admin edits the matrix without
+    # a frontend redeploy. Not populated on rows returned by admin-only list/
+    # detail endpoints (e.g. GET /accounts) — those never set this attribute,
+    # so it comes back as an empty list; something worth revisiting if the
+    # frontend ever needs another *account's* permissions, not just its own.
+    permissions: list[Permission] = []
 
 
 class AccountUpdate(BaseModel):

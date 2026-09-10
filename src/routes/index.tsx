@@ -41,7 +41,7 @@ import { computeStatus } from "@/data/new-hire-api";
 import { useNewHires } from "@/data/new-hire-store";
 import { useViolationsQuery } from "@/data/violation-store";
 import { useCurrentAccount } from "@/lib/session";
-import { canManageEmployees } from "@/lib/permissions";
+import { canManageEmployees, canViewAttendance, canViewOnboarding } from "@/lib/permissions";
 
 // Whether a month/day (as returned by upcomingBirthdays) falls within the
 // next 7 days, wrapping into next year for a birthday that's already passed
@@ -83,7 +83,9 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const employees = useEmployees();
   const { data: account } = useCurrentAccount();
-  const canManage = canManageEmployees(account?.role);
+  const canManage = canManageEmployees(account?.permissions);
+  const canViewOnboardingModule = canViewOnboarding(account?.permissions);
+  const canViewAttendanceModule = canViewAttendance(account?.permissions);
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
@@ -97,14 +99,14 @@ function Dashboard() {
   // the deep-dive Analytics page are role/admin-gated). This is the "one
   // dashboard" home view: a person whose role only lets them *manage* one
   // module can still see at a glance what's happening in the others.
-  const newHires = useNewHires();
+  const newHires = useNewHires(canViewOnboardingModule);
   const onboardingStats = {
     total: newHires.length,
     complete: newHires.filter((h) => computeStatus(h) === "Complete").length,
     inProgress: newHires.filter((h) => computeStatus(h) === "In Progress").length,
   };
 
-  const { data: violationsPage } = useViolationsQuery({}, 0, 500);
+  const { data: violationsPage } = useViolationsQuery({}, 0, 500, canViewAttendanceModule);
   const violations = violationsPage?.items ?? [];
   const violationStats = {
     total: violationsPage?.total ?? violations.length,
@@ -198,77 +200,83 @@ function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              Onboarding Snapshot
-            </CardTitle>
-            <CardDescription>New hires moving through the checklist</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-2xl font-semibold">{onboardingStats.total}</p>
-                <p className="text-xs text-muted-foreground">Tracked</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{onboardingStats.inProgress}</p>
-                <p className="text-xs text-muted-foreground">In Progress</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{onboardingStats.complete}</p>
-                <p className="text-xs text-muted-foreground">Complete</p>
-              </div>
-            </div>
-            <Button asChild size="sm" variant="outline" className="w-full">
-              <Link to="/onboarding">
-                Open onboarding <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {(canViewOnboardingModule || canViewAttendanceModule) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {canViewOnboardingModule && (
+            <Card className={canViewAttendanceModule ? undefined : "lg:col-span-2"}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                  Onboarding Snapshot
+                </CardTitle>
+                <CardDescription>New hires moving through the checklist</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-2xl font-semibold">{onboardingStats.total}</p>
+                    <p className="text-xs text-muted-foreground">Tracked</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{onboardingStats.inProgress}</p>
+                    <p className="text-xs text-muted-foreground">In Progress</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{onboardingStats.complete}</p>
+                    <p className="text-xs text-muted-foreground">Complete</p>
+                  </div>
+                </div>
+                <Button asChild size="sm" variant="outline" className="w-full">
+                  <Link to="/onboarding">
+                    Open onboarding <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-              Attendance Snapshot
-            </CardTitle>
-            <CardDescription>Violation records across every status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-2xl font-semibold">{violationStats.pending}</p>
-                <p className="text-xs text-muted-foreground">Pending</p>
-              </div>
-              <div>
-                <p className="flex items-center justify-center gap-1 text-2xl font-semibold">
-                  <Send className="h-4 w-4 text-muted-foreground" />
-                  {violationStats.sent}
-                </p>
-                <p className="text-xs text-muted-foreground">Sent</p>
-              </div>
-              <div>
-                <p className="flex items-center justify-center gap-1 text-2xl font-semibold">
-                  {violationStats.failed > 0 && (
-                    <CircleAlert className="h-4 w-4 text-destructive" />
-                  )}
-                  {violationStats.failed}
-                </p>
-                <p className="text-xs text-muted-foreground">Failed</p>
-              </div>
-            </div>
-            <Button asChild size="sm" variant="outline" className="w-full">
-              <Link to="/attendance-violations">
-                Open attendance <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          {canViewAttendanceModule && (
+            <Card className={canViewOnboardingModule ? undefined : "lg:col-span-2"}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+                  Attendance Snapshot
+                </CardTitle>
+                <CardDescription>Violation records across every status</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-2xl font-semibold">{violationStats.pending}</p>
+                    <p className="text-xs text-muted-foreground">Pending</p>
+                  </div>
+                  <div>
+                    <p className="flex items-center justify-center gap-1 text-2xl font-semibold">
+                      <Send className="h-4 w-4 text-muted-foreground" />
+                      {violationStats.sent}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Sent</p>
+                  </div>
+                  <div>
+                    <p className="flex items-center justify-center gap-1 text-2xl font-semibold">
+                      {violationStats.failed > 0 && (
+                        <CircleAlert className="h-4 w-4 text-destructive" />
+                      )}
+                      {violationStats.failed}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Failed</p>
+                  </div>
+                </div>
+                <Button asChild size="sm" variant="outline" className="w-full">
+                  <Link to="/attendance-violations">
+                    Open attendance <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

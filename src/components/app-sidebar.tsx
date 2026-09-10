@@ -32,15 +32,21 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useCurrentAccount } from "@/lib/session";
+import type { Permission } from "@/lib/session";
+import { hasPermission, isFullAccessRole } from "@/lib/permissions";
 
 type NavItem = {
   title: string;
   url: NonNullable<LinkProps["to"]>;
   icon: LucideIcon;
-  /** Hidden from the nav for every role except "admin" — the route itself
-   * also checks this (and the backend 403s regardless), this just keeps a
-   * non-admin from seeing a link to a page they can't use. */
+  /** Hidden from the nav for every role except "admin"/"super_admin" — the
+   * route itself also checks this (and the backend 403s regardless), this
+   * just keeps everyone else from seeing a link to a page they can't use. */
   adminOnly?: boolean;
+  /** Hidden unless the signed-in account's permission matrix grants this —
+   * see @/lib/permissions' hasPermission. Module-level view gating, driven
+   * by the Super-Admin-editable matrix rather than a fixed role list. */
+  permission?: Permission;
 };
 
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
@@ -48,19 +54,20 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Overview",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      // Admin-only: Analytics rolls up numbers across every module (Employee
-      // Directory, Onboarding, Attendance), which no single module-siloed
-      // role should see in full — see app/routes/analytics.tsx's own isAdmin
-      // gate, which enforces this independent of what the nav shows.
+      // Admin/Super Admin-only: Analytics rolls up numbers across every
+      // module (Employee Directory, Onboarding, Attendance), which no single
+      // module-siloed role should see in full — see app/routes/analytics.tsx's
+      // own isFullAccessRole gate, which enforces this independent of what
+      // the nav shows.
       { title: "Analytics", url: "/analytics", icon: BarChart3, adminOnly: true },
     ],
   },
   {
     label: "People",
     items: [
-      { title: "Employee Directory", url: "/directory", icon: Users },
-      { title: "New Hires", url: "/new-hires", icon: UserPlus },
-      { title: "Onboarding", url: "/onboarding", icon: ClipboardCheck },
+      { title: "Employee Directory", url: "/directory", icon: Users, permission: "employees.view" },
+      { title: "New Hires", url: "/new-hires", icon: UserPlus, permission: "employees.view" },
+      { title: "Onboarding", url: "/onboarding", icon: ClipboardCheck, permission: "onboarding.view" },
     ],
   },
   {
@@ -73,8 +80,8 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Attendance",
     items: [
-      { title: "Violations", url: "/attendance-violations", icon: ShieldAlert },
-      { title: "Reports", url: "/attendance-reports", icon: FileBarChart },
+      { title: "Violations", url: "/attendance-violations", icon: ShieldAlert, permission: "attendance.view" },
+      { title: "Reports", url: "/attendance-reports", icon: FileBarChart, permission: "attendance.view" },
     ],
   },
   {
@@ -99,7 +106,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { data: account } = useCurrentAccount();
-  const isAdmin = account?.role === "admin";
+  const isAdmin = isFullAccessRole(account?.role);
 
   return (
     <Sidebar collapsible="icon">
@@ -141,7 +148,11 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items
-                  .filter((item) => !item.adminOnly || isAdmin)
+                  .filter(
+                    (item) =>
+                      (!item.adminOnly || isAdmin) &&
+                      (!item.permission || hasPermission(account?.permissions, item.permission)),
+                  )
                   .map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton

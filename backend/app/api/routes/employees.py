@@ -5,11 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_account, require_account, require_employee_writer
+from app.core.auth import get_current_account, require_employee_writer, require_permission
 from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.employee import Employee, EmployeeStatus
+from app.models.permission import Permission
 from app.schemas.employee import (
     EmployeeBulkDeleteRequest,
     EmployeeBulkDeleteResult,
@@ -22,13 +23,18 @@ from app.schemas.employee import (
 from app.services.activity_log import record_activity
 from app.services.employee import next_employee_id
 
-# Router-level dependency: every route here requires a signed-in account
-# (401 otherwise) — these used to be reachable by anyone, signed in or not.
-# The two read routes (list/get) stop there, so every signed-in role
-# including viewer can search/filter/export. The five write routes below
-# additionally depend on require_employee_writer, which rejects a signed-in
-# viewer with 403 — see app/core/auth.py's EMPLOYEE_WRITE_ROLES.
-router = APIRouter(prefix="/employees", tags=["employees"], dependencies=[Depends(require_account)])
+# Router-level dependency: every route here requires Permission.EMPLOYEES_VIEW
+# (matrix-configurable; Admin/Super Admin always have it, and every other
+# role holds it by default too — see DEFAULT_GRANTS in
+# app/services/permissions.py — so this doesn't change anyone's access out
+# of the box, it just makes it Super-Admin-adjustable going forward). The
+# two read routes (list/get) stop there. The five write routes below
+# additionally depend on require_employee_writer (Permission.EMPLOYEES_MANAGE).
+router = APIRouter(
+    prefix="/employees",
+    tags=["employees"],
+    dependencies=[Depends(require_permission(Permission.EMPLOYEES_VIEW))],
+)
 
 CurrentAccount = Annotated[Account | None, Depends(get_current_account)]
 # Guaranteed non-None (require_employee_writer 403s otherwise) — used by the

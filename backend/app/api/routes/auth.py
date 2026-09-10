@@ -33,6 +33,7 @@ from app.models.account import Account, AccountRole
 from app.models.pending_invite import PendingInvite
 from app.schemas.account import AccountPreferencesUpdate, AccountRead
 from app.services import zoho
+from app.services.permissions import get_account_permissions
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -135,8 +136,16 @@ async def zoho_callback(
 
 
 @router.get("/me", response_model=AccountRead | None)
-async def me(account: Account | None = Depends(get_current_account)):
-    return account
+async def me(
+    account: Account | None = Depends(get_current_account),
+    db: AsyncSession = Depends(get_db),
+):
+    if account is None:
+        return None
+    permissions = await get_account_permissions(db, account)
+    account_read = AccountRead.model_validate(account)
+    account_read.permissions = sorted(permissions, key=lambda p: p.value)
+    return account_read
 
 
 @router.patch("/me/preferences", response_model=AccountRead)

@@ -49,7 +49,13 @@ import {
   type TransitionAction,
 } from "@/data/violation-store";
 import { useCurrentAccount } from "@/lib/session";
-import { canApproveAttendance, canManageAttendance } from "@/lib/permissions";
+import {
+  canApproveAttendance,
+  canManageAttendance,
+  canViewAttendance,
+  isFullAccessRole,
+} from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/roles";
 
 export const Route = createFileRoute("/attendance-violations")({
   head: () => ({
@@ -94,10 +100,11 @@ function StatusCell({ status, approvedByName }: { status: EmailStatus; approvedB
 }
 
 function AttendanceViolationsPage() {
-  const { data: account } = useCurrentAccount();
-  const canWrite = canManageAttendance(account?.role);
-  const canApprove = canApproveAttendance(account?.role);
-  const isAdmin = account?.role === "admin";
+  const { data: account, isLoading: accountLoading } = useCurrentAccount();
+  const canView = canViewAttendance(account?.permissions);
+  const canWrite = canManageAttendance(account?.permissions);
+  const canApprove = canApproveAttendance(account?.permissions);
+  const isAdmin = isFullAccessRole(account?.role);
 
   const [filters, setFilters] = useState({
     office: "",
@@ -122,12 +129,12 @@ function AttendanceViolationsPage() {
     setPage(0);
   };
 
-  const { data, isLoading } = useViolationsQuery(filters, page, PAGE_SIZE);
+  const { data, isLoading } = useViolationsQuery(filters, page, PAGE_SIZE, canView);
   const records = data?.items ?? [];
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const { data: overview } = useAnalyticsOverviewQuery();
+  const { data: overview } = useAnalyticsOverviewQuery(canView);
 
   useEffect(() => {
     setCheckedIds(new Set());
@@ -165,6 +172,42 @@ function AttendanceViolationsPage() {
   }
 
   const exportUrl = exportViolationsUrl(filters, "xlsx");
+
+  if (accountLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Attendance Violations"
+          description="Track violation records through preparation, approval and automated employee notification."
+        />
+        <p className="text-sm text-muted-foreground">Checking access…</p>
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Attendance Violations"
+          description="Track violation records through preparation, approval and automated employee notification."
+        />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-medium">No access</p>
+              <p className="text-sm text-muted-foreground">
+                Your account ({account ? ROLE_LABELS[account.role] : "signed out"}) doesn't have
+                access to Attendance Violations. Ask a Super Admin to grant it from the
+                permission matrix on User Management if you need it.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -27,16 +27,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreatePendingInvite } from "@/data/account-store";
-import type { AccountRole } from "@/lib/session";
-import { ROLE_LABELS, ROLE_OPTIONS } from "@/lib/roles";
+import { useCurrentAccount, type AccountRole } from "@/lib/session";
+import { assignableRoleOptions, ROLE_LABELS } from "@/lib/roles";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function AddUserDialog() {
+  const { data: currentAccount } = useCurrentAccount();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<AccountRole>("viewer");
   const createInvite = useCreatePendingInvite();
+  const roleOptions = assignableRoleOptions(currentAccount?.role);
 
   function reset() {
     setEmail("");
@@ -109,7 +111,7 @@ export function AddUserDialog() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((r) => (
+                {roleOptions.map((r) => (
                   <SelectItem key={r} value={r}>
                     {ROLE_LABELS[r]}
                   </SelectItem>

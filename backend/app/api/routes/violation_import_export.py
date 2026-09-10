@@ -11,15 +11,19 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import require_account, require_violation_writer
+from app.core.auth import require_permission, require_violation_writer
 from app.core.db import get_db
 from app.models.account import Account
+from app.models.permission import Permission
 from app.models.violation import EmailStatus, Office, ViolationRecord, ViolationType
 from app.schemas.violation import ImportCommitRequest, ImportPreviewResult, ImportResult
 from app.services.violation_export import export_csv, export_xlsx
 from app.services.violation_import import commit_import_rows, parse_tracker_file
 
-router = APIRouter(tags=["violation-import-export"], dependencies=[Depends(require_account)])
+router = APIRouter(
+    tags=["violation-import-export"],
+    dependencies=[Depends(require_permission(Permission.ATTENDANCE_VIEW))],
+)
 
 WriterAccount = Annotated[Account, Depends(require_violation_writer)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]

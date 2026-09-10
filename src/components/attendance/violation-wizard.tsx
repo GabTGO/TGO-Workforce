@@ -183,8 +183,8 @@ export function ViolationWizard({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data: account } = useCurrentAccount();
-  const canApprove = canApproveAttendance(account?.role);
-  const canWrite = canManageAttendance(account?.role);
+  const canApprove = canApproveAttendance(account?.permissions);
+  const canWrite = canManageAttendance(account?.permissions);
   const [pendingAction, setPendingAction] = useState<ConfirmableAction | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 

@@ -26,15 +26,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
-    ONBOARDING_WRITE_ROLES,
     get_current_account,
-    require_account,
     require_onboarding_writer,
+    require_permission,
 )
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.new_hire import NewHire
+from app.models.permission import Permission
 from app.schemas.new_hire import CliqNotifyRequest, NewHireCreate, NewHireRead, NewHireUpdate
 from app.services.activity_log import record_activity
 from app.services.cliq_notify import (
@@ -42,16 +42,21 @@ from app.services.cliq_notify import (
     CliqRejectedError,
     send_cliq_notification,
 )
-from app.services.notify import notify_roles
+from app.services.notify import notify_permission_holders
 
-# Router-level dependency: every route here requires a signed-in account
-# (401 otherwise). The two read routes (list/get) stop there, so every
-# signed-in role — including viewer — can see the tracker. The three write
-# routes below additionally depend on require_onboarding_writer, which
-# rejects a signed-in account that's neither an onboarding role nor admin
-# with 403 — update_new_hire then further restricts *which* fields within
-# that request are allowed via ROLE_FIELD_ACCESS below.
-router = APIRouter(prefix="/onboarding", tags=["onboarding"], dependencies=[Depends(require_account)])
+# Router-level dependency: every route here requires Permission.ONBOARDING_VIEW
+# (matrix-configurable — Admin/Super Admin always have it; Recruitment Lead
+# and Onboarding Specialist hold it by default). The two read routes
+# (list/get) stop there. The three write routes below additionally depend on
+# require_onboarding_writer (Permission.ONBOARDING_MANAGE), which
+# update_new_hire further restricts *which fields* within a request are
+# allowed via the fixed ROLE_FIELD_ACCESS matrix below (that split is
+# SOP-mandated, not matrix-configurable).
+router = APIRouter(
+    prefix="/onboarding",
+    tags=["onboarding"],
+    dependencies=[Depends(require_permission(Permission.ONBOARDING_VIEW))],
+)
 
 CurrentAccount = Annotated[Account | None, Depends(get_current_account)]
 # Guaranteed non-None (require_onboarding_writer 403s otherwise) — used by the
@@ -149,9 +154,9 @@ async def create_new_hire(
         target=hire.name,
         commit=False,
     )
-    await notify_roles(
+    await notify_permission_holders(
         db,
-        ONBOARDING_WRITE_ROLES,
+        Permission.ONBOARDING_MANAGE,
         title="New hire added to onboarding",
         body=f"{hire.name} — {hire.role_title or 'role not set'}",
         link="/onboarding",

@@ -12,16 +12,21 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import require_account
+from app.core.auth import require_account, require_permission
 from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory
+from app.models.permission import Permission
 from app.models.violation import EmailStatus, Office, ViolationRecord, ViolationType
 from app.services.activity_log import record_activity
 from app.services.violation_export import to_dataframe
 from app.services.violation_reports import build_summary, generate_pdf_report, generate_xlsx_report
 
-router = APIRouter(prefix="/violation-reports", tags=["violation-reports"], dependencies=[Depends(require_account)])
+router = APIRouter(
+    prefix="/violation-reports",
+    tags=["violation-reports"],
+    dependencies=[Depends(require_permission(Permission.ATTENDANCE_VIEW))],
+)
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 PREVIEW_ROW_LIMIT = 50

@@ -26,19 +26,25 @@ const NEW_HIRES_KEY = ["onboarding", "new-hires"] as const;
 // manual reload.
 const REALTIME_POLL_MS = 15_000;
 
-export function useNewHiresQuery() {
+/** `enabled` defaults to true for existing callers; pass false when the
+ * signed-in account lacks Permission.ONBOARDING_VIEW (see @/lib/permissions'
+ * canViewOnboarding) so this doesn't fire a request the backend will just
+ * 403 — e.g. the Dashboard's cross-module snapshot, which every role loads
+ * regardless of whether it can actually see the Onboarding module. */
+export function useNewHiresQuery(enabled = true) {
   return useQuery({
     queryKey: NEW_HIRES_KEY,
     queryFn: fetchNewHires,
-    refetchInterval: REALTIME_POLL_MS,
+    enabled,
+    refetchInterval: enabled ? REALTIME_POLL_MS : false,
   });
 }
 
 /** Convenience for read-only consumers that just want the list — empty while
- * loading or on error. Use useNewHiresQuery() directly where a loading/error
- * state matters. */
-export function useNewHires(): NewHire[] {
-  const { data } = useNewHiresQuery();
+ * loading, disabled, or on error. Use useNewHiresQuery() directly where a
+ * loading/error state matters. */
+export function useNewHires(enabled = true): NewHire[] {
+  const { data } = useNewHiresQuery(enabled);
   return data ?? [];
 }
 

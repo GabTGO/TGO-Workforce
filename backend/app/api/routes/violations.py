@@ -8,14 +8,16 @@ resend) rather than a generic PATCH-the-status, so every transition is
 unambiguous in the activity log and the workflow's state machine is enforced
 in code, not left to whoever edits a field.
 
-Auth: every route requires a signed-in account (router-level require_account).
-Write actions (create/update/prepare/mark-ready) additionally require
-require_violation_writer (admin/hr/projects — see the TGO Attendance Policy
-Violation Email Automation SOP section 17). Approve/hold/needs-correction/
-resend/send-now/bulk-send-now/bulk-preview additionally require
-require_violation_approver (admin/hr only — SOP section 10's explicit-HR-
-approval gate). Delete/bulk-delete require require_violation_admin (same as
-require_admin elsewhere, admin-only hard delete).
+Auth: every route requires Permission.ATTENDANCE_VIEW (router-level —
+matrix-configurable; Admin/Super Admin always have it). Write actions
+(create/update/prepare/mark-ready) additionally require require_violation_writer
+(Permission.ATTENDANCE_MANAGE — HR and Projects hold it by default, per the
+TGO Attendance Policy Violation Email Automation SOP section 17).
+Approve/hold/needs-correction/resend/send-now/bulk-send-now/bulk-preview
+additionally require require_violation_approver (Permission.ATTENDANCE_APPROVE
+— HR only by default, SOP section 10's explicit-HR-approval gate).
+Delete/bulk-delete require require_violation_admin (same as require_admin
+elsewhere, Admin/Super-Admin-only hard delete).
 
 TEMPORARY: all three of those dependencies currently also gate on a single
 developer account regardless of role, while this module is still in
@@ -31,8 +33,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
-    ATTENDANCE_APPROVE_ROLES,
-    require_account,
+    require_permission,
     require_violation_admin,
     require_violation_approver,
     require_violation_writer,
@@ -41,6 +42,7 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySeverity
+from app.models.permission import Permission
 from app.models.violation import EmailStatus, Office, ViolationRecord, ViolationType
 from app.schemas.activity_log import ActivityLogRead
 from app.schemas.violation import (
@@ -57,12 +59,16 @@ from app.schemas.violation import (
     ViolationRecordUpdate,
 )
 from app.services.activity_log import record_activity
-from app.services.notify import notify_roles
+from app.services.notify import notify_permission_holders
 from app.services.violation_email import ZohoMailError, send_email
 from app.services.violation_email_template import build_body, build_cc_address, build_from_address, build_subject
 from app.services.violation_history import get_previous_violations_for_month
 
-router = APIRouter(prefix="/violations", tags=["violations"], dependencies=[Depends(require_account)])
+router = APIRouter(
+    prefix="/violations",
+    tags=["violations"],
+    dependencies=[Depends(require_permission(Permission.ATTENDANCE_VIEW))],
+)
 
 WriterAccount = Annotated[Account, Depends(require_violation_writer)]
 ApproverAccount = Annotated[Account, Depends(require_violation_approver)]
@@ -327,9 +333,9 @@ async def prepare_record(record_id: int, db: DbSession, account: WriterAccount) 
     )
     # Whoever prepared this (often Projects, per the SOP) isn't necessarily
     # watching the queue — nudge everyone who can actually approve it.
-    await notify_roles(
+    await notify_permission_holders(
         db,
-        ATTENDANCE_APPROVE_ROLES,
+        Permission.ATTENDANCE_APPROVE,
         title="Violation email ready for review",
         body=f"{record.employee_name} — {record.violation_type_label} ({record.violation_date})",
         link="/attendance-violations",
@@ -485,9 +491,9 @@ async def send_now(record_id: int, db: DbSession, account: ApproverAccount) -> V
             severity=ActivitySeverity.WARNING,
             commit=False,
         )
-        await notify_roles(
+        await notify_permission_holders(
             db,
-            ATTENDANCE_APPROVE_ROLES,
+            Permission.ATTENDANCE_APPROVE,
             title="Violation email failed to send",
             body=f"{record.employee_name} — {exc}",
             link="/attendance-violations",
@@ -672,9 +678,9 @@ async def bulk_send_now(payload: BulkIdsRequest, db: DbSession, account: Approve
         # One summary notification for the whole batch rather than one per
         # failed record — a bad batch can fail dozens at once, and nobody
         # wants a flooded inbox for what's really one event.
-        await notify_roles(
+        await notify_permission_holders(
             db,
-            ATTENDANCE_APPROVE_ROLES,
+            Permission.ATTENDANCE_APPROVE,
             title="Some violation emails failed to send",
             body=f"{len(failed)} of {len(payload.ids)} failed in this bulk send.",
             link="/attendance-violations",

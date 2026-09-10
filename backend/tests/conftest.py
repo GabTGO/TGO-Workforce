@@ -13,7 +13,9 @@ from app.main import app
 # before _create_schema below — same reasoning as alembic/env.py.
 from app.models import *  # noqa: F401,F403
 from app.models.account import Account, AccountRole
+from app.models.permission import RolePermission
 from app.services import zoho
+from app.services.permissions import DEFAULT_GRANTS
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -23,6 +25,18 @@ async def _create_schema():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
+    # Tests bypass Alembic entirely (schema comes straight from the models
+    # above), so the migration that seeds DEFAULT_GRANTS into role_permissions
+    # never runs here — without this, every non-admin role would start every
+    # test with zero permissions, breaking the whole RBAC suite. Seed the same
+    # defaults a fresh production deploy gets.
+    async with AsyncSessionLocal() as session:
+        for role, permissions in DEFAULT_GRANTS.items():
+            for permission in permissions:
+                session.add(RolePermission(role=role, permission=permission))
+        await session.commit()
+
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -135,9 +149,10 @@ async def people_ops_client(db_session, monkeypatch):
 @pytest_asyncio.fixture
 async def hr_client(db_session, monkeypatch):
     """Same pattern as admin_client, promoted to hr — the Attendance module's
-    approve/hold/send role (see app/core/auth.py's ATTENDANCE_APPROVE_ROLES
-    and src/lib/permissions.ts on the frontend). Not Employee Directory —
-    that's people_ops-only under the one-role-per-module policy."""
+    approve/hold/send role (holds Permission.ATTENDANCE_APPROVE by default;
+    see DEFAULT_GRANTS in app/services/permissions.py and
+    src/lib/permissions.ts on the frontend). Not Employee Directory — that's
+    people_ops-only under the one-role-per-module policy."""
     ac = await _signed_in_client(monkeypatch, "hr")
     await _promote(db_session, ac, AccountRole.HR)
     try:
@@ -149,8 +164,10 @@ async def hr_client(db_session, monkeypatch):
 @pytest_asyncio.fixture
 async def projects_client(db_session, monkeypatch):
     """Same pattern as admin_client, promoted to projects — the Attendance
-    module's write-only role (create/edit/prepare a violation record, but
-    never approve/send it — see app/core/auth.py's ATTENDANCE_WRITE_ROLES)."""
+    module's write-only role (holds Permission.ATTENDANCE_MANAGE but not
+    ATTENDANCE_APPROVE by default — create/edit/prepare a violation record,
+    but never approve/send it; see DEFAULT_GRANTS in
+    app/services/permissions.py)."""
     ac = await _signed_in_client(monkeypatch, "projects")
     await _promote(db_session, ac, AccountRole.PROJECTS)
     try:

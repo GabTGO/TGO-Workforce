@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ShieldAlert } from "lucide-react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,7 +48,8 @@ import {
 } from "@/components/ui/table";
 import { computeStatus, type NewHire, type NewHirePatch } from "@/data/new-hire-api";
 import { useDeleteNewHire, useNewHires, useUpdateNewHire } from "@/data/new-hire-store";
-import { canEditOnboardingField, canManageOnboarding } from "@/lib/permissions";
+import { canEditOnboardingField, canManageOnboarding, canViewOnboarding } from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/roles";
 import { useCurrentAccount } from "@/lib/session";
 
 export const Route = createFileRoute("/onboarding")({
@@ -100,9 +103,10 @@ function StatusBadge({ status }: { status: ReturnType<typeof computeStatus> }) {
 }
 
 function OnboardingPage() {
-  const hires = useNewHires();
-  const { data: account } = useCurrentAccount();
-  const canManage = canManageOnboarding(account?.role);
+  const { data: account, isLoading: accountLoading } = useCurrentAccount();
+  const canView = canViewOnboarding(account?.permissions);
+  const hires = useNewHires(canView);
+  const canManage = canManageOnboarding(account?.permissions);
   const updateMutation = useUpdateNewHire();
   const deleteMutation = useDeleteNewHire();
 
@@ -205,6 +209,42 @@ function OnboardingPage() {
       console.error(error);
       toast.error(`Couldn't remove ${deleteTarget.name}. Please try again.`);
     }
+  }
+
+  if (accountLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Onboarding"
+          description="Track new hires through the 7-step onboarding checklist."
+        />
+        <p className="text-sm text-muted-foreground">Checking access…</p>
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Onboarding"
+          description="Track new hires through the 7-step onboarding checklist."
+        />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-medium">No access</p>
+              <p className="text-sm text-muted-foreground">
+                Your account ({account ? ROLE_LABELS[account.role] : "signed out"}) doesn't have
+                access to Onboarding. Ask a Super Admin to grant it from the permission matrix on
+                User Management if you need it.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

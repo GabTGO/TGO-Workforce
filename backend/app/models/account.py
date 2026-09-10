@@ -28,6 +28,13 @@ class AccountRole(enum.StrEnum):
     ever needs more than one role — say if that changes.
     """
 
+    # Above Admin (2026-09-10): the only role that can edit the permission
+    # matrix (app/models/permission.py, app/services/permissions.py) — what
+    # every non-admin role is actually allowed to do, module by module. Admin
+    # keeps every capability it always had (including User Management) and
+    # bypasses the matrix the same way Super Admin does; it just can't
+    # reconfigure the matrix itself.
+    SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     PEOPLE_OPS = "people_ops"
     # Attendance is split into two roles, not one — per the TGO Attendance
@@ -39,8 +46,9 @@ class AccountRole(enum.StrEnum):
     # resend/send authority (SOP section 10: "The system must never send...
     # without an explicit HR approval status"). Projects can create/edit/
     # prepare a violation record (submit it for HR's review) but cannot
-    # approve or send it. See ATTENDANCE_WRITE_ROLES/ATTENDANCE_APPROVE_ROLES
-    # in app/core/auth.py for the exact split. The old "hub_lead" enum value
+    # approve or send it — see Permission.ATTENDANCE_MANAGE/ATTENDANCE_APPROVE
+    # in app/services/permissions.py's DEFAULT_GRANTS for the exact split
+    # (matrix-configurable by Super Admin from here on). The old "hub_lead" enum value
     # is retired but not removed from the Postgres type (Postgres can't drop
     # a single enum value without recreating the whole type).
     HR = "hr"

@@ -94,7 +94,7 @@ export function EmployeeTable() {
   // hidden for them. The backend enforces the same rule on every write
   // route (see backend/app/core/auth.py's require_employee_writer), so this
   // is a UX nicety, not the actual security boundary.
-  const canManage = canManageEmployees(account?.role);
+  const canManage = canManageEmployees(account?.permissions);
   const [query, setQuery] = useState("");
   const [office, setOffice] = useState("all");
   const [status, setStatus] = useState("all");

@@ -63,7 +63,7 @@ const PAGE_SIZE = 8;
 function NewHiresPage() {
   const employees = useEmployees();
   const { data: account } = useCurrentAccount();
-  const canManage = canManageEmployees(account?.role);
+  const canManage = canManageEmployees(account?.permissions);
   const list = metrics(employees).newHireList;
   const active = list.filter((e) => e.status === "Active").length;
   const eastwood = list.filter((e) => e.office === "PH Eastwood").length;

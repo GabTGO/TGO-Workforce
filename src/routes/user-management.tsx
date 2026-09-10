@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { AddUserDialog } from "@/components/add-user-dialog";
 import { PageHeader } from "@/components/app-shell";
 import { MetricCard } from "@/components/metric-card";
+import { PermissionMatrixEditor } from "@/components/permission-matrix";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,8 @@ import {
   useUpdateAccount,
 } from "@/data/account-store";
 import { useCurrentAccount, type AccountRole } from "@/lib/session";
-import { ROLE_LABELS, ROLE_OPTIONS } from "@/lib/roles";
+import { assignableRoleOptions, ROLE_LABELS } from "@/lib/roles";
+import { isFullAccessRole } from "@/lib/permissions";
 
 export const Route = createFileRoute("/user-management")({
   head: () => ({
@@ -89,7 +91,8 @@ function formatDateTime(value: string | null) {
 function UserManagementPage() {
   const { data: currentAccount, isLoading: currentLoading } =
     useCurrentAccount();
-  const isAdmin = currentAccount?.role === "admin";
+  const isAdmin = isFullAccessRole(currentAccount?.role);
+  const isSuperAdmin = currentAccount?.role === "super_admin";
 
   const accountsQuery = useAccountsQuery(isAdmin);
   const updateAccount = useUpdateAccount();
@@ -136,7 +139,7 @@ function UserManagementPage() {
   }
 
   const accounts = accountsQuery.data ?? [];
-  const admins = accounts.filter((a) => a.role === "admin").length;
+  const admins = accounts.filter((a) => isFullAccessRole(a.role)).length;
   const active = accounts.filter((a) => a.isActive).length;
   const invites = invitesQuery.data ?? [];
 
@@ -301,7 +304,7 @@ function UserManagementPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {ROLE_OPTIONS.map((role) => (
+                            {assignableRoleOptions(currentAccount?.role).map((role) => (
                               <SelectItem key={role} value={role}>
                                 {ROLE_LABELS[role]}
                               </SelectItem>
@@ -430,6 +433,8 @@ function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {isSuperAdmin && <PermissionMatrixEditor />}
     </div>
   );
 }
