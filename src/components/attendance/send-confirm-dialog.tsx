@@ -1,4 +1,6 @@
-import { Loader2, Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { ExternalLink, Loader2, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useEmailSenderConfigQuery, useViolationQuery } from "@/data/violation-store";
+import { Input } from "@/components/ui/input";
+import { EmailChipInput } from "@/components/attendance/email-chip-input";
+import { useAppSettingsQuery } from "@/data/app-settings-store";
+import { useEmailSenderConfigQuery, useSendViaOutlook, useViolationQuery } from "@/data/violation-store";
+import { buildMailtoUrl, htmlToPlainText, openMailto } from "@/lib/mailto";
 
 export type ConfirmableAction = "approve" | "send-now" | "reapprove";
 
@@ -36,6 +42,16 @@ const ACTION_COPY: Record<ConfirmableAction, { title: string; confirmLabel: stri
 // wizard alike — so nothing goes out (or gets queued to go out) without the
 // sender seeing the exact rendered email first. Ported from the standalone
 // attendance app's src/components/send-confirm-dialog.tsx.
+//
+// When a Super Admin has turned on "Use MS Outlook" (see
+// backend/app/models/app_settings.py's use_outlook_for_violations) and this
+// is specifically the "send-now" action, this dialog switches to a
+// different flow entirely: instead of delegating to the parent's onConfirm
+// (which fires the normal Zoho Mail send), it lets the sender adjust
+// From/Cc right here, marks the record Sent via the Outlook alternate path
+// itself, and opens the composed email in the sender's own Outlook. Approve
+// and Re-approve are untouched by the toggle either way — neither of those
+// ever sends an email directly (see backend/app/api/routes/violations.py).
 export function SendConfirmDialog({
   recordId,
   action,
@@ -53,17 +69,61 @@ export function SendConfirmDialog({
 }) {
   const { data: record } = useViolationQuery(open ? recordId : null);
   const { data: config } = useEmailSenderConfigQuery(open);
+  const { data: appSettings } = useAppSettingsQuery(open);
+  const outlookMode = action === "send-now" && !!appSettings?.useOutlookForViolations;
+  const sendViaOutlook = useSendViaOutlook();
+
+  const [fromOverride, setFromOverride] = useState("");
+  const [ccOverride, setCcOverride] = useState("");
+
+  // Re-seed the override fields from the record's own stored values every
+  // time the dialog opens — same reasoning as EditViolationDialog: a
+  // previous cancelled edit shouldn't linger into the next open.
+  useEffect(() => {
+    if (open && record) {
+      setFromOverride(record.fromAddress ?? "");
+      setCcOverride(record.ccAddresses ?? "");
+    }
+  }, [open, record]);
 
   const copy = ACTION_COPY[action];
   const fromAddress = record?.fromPreview ?? config?.fromAddress ?? "…";
   const ccAddress = record?.ccPreview ?? config?.fromAddress ?? "…";
+  const defaultAddress = config?.fromAddress ?? "the configured default";
+
+  async function handleOutlookConfirm() {
+    if (!record) return;
+    try {
+      const updated = await sendViaOutlook.mutateAsync({
+        id: record.id,
+        overrides: { fromAddress: fromOverride, ccAddresses: ccOverride },
+      });
+      const url = buildMailtoUrl({
+        to: updated.employeeEmail,
+        cc: updated.ccPreview,
+        subject: updated.subjectPreview ?? "",
+        body: htmlToPlainText(updated.bodyPreview ?? ""),
+      });
+      openMailto(url);
+      toast.success("Marked as sent — finish it from the Outlook window that just opened.");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't mark this as sent");
+    }
+  }
+
+  const outlookBusy = sendViaOutlook.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+    <Dialog open={open} onOpenChange={(next) => !busy && !outlookBusy && onOpenChange(next)}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{copy.title}</DialogTitle>
-          <DialogDescription>{copy.note}</DialogDescription>
+          <DialogTitle>{outlookMode ? "Send this email via Outlook?" : copy.title}</DialogTitle>
+          <DialogDescription>
+            {outlookMode
+              ? "This marks the record Sent and opens it in your own Outlook to actually send — nothing goes through Zoho Mail."
+              : copy.note}
+          </DialogDescription>
         </DialogHeader>
 
         {!record ? (
@@ -97,14 +157,48 @@ export function SendConfirmDialog({
           </div>
         )}
 
+        {outlookMode && record && (
+          <div className="flex flex-col gap-3 rounded-lg border p-3">
+            <p className="text-xs font-medium text-muted-foreground">Before opening Outlook</p>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Send from</label>
+              <Input
+                type="email"
+                placeholder={`Use default (${defaultAddress})`}
+                value={fromOverride}
+                onChange={(e) => setFromOverride(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Outlook sends from whichever account you're signed into there — this just records who this
+                should have gone out as. Switch mailboxes in Outlook itself before sending if it needs to
+                match.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Additional Cc addresses</label>
+              <EmailChipInput value={ccOverride} onChange={setCcOverride} placeholder="Type an email…" />
+              <p className="text-[11px] text-muted-foreground">
+                {defaultAddress} always stays Cc'd regardless — these are added on top of it.
+              </p>
+            </div>
+          </div>
+        )}
+
         <DialogFooter>
-          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={busy || outlookBusy} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={busy || !record} onClick={onConfirm}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {copy.confirmLabel}
-          </Button>
+          {outlookMode ? (
+            <Button disabled={outlookBusy || !record} onClick={handleOutlookConfirm}>
+              {outlookBusy ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+              Open in Outlook
+            </Button>
+          ) : (
+            <Button disabled={busy || !record} onClick={onConfirm}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {copy.confirmLabel}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -5,6 +5,7 @@ import {
   bulkDeleteViolations,
   bulkPreviewViolations,
   bulkSendNowViolations,
+  bulkSendViaOutlook,
   commitImport,
   createViolation,
   deleteViolation,
@@ -20,6 +21,7 @@ import {
   previewImport,
   resendViolation,
   sendNowViolation,
+  sendViaOutlook,
   updateViolation,
   type ImportPreviewRow,
   type NewViolationInput,
@@ -211,6 +213,35 @@ export function useBulkSendNowViolations() {
     mutationFn: (ids: number[]) => {
       guardDev();
       return bulkSendNowViolations(ids);
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/** Marks one record Sent via the MS Outlook alternate path (see
+ * backend/app/models/app_settings.py's use_outlook_for_violations) instead of
+ * calling Zoho Mail — the caller still has to actually open the mailto: link
+ * themselves (see @/lib/mailto) using the ViolationRecordDetail this
+ * resolves with. */
+export function useSendViaOutlook() {
+  const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
+  return useMutation({
+    mutationFn: ({ id, overrides }: { id: number; overrides: { fromAddress?: string; ccAddresses?: string } }) => {
+      guardDev();
+      return sendViaOutlook(id, overrides);
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useBulkSendViaOutlook() {
+  const invalidate = useInvalidateViolations();
+  const guardDev = useAttendanceDevGuard();
+  return useMutation({
+    mutationFn: (ids: number[]) => {
+      guardDev();
+      return bulkSendViaOutlook(ids);
     },
     onSuccess: invalidate,
   });

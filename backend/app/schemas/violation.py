@@ -160,6 +160,28 @@ class BulkSendResult(BaseModel):
     skipped: list[BulkSkip]
 
 
+# ---------- MS Outlook alternate send path ----------
+# See app/models/app_settings.py's use_outlook_for_violations and
+# POST /violations/{id}/send-via-outlook, /violations/bulk-send-via-outlook.
+
+
+class SendViaOutlookRequest(BaseModel):
+    """Optional From/Cc overrides to apply to the record before marking it
+    Sent — lets whoever's actually sending via their own Outlook change these
+    right before opening the compose window, not just earlier in the Draft/
+    Ready-to-Prepare/Needs-Correction edit stage. Same semantics as
+    ViolationRecordUpdate's fields: omit to leave unchanged, empty string to
+    clear back to the default."""
+
+    from_address: Optional[str] = None
+    cc_addresses: Optional[str] = None
+
+
+class BulkSendViaOutlookResult(BaseModel):
+    sent: list[ViolationRecordDetail]
+    skipped: list[BulkSkip]
+
+
 # ---------- Import ----------
 
 

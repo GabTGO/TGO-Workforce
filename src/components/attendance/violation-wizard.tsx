@@ -339,10 +339,20 @@ export function ViolationWizard({
                     <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                       <Check className="mt-0.5 size-4 shrink-0" />
                       <div>
-                        <p className="font-medium">Sent {record.sentAt ? new Date(record.sentAt).toLocaleString() : ""}</p>
-                        <p className="mt-0.5">
-                          To {record.sentTo} · Reference: {record.zohoMessageId || "not returned"}
+                        <p className="font-medium">
+                          {record.automationResult === "manual_outlook" ? "Marked as sent" : "Sent"}{" "}
+                          {record.sentAt ? new Date(record.sentAt).toLocaleString() : ""}
                         </p>
+                        {record.automationResult === "manual_outlook" ? (
+                          <p className="mt-0.5">
+                            To {record.sentTo} · Sent manually via Outlook — not confirmed by automated
+                            delivery.
+                          </p>
+                        ) : (
+                          <p className="mt-0.5">
+                            To {record.sentTo} · Reference: {record.zohoMessageId || "not returned"}
+                          </p>
+                        )}
                       </div>
                     </div>
                     {canApprove && (

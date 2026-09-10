@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   Lock,
   Mail,
+  Send,
   ShieldAlert,
   ShieldCheck,
   UserCheck,
@@ -203,6 +204,21 @@ function UserManagementPage() {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Couldn't update sign-in access",
+      );
+    }
+  }
+
+  async function handleOutlookToggle(useOutlookForViolations: boolean) {
+    try {
+      await updateAppSettings.mutateAsync({ useOutlookForViolations });
+      toast.success(
+        useOutlookForViolations
+          ? "Attendance Violations now sends via MS Outlook"
+          : "Attendance Violations is back to sending via Zoho Mail",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't update email delivery",
       );
     }
   }
@@ -509,6 +525,40 @@ function UserManagementPage() {
                 checked={appSettingsQuery.data?.inviteOnlySignup ?? false}
                 disabled={appSettingsQuery.isLoading || updateAppSettings.isPending}
                 onCheckedChange={handleInviteOnlyToggle}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-4 w-4 text-muted-foreground" />
+              Attendance Email Delivery
+            </CardTitle>
+            <CardDescription>
+              Attendance Violations normally sends employee notice emails through the Zoho Mail
+              API. Turn this on while that isn't set up yet — approvers send from their own MS
+              Outlook instead.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <p className="text-sm font-medium">Use MS Outlook instead of Zoho Mail</p>
+                <p className="text-sm text-muted-foreground">
+                  When on, "Send now" and bulk send open the email in the approver's own Outlook
+                  (via mailto:) and mark the record Sent right away — the app can't confirm
+                  whether it was actually sent from there, so this is a "mark as sent," not a
+                  delivery guarantee. From/Cc become editable at send time either way.
+                </p>
+              </div>
+              <Switch
+                checked={appSettingsQuery.data?.useOutlookForViolations ?? false}
+                disabled={appSettingsQuery.isLoading || updateAppSettings.isPending}
+                onCheckedChange={handleOutlookToggle}
               />
             </div>
           </CardContent>

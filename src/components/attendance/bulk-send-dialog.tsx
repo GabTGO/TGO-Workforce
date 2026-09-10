@@ -12,11 +12,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ViolationRecord } from "@/data/violation-api";
+import { useAppSettingsQuery } from "@/data/app-settings-store";
 import {
   useBulkPreviewViolationsQuery,
   useBulkSendNowViolations,
+  useBulkSendViaOutlook,
   useEmailSenderConfigQuery,
 } from "@/data/violation-store";
+import { buildMailtoUrl, htmlToPlainText, openMailto } from "@/lib/mailto";
 
 // The one-click row "Send now" button already goes through
 // SendConfirmDialog; this is that same idea scaled up to a checkbox
@@ -24,8 +27,21 @@ import {
 // that must be worked through by hand rather than one "are you sure" click.
 // Ported from the standalone attendance app's
 // src/components/bulk-send-dialog.tsx.
+//
+// When a Super Admin has turned on "Use MS Outlook" (see
+// backend/app/models/app_settings.py's use_outlook_for_violations),
+// confirming here marks every eligible record Sent via the Outlook
+// alternate path (no Zoho Mail call) and opens one Outlook compose window
+// per record in sequence, staggered slightly so the OS/browser has time to
+// hand each one off before the next fires.
 type Checks = { recipients: boolean; content: boolean; approved: boolean; irreversible: boolean };
 const EMPTY_CHECKS: Checks = { recipients: false, content: false, approved: false, irreversible: false };
+
+const OUTLOOK_OPEN_STAGGER_MS = 500;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function BulkSendDialog({
   records,
@@ -39,6 +55,7 @@ export function BulkSendDialog({
   onDone: () => void;
 }) {
   const [checks, setChecks] = useState<Checks>(EMPTY_CHECKS);
+  const [openingOutlook, setOpeningOutlook] = useState(false);
 
   const eligible = records.filter((r) => r.emailStatus === "Approved" || r.emailStatus === "Resend Approved");
   const ineligible = records.filter((r) => !(r.emailStatus === "Approved" || r.emailStatus === "Resend Approved"));
@@ -46,7 +63,11 @@ export function BulkSendDialog({
 
   const { data: previews, isLoading } = useBulkPreviewViolationsQuery(ids, open);
   const { data: config } = useEmailSenderConfigQuery(open);
+  const { data: appSettings } = useAppSettingsQuery(open);
+  const outlookMode = !!appSettings?.useOutlookForViolations;
   const sendMutation = useBulkSendNowViolations();
+  const outlookMutation = useBulkSendViaOutlook();
+  const busy = sendMutation.isPending || outlookMutation.isPending || openingOutlook;
 
   const resetAndClose = () => {
     setChecks(EMPTY_CHECKS);
@@ -54,6 +75,10 @@ export function BulkSendDialog({
   };
 
   function handleConfirm() {
+    if (outlookMode) {
+      handleOutlookConfirm();
+      return;
+    }
     sendMutation.mutate(ids, {
       onSuccess: (result) => {
         const parts: string[] = [];
@@ -70,6 +95,39 @@ export function BulkSendDialog({
     });
   }
 
+  async function handleOutlookConfirm() {
+    try {
+      const result = await outlookMutation.mutateAsync(ids);
+      resetAndClose();
+      onDone();
+      if (result.sent.length === 0) {
+        toast.error("Nothing was marked as sent.");
+        return;
+      }
+      toast.success(
+        `Marked ${result.sent.length} as sent — opening ${result.sent.length} Outlook window${
+          result.sent.length === 1 ? "" : "s"
+        } one at a time.`,
+      );
+      setOpeningOutlook(true);
+      for (const record of result.sent) {
+        openMailto(
+          buildMailtoUrl({
+            to: record.employeeEmail,
+            cc: record.ccPreview,
+            subject: record.subjectPreview ?? "",
+            body: htmlToPlainText(record.bodyPreview ?? ""),
+          }),
+        );
+        await delay(OUTLOOK_OPEN_STAGGER_MS);
+      }
+      setOpeningOutlook(false);
+    } catch (err) {
+      setOpeningOutlook(false);
+      toast.error(err instanceof Error ? err.message : "Couldn't mark these as sent");
+    }
+  }
+
   const allChecked = Object.values(checks).every(Boolean);
   const defaultAddress = config?.fromAddress ?? "…";
 
@@ -77,7 +135,7 @@ export function BulkSendDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (sendMutation.isPending) return;
+        if (busy) return;
         if (!next) resetAndClose();
         else onOpenChange(next);
       }}
@@ -85,11 +143,14 @@ export function BulkSendDialog({
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Send {eligible.length} email{eligible.length === 1 ? "" : "s"} now?
+            {outlookMode ? "Mark " : "Send "}
+            {eligible.length} email{eligible.length === 1 ? "" : "s"} {outlookMode ? "as sent" : "now"}?
           </DialogTitle>
           <DialogDescription>
             Only Approved / Resend Approved records can be sent this way. Work through the checklist below —
-            confirming sends real emails immediately via Zoho Mail and can't be undone.
+            {outlookMode
+              ? " confirming marks every record below Sent and opens each one in your own Outlook to actually send, one window at a time."
+              : " confirming sends real emails immediately via Zoho Mail and can't be undone."}
           </DialogDescription>
         </DialogHeader>
 
@@ -157,18 +218,22 @@ export function BulkSendDialog({
             <ChecklistItem
               checked={checks.irreversible}
               onChange={(v) => setChecks((c) => ({ ...c, irreversible: v }))}
-              label={`I understand this sends ${eligible.length} real email${eligible.length === 1 ? "" : "s"} immediately (from the sender shown for each record above) and cannot be undone.`}
+              label={
+                outlookMode
+                  ? `I understand this marks ${eligible.length} record${eligible.length === 1 ? "" : "s"} Sent and opens ${eligible.length} Outlook window${eligible.length === 1 ? "" : "s"} for me to actually send, and cannot be undone.`
+                  : `I understand this sends ${eligible.length} real email${eligible.length === 1 ? "" : "s"} immediately (from the sender shown for each record above) and cannot be undone.`
+              }
             />
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={sendMutation.isPending} onClick={resetAndClose}>
+          <Button variant="outline" disabled={busy} onClick={resetAndClose}>
             Cancel
           </Button>
-          <Button disabled={eligible.length === 0 || !allChecked || sendMutation.isPending} onClick={handleConfirm}>
-            {sendMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            Confirm — send {eligible.length}
+          <Button disabled={eligible.length === 0 || !allChecked || busy} onClick={handleConfirm}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {outlookMode ? `Mark sent & open in Outlook` : `Confirm — send ${eligible.length}`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,8 +4,11 @@ import { fetchAppSettings, updateAppSettings, type AppSettings } from "@/data/ap
 
 const APP_SETTINGS_KEY = ["app-settings"] as const;
 
-/** `enabled` should be gated to Super Admin at the call site — the backend
- * 403s anyone else. */
+/** GET is open to any signed-in account (see backend/app/api/routes/
+ * app_settings.py) — `enabled` just guards against firing before there's a
+ * reason to (e.g. account not loaded yet), not an access-control gate.
+ * Editing via useUpdateAppSettings below is still Super Admin-only,
+ * enforced server-side on PATCH. */
 export function useAppSettingsQuery(enabled: boolean) {
   return useQuery({
     queryKey: APP_SETTINGS_KEY,

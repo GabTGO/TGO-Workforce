@@ -82,15 +82,30 @@ export const Route = createFileRoute("/attendance-violations")({
 
 const PAGE_SIZE = 20;
 
-function StatusCell({ status, approvedByName }: { status: EmailStatus; approvedByName: string | null }) {
+function StatusCell({
+  status,
+  approvedByName,
+  automationResult,
+}: {
+  status: EmailStatus;
+  approvedByName: string | null;
+  automationResult: string | null;
+}) {
   const showApprover =
     approvedByName &&
     (status === "Approved" || status === "Resend Approved" || status === "Sent" || status === "Failed");
+  // "manual_outlook" means this was marked Sent via the MS Outlook alternate
+  // path (backend/app/models/app_settings.py's use_outlook_for_violations) —
+  // never actually confirmed delivered by Zoho, unlike a normal "Sent".
+  const sentViaOutlook = automationResult === "manual_outlook";
   return (
     <div className="flex flex-col gap-0.5">
       {status === "Sent" ? (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="size-3.5" /> Sent
+        <span
+          className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+          title={sentViaOutlook ? "Marked as sent via Outlook — not confirmed by automated delivery" : undefined}
+        >
+          <CheckCircle2 className="size-3.5" /> {sentViaOutlook ? "Marked as Sent" : "Sent"}
         </span>
       ) : (
         <Badge variant="secondary">{status}</Badge>
@@ -381,7 +396,11 @@ function AttendanceViolationsPage() {
                   <TableCell>{r.violationTypeLabel}</TableCell>
                   <TableCell>{r.violationDate}</TableCell>
                   <TableCell>
-                    <StatusCell status={r.emailStatus} approvedByName={r.approvedByName} />
+                    <StatusCell
+                      status={r.emailStatus}
+                      approvedByName={r.approvedByName}
+                      automationResult={r.automationResult}
+                    />
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1">

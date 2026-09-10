@@ -50,15 +50,18 @@ from app.schemas.violation import (
     BulkIdsRequest,
     BulkSendOutcome,
     BulkSendResult,
+    BulkSendViaOutlookResult,
     BulkSkip,
     EmailSenderConfig,
     PaginatedRecords,
+    SendViaOutlookRequest,
     ViolationRecordCreate,
     ViolationRecordDetail,
     ViolationRecordRead,
     ViolationRecordUpdate,
 )
 from app.services.activity_log import record_activity
+from app.services.app_settings import get_app_settings
 from app.services.notify import notify_permission_holders
 from app.services.violation_email import ZohoMailError, send_email
 from app.services.violation_email_template import build_body, build_cc_address, build_from_address, build_subject
@@ -524,6 +527,120 @@ async def send_now(record_id: int, db: DbSession, account: ApproverAccount) -> V
     await db.commit()
     await db.refresh(record)
     return record
+
+
+# ---------- MS Outlook alternate send path (see app/models/app_settings.py's
+# use_outlook_for_violations) ----------
+#
+# Neither route calls send_email()/Zoho at all — the record is simply marked
+# Sent (automation_result="manual_outlook" instead of "success"), and the
+# frontend opens the composed email in the approver's own MS Outlook via a
+# mailto: link built from this response's subject/body/from/cc previews.
+# There is no way for the backend to confirm what happens in Outlook after
+# that — this is a "mark as sent" action, not a real delivery confirmation,
+# which is exactly why it's gated behind an explicit Super Admin toggle and
+# recorded distinctly in automation_result/the activity log.
+
+
+def _apply_outlook_overrides(record: ViolationRecord, payload: SendViaOutlookRequest) -> None:
+    if payload.from_address is not None:
+        record.from_address = _normalize_from_address(payload.from_address)
+    if payload.cc_addresses is not None:
+        record.cc_addresses = _normalize_cc_addresses(payload.cc_addresses)
+
+
+def _mark_sent_via_outlook(record: ViolationRecord) -> bool:
+    """Returns whether this was a resend, for the caller's activity-log
+    wording — same bookkeeping as send_now's success branch, minus the
+    zoho_message_id (there isn't one) and with a distinct automation_result."""
+    is_resend = record.email_status == EmailStatus.RESEND_APPROVED
+    record.email_status = EmailStatus.SENT
+    record.sent_at = datetime.now(UTC)
+    record.sent_to = record.employee_email
+    record.zoho_message_id = None
+    record.automation_result = "manual_outlook"
+    record.automation_error = None
+    if is_resend:
+        record.resent_at = datetime.now(UTC)
+    return is_resend
+
+
+@router.post("/{record_id}/send-via-outlook", response_model=ViolationRecordDetail)
+async def send_via_outlook(
+    record_id: int, payload: SendViaOutlookRequest, db: DbSession, account: ApproverAccount
+) -> ViolationRecordDetail:
+    app_settings = await get_app_settings(db)
+    if not app_settings.use_outlook_for_violations:
+        raise HTTPException(400, "Outlook sending isn't enabled. Ask a Super Admin to turn it on.")
+
+    record = await _get_or_404(db, record_id)
+    if record.email_status not in (EmailStatus.APPROVED, EmailStatus.RESEND_APPROVED):
+        raise HTTPException(400, "Record must be Approved or Resend Approved to send")
+
+    _apply_outlook_overrides(record, payload)
+    is_resend = _mark_sent_via_outlook(record)
+    await db.flush()
+    await record_activity(
+        db,
+        action="Marked violation email as resent via Outlook" if is_resend else "Marked violation email as sent via Outlook",
+        category=ActivityCategory.ATTENDANCE,
+        account=account,
+        target=record.violation_record_id,
+        details={"method": "outlook"},
+        commit=False,
+    )
+    await db.commit()
+    await db.refresh(record)
+    return await _to_detail(db, record)
+
+
+@router.post("/bulk-send-via-outlook", response_model=BulkSendViaOutlookResult)
+async def bulk_send_via_outlook(payload: BulkIdsRequest, db: DbSession, account: ApproverAccount) -> BulkSendViaOutlookResult:
+    """Same eligibility rule as bulk-send-now — only fires from Approved/
+    Resend Approved, anything else is reported back as skipped. No per-record
+    From/Cc overrides here (unlike the single-record route above); bulk keeps
+    whatever each record already has."""
+    app_settings = await get_app_settings(db)
+    if not app_settings.use_outlook_for_violations:
+        raise HTTPException(400, "Outlook sending isn't enabled. Ask a Super Admin to turn it on.")
+
+    sent: list[ViolationRecordDetail] = []
+    skipped: list[BulkSkip] = []
+    for record_id in payload.ids:
+        result = await db.execute(
+            select(ViolationRecord).where(
+                ViolationRecord.id == record_id, ViolationRecord.is_deleted.is_(False)
+            )
+        )
+        record = result.scalar_one_or_none()
+        if not record:
+            skipped.append(BulkSkip(id=record_id, reason="Not found or already deleted"))
+            continue
+        if record.email_status not in (EmailStatus.APPROVED, EmailStatus.RESEND_APPROVED):
+            skipped.append(
+                BulkSkip(
+                    id=record_id,
+                    violation_record_id=record.violation_record_id,
+                    reason=f"Status is '{record.email_status.value}', not Approved",
+                )
+            )
+            continue
+
+        is_resend = _mark_sent_via_outlook(record)
+        await db.flush()
+        await record_activity(
+            db,
+            action="Marked violation email as resent via Outlook" if is_resend else "Marked violation email as sent via Outlook",
+            category=ActivityCategory.ATTENDANCE,
+            account=account,
+            target=record.violation_record_id,
+            details={"method": "outlook", "bulk": True},
+            commit=False,
+        )
+        sent.append(await _to_detail(db, record))
+
+    await db.commit()
+    return BulkSendViaOutlookResult(sent=sent, skipped=skipped)
 
 
 # ---------- bulk actions (violation table's checkbox selection) ----------

@@ -414,6 +414,35 @@ export async function bulkSendNowViolations(ids: number[]): Promise<BulkSendResu
   };
 }
 
+// --- MS Outlook alternate send path (see backend/app/models/app_settings.py's
+// use_outlook_for_violations) — marks a record Sent without calling Zoho Mail
+// at all; the caller is responsible for opening the actual mailto: compose
+// window from the returned preview fields (see @/lib/mailto). ---
+
+export async function sendViaOutlook(
+  id: number,
+  overrides: { fromAddress?: string; ccAddresses?: string },
+): Promise<ViolationRecordDetail> {
+  const payload: Record<string, unknown> = {};
+  if (overrides.fromAddress !== undefined) payload["from_address"] = overrides.fromAddress;
+  if (overrides.ccAddresses !== undefined) payload["cc_addresses"] = overrides.ccAddresses;
+  const row = await request<BackendViolationRecordDetail>(`/violations/${id}/send-via-outlook`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return detailFromBackend(row);
+}
+
+export type BulkSendViaOutlookResult = { sent: ViolationRecordDetail[]; skipped: BulkSkip[] };
+
+export async function bulkSendViaOutlook(ids: number[]): Promise<BulkSendViaOutlookResult> {
+  const result = await request<{
+    sent: BackendViolationRecordDetail[];
+    skipped: { id: number; violation_record_id: string | null; reason: string }[];
+  }>("/violations/bulk-send-via-outlook", { method: "POST", body: JSON.stringify({ ids }) });
+  return { sent: result.sent.map(detailFromBackend), skipped: result.skipped.map(skipFromBackend) };
+}
+
 export type EmailSenderConfig = { fromAddress: string; knownFromAddresses: string[] };
 
 export async function fetchEmailSenderConfig(): Promise<EmailSenderConfig> {
