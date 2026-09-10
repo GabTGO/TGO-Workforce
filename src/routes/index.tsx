@@ -44,8 +44,11 @@ import { useCurrentAccount } from "@/lib/session";
 import {
   canManageEmployees,
   canViewAttendance,
+  canViewEmployees,
   canViewMilestones,
   canViewOnboarding,
+  getEffectiveRole,
+  isFullAccessRole,
 } from "@/lib/permissions";
 
 // Whether a month/day (as returned by upcomingBirthdays) falls within the
@@ -88,7 +91,15 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const employees = useEmployees();
   const { data: account } = useCurrentAccount();
+  // The full cross-office "everything" overview (company-wide headcount,
+  // hub distribution, recent hires across the whole workforce) is Admin/
+  // Super Admin only — everyone else gets a dashboard scoped to just the
+  // module(s) their own permissions actually cover (see the Onboarding/
+  // Attendance/Employees snapshot cards below), same as the sidebar and
+  // every other page in the app.
+  const isFullAccess = isFullAccessRole(getEffectiveRole(account));
   const canManage = canManageEmployees(account?.permissions);
+  const canViewEmployeesModule = canViewEmployees(account?.permissions);
   const canViewOnboardingModule = canViewOnboarding(account?.permissions);
   const canViewAttendanceModule = canViewAttendance(account?.permissions);
   const m = metrics(employees);
@@ -126,7 +137,10 @@ function Dashboard() {
   // cards they've asked to see. Default to shown while the account is still
   // loading, so there's no flash of an empty dashboard.
   const canViewMilestonesModule = canViewMilestones(account?.permissions);
-  const showNewHires = account?.notify_new_hires ?? true;
+  // "Recent New Hires" is a company-wide list (every office, every
+  // department) — part of the Admin/Super Admin overview, not a
+  // module-scoped card, so it stays with the rest of that section.
+  const showNewHires = isFullAccess && (account?.notify_new_hires ?? true);
   const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
   const showBirthdayBanner =
     canViewMilestonesModule && (account?.notify_birthdays ?? true) && birthdaysThisWeek.length > 0;
@@ -135,7 +149,11 @@ function Dashboard() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Operational snapshot across all TGO delivery hubs."
+        description={
+          isFullAccess
+            ? "Operational snapshot across all TGO delivery hubs."
+            : "Snapshot of the modules available to your role."
+        }
         action={
           <div className="flex items-center gap-2">
             {canManage && <ImportEmployeesDialog />}
@@ -167,6 +185,7 @@ function Dashboard() {
         </Alert>
       )}
 
+      {isFullAccess && (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
           title="Active Employees"
@@ -205,11 +224,45 @@ function Dashboard() {
           icon={Globe2}
         />
       </div>
+      )}
 
-      {(canViewOnboardingModule || canViewAttendanceModule) && (
-        <div className="grid gap-4 lg:grid-cols-2">
+      {(isFullAccess && (canViewOnboardingModule || canViewAttendanceModule)) ||
+      (!isFullAccess && (canViewEmployeesModule || canViewOnboardingModule || canViewAttendanceModule)) ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {!isFullAccess && canViewEmployeesModule && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  Employees Snapshot
+                </CardTitle>
+                <CardDescription>Headcount at a glance</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-2xl font-semibold">{m.active}</p>
+                    <p className="text-xs text-muted-foreground">Active</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{m.inactive}</p>
+                    <p className="text-xs text-muted-foreground">Inactive</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{m.newHires}</p>
+                    <p className="text-xs text-muted-foreground">New Hires</p>
+                  </div>
+                </div>
+                <Button asChild size="sm" variant="outline" className="w-full">
+                  <Link to="/directory">
+                    Open directory <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           {canViewOnboardingModule && (
-            <Card className={canViewAttendanceModule ? undefined : "lg:col-span-2"}>
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
@@ -242,7 +295,7 @@ function Dashboard() {
           )}
 
           {canViewAttendanceModule && (
-            <Card className={canViewOnboardingModule ? undefined : "lg:col-span-2"}>
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4 text-muted-foreground" />
@@ -282,38 +335,40 @@ function Dashboard() {
             </Card>
           )}
         </div>
-      )}
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <HeadcountTrendChart employees={employees} />
-        </div>
+      {isFullAccess && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <HeadcountTrendChart employees={employees} />
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Hub Utilisation</CardTitle>
-            <CardDescription>
-              Share of total workforce per office
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {dist.map((d) => {
-              const pct = total
-                ? Math.round(((d.active + d.inactive) / total) * 100)
-                : 0;
-              return (
-                <div key={d.office} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{d.office}</span>
-                    <span className="text-muted-foreground">{pct}%</span>
+          <Card>
+            <CardHeader>
+              <CardTitle>Hub Utilisation</CardTitle>
+              <CardDescription>
+                Share of total workforce per office
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {dist.map((d) => {
+                const pct = total
+                  ? Math.round(((d.active + d.inactive) / total) * 100)
+                  : 0;
+                return (
+                  <div key={d.office} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{d.office}</span>
+                      <span className="text-muted-foreground">{pct}%</span>
+                    </div>
+                    <Progress value={pct} />
                   </div>
-                  <Progress value={pct} />
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {(showNewHires || showAnniversaries) && (
         <div className="grid gap-4 lg:grid-cols-2">
