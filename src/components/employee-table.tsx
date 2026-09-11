@@ -28,7 +28,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FilterSelect } from "@/components/filter-select";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,9 +96,12 @@ export function EmployeeTable() {
   // is a UX nicety, not the actual security boundary.
   const canManage = canManageEmployees(account?.permissions);
   const [query, setQuery] = useState("");
-  const [office, setOffice] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [department, setDepartment] = useState("all");
+  // Empty array = no filter applied (matches every value) — see
+  // MultiSelectFilter's doc comment. Multiple values can be checked at once
+  // (e.g. Active + Terminated together), unlike the old single-choice Select.
+  const [office, setOffice] = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
+  const [department, setDepartment] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "name",
     dir: "asc",
@@ -124,9 +127,9 @@ export function EmployeeTable() {
         e.position.toLowerCase().includes(q);
       return (
         matchesQuery &&
-        (office === "all" || e.office === office) &&
-        (status === "all" || e.status === status) &&
-        (department === "all" || e.department === department)
+        (office.length === 0 || office.includes(e.office)) &&
+        (status.length === 0 || status.includes(e.status)) &&
+        (department.length === 0 || department.includes(e.department))
       );
     });
     return [...rows].sort((a, b) => {
@@ -170,9 +173,9 @@ export function EmployeeTable() {
   function handleNewHireCreated() {
     setSort({ key: "startDate", dir: "desc" });
     setQuery("");
-    setOffice("all");
-    setStatus("all");
-    setDepartment("all");
+    setOffice([]);
+    setStatus([]);
+    setDepartment([]);
     setPage(1);
   }
 
@@ -345,34 +348,31 @@ export function EmployeeTable() {
           />
         </div>
 
-        <FilterSelect
-          value={office}
+        <MultiSelectFilter
+          label="Office"
+          selected={office}
           onChange={(v) => {
             setOffice(v);
             setPage(1);
           }}
-          placeholder="Office"
-          allLabel="All offices"
           options={[...OFFICES]}
         />
-        <FilterSelect
-          value={status}
+        <MultiSelectFilter
+          label="Status"
+          selected={status}
           onChange={(v) => {
             setStatus(v);
             setPage(1);
           }}
-          placeholder="Status"
-          allLabel="All statuses"
           options={[...STATUSES]}
         />
-        <FilterSelect
-          value={department}
+        <MultiSelectFilter
+          label="Department"
+          selected={department}
           onChange={(v) => {
             setDepartment(v);
             setPage(1);
           }}
-          placeholder="Department"
-          allLabel="All departments"
           options={[...DEPARTMENTS]}
         />
       </div>
