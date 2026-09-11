@@ -13,7 +13,7 @@ import {
 import { PageHeader } from "@/components/app-shell";
 import { NewHireDialog } from "@/components/new-hire-dialog";
 import { MetricCard } from "@/components/metric-card";
-import { FilterSelect } from "@/components/filter-select";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +31,7 @@ import {
   OFFICES,
   STATUSES,
   formatDate,
+  isInTraining,
   metrics,
   tenure,
   tenureDays,
@@ -70,9 +71,12 @@ function NewHiresPage() {
   const medellin = list.filter((e) => e.office === "CO Medellin").length;
 
   const [query, setQuery] = useState("");
-  const [office, setOffice] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [department, setDepartment] = useState("all");
+  // Empty array = no filter applied (matches every value) — same convention
+  // as the Employee Directory table's multi-select filters, so several
+  // offices/statuses/departments can be checked at once.
+  const [office, setOffice] = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
+  const [department, setDepartment] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   // Same search + filter shape as the Employee Directory table (see
@@ -86,11 +90,14 @@ function NewHiresPage() {
         e.name.toLowerCase().includes(q) ||
         e.id.toLowerCase().includes(q) ||
         e.position.toLowerCase().includes(q);
+      const matchesStatus =
+        status.length === 0 ||
+        status.some((s) => (s === "Training" ? isInTraining(e) : e.status === s));
       return (
         matchesQuery &&
-        (office === "all" || e.office === office) &&
-        (status === "all" || e.status === status) &&
-        (department === "all" || e.department === department)
+        (office.length === 0 || office.includes(e.office)) &&
+        matchesStatus &&
+        (department.length === 0 || department.includes(e.department))
       );
     });
   }, [list, query, office, status, department]);
@@ -108,9 +115,9 @@ function NewHiresPage() {
   // page 1 and reset filters themselves.
   function handleNewHireCreated() {
     setQuery("");
-    setOffice("all");
-    setStatus("all");
-    setDepartment("all");
+    setOffice([]);
+    setStatus([]);
+    setDepartment([]);
     setPage(1);
   }
 
@@ -167,34 +174,31 @@ function NewHiresPage() {
           />
         </div>
 
-        <FilterSelect
-          value={office}
+        <MultiSelectFilter
+          label="Office"
+          selected={office}
           onChange={(v) => {
             setOffice(v);
             setPage(1);
           }}
-          placeholder="Office"
-          allLabel="All offices"
           options={[...OFFICES]}
         />
-        <FilterSelect
-          value={status}
+        <MultiSelectFilter
+          label="Status"
+          selected={status}
           onChange={(v) => {
             setStatus(v);
             setPage(1);
           }}
-          placeholder="Status"
-          allLabel="All statuses"
-          options={[...STATUSES]}
+          options={[...STATUSES, "Training"]}
         />
-        <FilterSelect
-          value={department}
+        <MultiSelectFilter
+          label="Department"
+          selected={department}
           onChange={(v) => {
             setDepartment(v);
             setPage(1);
           }}
-          placeholder="Department"
-          allLabel="All departments"
           options={[...DEPARTMENTS]}
         />
       </div>
@@ -240,11 +244,18 @@ function NewHiresPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={e.status === "Active" ? "default" : "secondary"}
-                    >
-                      {e.status}
-                    </Badge>
+                    {isInTraining(e) ? (
+                      <Badge
+                        variant="outline"
+                        className="border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                      >
+                        Training
+                      </Badge>
+                    ) : (
+                      <Badge variant={e.status === "Active" ? "default" : "secondary"}>
+                        {e.status}
+                      </Badge>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
