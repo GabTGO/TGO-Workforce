@@ -20,7 +20,6 @@ import { PageHeader } from "@/components/app-shell";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { MetricCard } from "@/components/metric-card";
 import { HeadcountTrendChart } from "@/components/workforce-charts";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -184,14 +183,6 @@ function Dashboard() {
   const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
   const showBirthdaysCard = canViewMilestonesModule && (account?.notify_birthdays ?? true);
 
-  // The top-of-page reminder banner: same last-30-days lists as the cards
-  // below, filtered again by each preference independently (a person who's
-  // turned off anniversary notifications but kept birthdays on should still
-  // get a birthdays-only banner, not nothing).
-  const bannerBirthdays = showBirthdaysCard ? recentBirthdays : [];
-  const bannerAnniversaries = showAnniversaries ? recentAnniversaries : [];
-  const showMilestoneBanner = bannerBirthdays.length > 0 || bannerAnniversaries.length > 0;
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -212,63 +203,6 @@ function Dashboard() {
           </div>
         }
       />
-
-      {showMilestoneBanner && (
-        <Alert>
-          <Cake className="h-4 w-4" />
-          <AlertTitle>
-            {bannerBirthdays.length > 0 &&
-              `${bannerBirthdays.length} birthday${bannerBirthdays.length === 1 ? "" : "s"}`}
-            {bannerBirthdays.length > 0 && bannerAnniversaries.length > 0 && " and "}
-            {bannerAnniversaries.length > 0 &&
-              `${bannerAnniversaries.length} anniversar${bannerAnniversaries.length === 1 ? "y" : "ies"}`}{" "}
-            in the last {RECENT_MILESTONE_DAYS} days
-          </AlertTitle>
-          <AlertDescription className="space-y-2.5">
-            {bannerBirthdays.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Birthdays ({bannerBirthdays.length})
-                </p>
-                <div className="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                  {bannerBirthdays.map((e) => (
-                    <span
-                      key={e.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs"
-                    >
-                      <span className="font-semibold text-foreground">{e.name}</span>
-                      <span className="text-muted-foreground">
-                        {e.monthName} {e.day}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {bannerAnniversaries.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Anniversaries ({bannerAnniversaries.length})
-                </p>
-                <div className="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                  {bannerAnniversaries.map((e) => (
-                    <span
-                      key={e.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs"
-                    >
-                      <span className="font-semibold text-foreground">{e.name}</span>
-                      <span className="text-muted-foreground">
-                        {e.years} yr{e.years === 1 ? "" : "s"}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">Turn these off on the Settings page.</p>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {(showNewHires || showAnniversaries || showBirthdaysCard) && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
