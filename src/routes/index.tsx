@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Send,
   CircleAlert,
+  Trophy,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
@@ -38,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAwards } from "@/data/award-store";
 import { useEmployees } from "@/data/employee-store";
 import {
   anniversaries,
@@ -55,6 +57,7 @@ import { useCurrentAccount } from "@/lib/session";
 import {
   canManageEmployees,
   canViewAttendance,
+  canViewAwards,
   canViewEmployees,
   canViewMilestones,
   canViewOnboarding,
@@ -120,6 +123,7 @@ function Dashboard() {
   const canViewEmployeesModule = canViewEmployees(account?.permissions);
   const canViewOnboardingModule = canViewOnboarding(account?.permissions);
   const canViewAttendanceModule = canViewAttendance(account?.permissions);
+  const canViewAwardsModule = canViewAwards(account?.permissions);
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
@@ -146,6 +150,14 @@ function Dashboard() {
       if (!e.exitDate) return [];
       const daysAgo = Math.round((Date.now() - parseCalendarDate(e.exitDate).getTime()) / 86_400_000);
       return daysAgo >= 0 && daysAgo <= RECENT_MILESTONE_DAYS ? [{ ...e, daysAgo }] : [];
+    })
+    .sort((a, b) => a.daysAgo - b.daysAgo);
+
+  const awards = useAwards(canViewAwardsModule);
+  const recentAwards = awards
+    .flatMap((a) => {
+      const daysAgo = Math.round((Date.now() - parseCalendarDate(a.awardedDate).getTime()) / 86_400_000);
+      return daysAgo >= 0 && daysAgo <= RECENT_MILESTONE_DAYS ? [{ ...a, daysAgo }] : [];
     })
     .sort((a, b) => a.daysAgo - b.daysAgo);
 
@@ -182,6 +194,7 @@ function Dashboard() {
   const showNewHires = isFullAccess && (account?.notify_new_hires ?? true);
   const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
   const showBirthdaysCard = canViewMilestonesModule && (account?.notify_birthdays ?? true);
+  const showAwardsCard = canViewAwardsModule;
 
   return (
     <div className="space-y-6">
@@ -204,8 +217,8 @@ function Dashboard() {
         }
       />
 
-      {(showNewHires || showAnniversaries || showBirthdaysCard) && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {(showNewHires || showAnniversaries || showBirthdaysCard || showAwardsCard) && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {showNewHires && (
             <Card>
               <CardHeader>
@@ -332,6 +345,52 @@ function Dashboard() {
                             {e.monthName.slice(0, 3)} {e.day}
                             <span className="ml-1.5 text-xs">
                               ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {showAwardsCard && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-muted-foreground" />
+                  Awards ({RECENT_MILESTONE_DAYS} days)
+                </CardTitle>
+                <CardDescription>Recognition given in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+              </CardHeader>
+              <CardContent className="max-h-80 overflow-y-auto p-0">
+                {recentAwards.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    No awards given in the last {RECENT_MILESTONE_DAYS} days.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Award</TableHead>
+                        <TableHead className="text-right">Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentAwards.map((a) => (
+                        <TableRow key={a.id} className={a.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                          <TableCell>
+                            <p className="font-medium">{a.employeeName}</p>
+                            <p className="text-xs text-muted-foreground">{a.employeeOffice}</p>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{a.title}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatDate(a.awardedDate)}
+                            <span className="ml-1.5 text-xs">
+                              ({a.daysAgo === 0 ? "today" : `${a.daysAgo}d ago`})
                             </span>
                           </TableCell>
                         </TableRow>
