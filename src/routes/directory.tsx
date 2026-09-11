@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Users, UserCheck, UserMinus, UserX } from "lucide-react";
+import { UserCheck, UserMinus, UserX } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { EmployeeTable } from "@/components/employee-table";
@@ -40,13 +40,7 @@ function DirectoryPage() {
         description="Complete roster across all hubs with filtering, sorting and exports."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Total Employees"
-          value={employees.length}
-          hint="Across all hubs"
-          icon={Users}
-        />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
           title="Active"
           value={byStatus.Active ?? 0}
