@@ -89,6 +89,18 @@ export function tenureDays(startDate: string, exitDate?: string) {
   );
 }
 
+// "Training" isn't a real employment status — it's a computed label layered
+// on top of Active for anyone still inside their first two weeks, so the
+// Directory can flag brand-new starters at a glance without adding a new
+// value to the actual status enum (which the backend, exports and every
+// other status-based filter treat as a real employment state — Active,
+// Resigned or Terminated — not a training phase within Active).
+export const TRAINING_PERIOD_DAYS = 14;
+
+export function isInTraining(employee: Employee): boolean {
+  return employee.status === "Active" && tenureDays(employee.startDate) <= TRAINING_PERIOD_DAYS;
+}
+
 export function tenure(startDate: string, exitDate?: string) {
   const start = parseCalendarDate(startDate);
   const end = exitDate ? parseCalendarDate(exitDate) : new Date();

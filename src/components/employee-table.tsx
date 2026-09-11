@@ -56,6 +56,7 @@ import {
   OFFICES,
   STATUSES,
   formatDate,
+  isInTraining,
   tenure,
   tenureDays,
   type Employee,
@@ -125,10 +126,13 @@ export function EmployeeTable() {
         e.name.toLowerCase().includes(q) ||
         e.id.toLowerCase().includes(q) ||
         e.position.toLowerCase().includes(q);
+      const matchesStatus =
+        status.length === 0 ||
+        status.some((s) => (s === "Training" ? isInTraining(e) : e.status === s));
       return (
         matchesQuery &&
         (office.length === 0 || office.includes(e.office)) &&
-        (status.length === 0 || status.includes(e.status)) &&
+        matchesStatus &&
         (department.length === 0 || department.includes(e.department))
       );
     });
@@ -364,7 +368,7 @@ export function EmployeeTable() {
             setStatus(v);
             setPage(1);
           }}
-          options={[...STATUSES]}
+          options={[...STATUSES, "Training"]}
         />
         <MultiSelectFilter
           label="Department"
@@ -561,9 +565,16 @@ export function EmployeeTable() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant[e.status]}>
-                        {e.status}
-                      </Badge>
+                      {isInTraining(e) ? (
+                        <Badge
+                          variant="outline"
+                          className="border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                        >
+                          Training
+                        </Badge>
+                      ) : (
+                        <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {formatDate(e.exitDate)}
