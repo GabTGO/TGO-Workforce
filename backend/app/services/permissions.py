@@ -20,6 +20,7 @@ VIEW_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ATTENDANCE_VIEW,
+        Permission.AWARDS_VIEW,
     }
 )
 
@@ -82,6 +83,14 @@ PERMISSION_LABELS: dict[Permission, dict[str, str]] = {
         "title": "Approve Attendance Violations",
         "description": "Approve, hold, and send violation emails.",
     },
+    Permission.AWARDS_VIEW: {
+        "title": "View Recognition & Awards",
+        "description": "See the awards given to employees.",
+    },
+    Permission.AWARDS_MANAGE: {
+        "title": "Manage Recognition & Awards",
+        "description": "Give a new award to an active employee, and edit or delete existing awards.",
+    },
 }
 
 # Default grants — matches this app's behavior from *before* the matrix
@@ -95,6 +104,8 @@ DEFAULT_GRANTS: dict[AccountRole, set[Permission]] = {
         Permission.EMPLOYEES_VIEW,
         Permission.EMPLOYEES_MANAGE,
         Permission.MILESTONES_VIEW,
+        Permission.AWARDS_VIEW,
+        Permission.AWARDS_MANAGE,
     },
     AccountRole.HR: {
         Permission.EMPLOYEES_VIEW,
@@ -102,26 +113,34 @@ DEFAULT_GRANTS: dict[AccountRole, set[Permission]] = {
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
         Permission.ATTENDANCE_APPROVE,
+        Permission.AWARDS_VIEW,
     },
     AccountRole.PROJECTS: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
+        Permission.AWARDS_VIEW,
     },
     AccountRole.RECRUITMENT_LEAD: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ONBOARDING_MANAGE,
+        Permission.AWARDS_VIEW,
     },
     AccountRole.ONBOARDING_SPECIALIST: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ONBOARDING_MANAGE,
+        Permission.AWARDS_VIEW,
     },
-    AccountRole.VIEWER: {Permission.EMPLOYEES_VIEW, Permission.MILESTONES_VIEW},
+    AccountRole.VIEWER: {
+        Permission.EMPLOYEES_VIEW,
+        Permission.MILESTONES_VIEW,
+        Permission.AWARDS_VIEW,
+    },
 }
 
 

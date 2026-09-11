@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   ShieldAlert,
   FileBarChart,
+  Trophy,
 } from "lucide-react";
 
 import logoLight from "@/assets/tgo-logo-light.png";
@@ -87,6 +88,15 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         url: "/birthdays",
         icon: Cake,
         permission: ["employees.view", "milestones.view"],
+      },
+      {
+        title: "Recognition & Awards",
+        url: "/awards",
+        icon: Trophy,
+        // Unlike Anniversaries/Birthdays, this reads its own /awards data —
+        // no employees.view needed to see the awards list itself, but
+        // giving one still requires picking an employee (see awards.tsx).
+        permission: "awards.view",
       },
     ],
   },

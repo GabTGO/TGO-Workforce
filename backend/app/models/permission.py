@@ -38,6 +38,12 @@ class Permission(enum.StrEnum):
     ATTENDANCE_VIEW = "attendance.view"
     ATTENDANCE_MANAGE = "attendance.manage"
     ATTENDANCE_APPROVE = "attendance.approve"
+    # Recognition & Awards — under Milestones with Anniversaries/Birthdays,
+    # but unlike those two this is a real writable module (give/edit/delete
+    # an award), so it gets both a view and a manage permission, same split
+    # as Employees/Onboarding above.
+    AWARDS_VIEW = "awards.view"
+    AWARDS_MANAGE = "awards.manage"
 
 
 class RolePermission(Base):

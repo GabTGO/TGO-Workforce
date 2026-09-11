@@ -89,6 +89,18 @@ export function canApproveAttendance(permissions: Permission[] | undefined): boo
   return hasPermission(permissions, "attendance.approve");
 }
 
+// Recognition & Awards — same "read this module's data" idea as Milestones
+// above, but this module has its own real writes too, so it gets a
+// canManage alongside canView (see Permission.AWARDS_MANAGE's own comment
+// in backend/app/models/permission.py).
+export function canViewAwards(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "awards.view");
+}
+
+export function canManageAwards(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "awards.manage");
+}
+
 // Mirrors ROLE_FIELD_ACCESS in backend/app/api/routes/new_hires.py — the New
 // Hire Onboarding Tracker SOP's protected-range split: Recruitment Lead owns
 // items 1-2, Onboarding Specialist owns items 4-7, item 3 (Welcome Email

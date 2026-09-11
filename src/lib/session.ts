@@ -30,7 +30,9 @@ export type Permission =
   | "onboarding.manage"
   | "attendance.view"
   | "attendance.manage"
-  | "attendance.approve";
+  | "attendance.approve"
+  | "awards.view"
+  | "awards.manage";
 
 export type AccountProfile = {
   id: string;

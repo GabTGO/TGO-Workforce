@@ -5,6 +5,7 @@
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySeverity
 from app.models.app_settings import AppSettings
+from app.models.award import Award
 from app.models.employee import Employee, EmployeeStatus
 from app.models.new_hire import NewHire
 from app.models.notification import Notification
@@ -25,6 +26,7 @@ __all__ = [
     "ActivityLog",
     "ActivitySeverity",
     "AppSettings",
+    "Award",
     "EmailStatus",
     "Employee",
     "EmployeeStatus",
