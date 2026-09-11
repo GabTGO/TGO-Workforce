@@ -143,19 +143,19 @@ function NewHiresPage() {
         <MetricCard
           title="Still Active"
           value={active}
-          hint="Currently employed"
+          hint="Of these new hires — not your total headcount"
           icon={UserCheck}
         />
         <MetricCard
           title="PH Eastwood"
           value={eastwood}
-          hint="Manila delivery hub"
+          hint="New hires at the Manila hub"
           icon={Building2}
         />
         <MetricCard
           title="CO Medellin"
           value={medellin}
-          hint="LATAM delivery hub"
+          hint="New hires at the LATAM hub"
           icon={Globe2}
         />
       </div>
