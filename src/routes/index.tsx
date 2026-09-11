@@ -270,6 +270,197 @@ function Dashboard() {
         </Alert>
       )}
 
+      {(showNewHires || showAnniversaries || showBirthdaysCard) && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {showNewHires && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  New Hires ({RECENT_HIRE_DAYS} days)
+                </CardTitle>
+                <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
+              </CardHeader>
+              <CardContent className="max-h-80 overflow-y-auto p-0">
+                {recentNewHires.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    No new hires in the last {RECENT_HIRE_DAYS} days.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Office</TableHead>
+                        <TableHead className="text-right">Started</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentNewHires.map((e) => {
+                        const daysAgo = tenureDays(e.startDate);
+                        return (
+                          <TableRow key={e.id} className={daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                            <TableCell className="font-medium">{e.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{e.office}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {formatDate(e.startDate)}
+                              <span className="ml-1.5 text-xs">
+                                ({daysAgo === 0 ? "today" : `${daysAgo}d ago`})
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {showAnniversaries && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-4 w-4 text-muted-foreground" />
+                  Anniversaries ({RECENT_MILESTONE_DAYS} days)
+                </CardTitle>
+                <CardDescription>Work anniversaries in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+              </CardHeader>
+              <CardContent className="max-h-80 overflow-y-auto p-0">
+                {recentAnniversaries.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    No anniversaries in the last {RECENT_MILESTONE_DAYS} days.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Years</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentAnniversaries.map((e) => (
+                        <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                          <TableCell>
+                            <p className="font-medium">{e.name}</p>
+                            <p className="text-xs text-muted-foreground">{e.department}</p>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {e.monthName} {e.day}
+                            <span className="ml-1.5 text-xs">
+                              ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="secondary">{e.years} yrs</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {showBirthdaysCard && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Cake className="h-4 w-4 text-muted-foreground" />
+                  Birthdays ({RECENT_MILESTONE_DAYS} days)
+                </CardTitle>
+                <CardDescription>Celebrations in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+              </CardHeader>
+              <CardContent className="max-h-80 overflow-y-auto p-0">
+                {recentBirthdays.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    No birthdays in the last {RECENT_MILESTONE_DAYS} days.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Office</TableHead>
+                        <TableHead className="text-right">Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentBirthdays.map((e) => (
+                        <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                          <TableCell className="font-medium">{e.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{e.office}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {e.monthName.slice(0, 3)} {e.day}
+                            <span className="ml-1.5 text-xs">
+                              ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {isFullAccess && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LogOut className="h-4 w-4 text-muted-foreground" />
+              Exits in the Last {RECENT_MILESTONE_DAYS} Days
+            </CardTitle>
+            <CardDescription>Departures across every hub, most recent first</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {recentExits.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">
+                No departures in the last {RECENT_MILESTONE_DAYS} days.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Office</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Exit Date</TableHead>
+                      <TableHead className="text-right">Days Ago</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentExits.map((e) => (
+                      <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                        <TableCell className="font-medium">{e.name}</TableCell>
+                        <TableCell>
+                          <Badge variant={EXIT_STATUS_VARIANT[e.status] ?? "secondary"}>{e.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{e.office}</TableCell>
+                        <TableCell className="text-muted-foreground">{e.department}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(e.exitDate)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {e.daysAgo === 0 ? "today" : `${e.daysAgo} days`}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {isFullAccess && (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <MetricCard
@@ -463,197 +654,6 @@ function Dashboard() {
             </CardContent>
           </Card>
         </div>
-      )}
-
-      {(showNewHires || showAnniversaries || showBirthdaysCard) && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {showNewHires && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  New Hires ({RECENT_HIRE_DAYS} days)
-                </CardTitle>
-                <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentNewHires.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No new hires in the last {RECENT_HIRE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Office</TableHead>
-                        <TableHead className="text-right">Started</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentNewHires.map((e) => {
-                        const daysAgo = tenureDays(e.startDate);
-                        return (
-                          <TableRow key={e.id} className={daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
-                            <TableCell className="font-medium">{e.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{e.office}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {formatDate(e.startDate)}
-                              <span className="ml-1.5 text-xs">
-                                ({daysAgo === 0 ? "today" : `${daysAgo}d ago`})
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {showAnniversaries && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-4 w-4 text-muted-foreground" />
-                  Anniversaries ({RECENT_MILESTONE_DAYS} days)
-                </CardTitle>
-                <CardDescription>Work anniversaries in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentAnniversaries.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No anniversaries in the last {RECENT_MILESTONE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Years</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentAnniversaries.map((e) => (
-                        <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
-                          <TableCell>
-                            <p className="font-medium">{e.name}</p>
-                            <p className="text-xs text-muted-foreground">{e.department}</p>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {e.monthName} {e.day}
-                            <span className="ml-1.5 text-xs">
-                              ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="secondary">{e.years} yrs</Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {showBirthdaysCard && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Cake className="h-4 w-4 text-muted-foreground" />
-                  Birthdays ({RECENT_MILESTONE_DAYS} days)
-                </CardTitle>
-                <CardDescription>Celebrations in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentBirthdays.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No birthdays in the last {RECENT_MILESTONE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Office</TableHead>
-                        <TableHead className="text-right">Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentBirthdays.map((e) => (
-                        <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
-                          <TableCell className="font-medium">{e.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{e.office}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {e.monthName.slice(0, 3)} {e.day}
-                            <span className="ml-1.5 text-xs">
-                              ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {isFullAccess && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <LogOut className="h-4 w-4 text-muted-foreground" />
-              Exits in the Last {RECENT_MILESTONE_DAYS} Days
-            </CardTitle>
-            <CardDescription>Departures across every hub, most recent first</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {recentExits.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">
-                No departures in the last {RECENT_MILESTONE_DAYS} days.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Office</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Exit Date</TableHead>
-                      <TableHead className="text-right">Days Ago</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentExits.map((e) => (
-                      <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
-                        <TableCell className="font-medium">{e.name}</TableCell>
-                        <TableCell>
-                          <Badge variant={EXIT_STATUS_VARIANT[e.status] ?? "secondary"}>{e.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{e.office}</TableCell>
-                        <TableCell className="text-muted-foreground">{e.department}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatDate(e.exitDate)}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {e.daysAgo === 0 ? "today" : `${e.daysAgo} days`}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       )}
     </div>
   );
