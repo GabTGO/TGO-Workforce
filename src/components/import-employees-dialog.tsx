@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Sparkles,
   Trash2,
   Upload,
   UserCheck,
@@ -246,6 +247,13 @@ export function ImportEmployeesDialog() {
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [duplicateRows, setDuplicateRows] = useState<DuplicateRow[]>([]);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  // The reverse comparison: employees who exist in this directory but weren't
+  // matched by anything in the uploaded file — i.e. people added here since
+  // that export was taken (or, less often, a match that failed to line up
+  // because of a name/ID spelling difference). Purely informational; there's
+  // nothing to import for these, since they're already in the database.
+  const [onlyInDirectory, setOnlyInDirectory] = useState<Employee[]>([]);
+  const [showOnlyInDirectory, setShowOnlyInDirectory] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Loading (not just an empty result) matters here: this list is what the
@@ -266,6 +274,8 @@ export function ImportEmployeesDialog() {
     setRows([]);
     setDuplicateRows([]);
     setShowDuplicates(false);
+    setOnlyInDirectory([]);
+    setShowOnlyInDirectory(false);
     setSelected(new Set());
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -293,11 +303,22 @@ export function ImportEmployeesDialog() {
       // surface, so it shouldn't be buried among plain "already here, nothing
       // to fix" matches.
       existingRows.sort((a, b) => Number(statusMismatch(b)) - Number(statusMismatch(a)));
+
+      // The reverse direction: who's in our directory that this file never
+      // matched at all. Most recently started first, since "who got added
+      // since this export" is usually the actual question being asked.
+      const matchedIds = new Set(existingRows.map((r) => r.matchedEmployee.id));
+      const onlyHere = employees
+        .filter((e) => !matchedIds.has(e.id))
+        .sort((a, b) => b.startDate.localeCompare(a.startDate));
+
       setRows(newRows);
       setDuplicateRows(existingRows);
-      // Default the panel open when there's something worth seeing right
-      // away — a status discrepancy, not just an ordinary "already exists".
+      setOnlyInDirectory(onlyHere);
+      // Default both panels open when there's something worth seeing right
+      // away — a status discrepancy, or anyone who exists only on our side.
       setShowDuplicates(existingRows.some(statusMismatch));
+      setShowOnlyInDirectory(onlyHere.length > 0);
       setSelected(new Set());
       setStep("review");
     } catch (error) {
@@ -482,7 +503,9 @@ export function ImportEmployeesDialog() {
                   employee fields, and cross-check every row against your
                   current directory (by Employee ID, or by name when there's
                   no ID column) so rows that already exist here are called out
-                  separately from ones that look genuinely new.
+                  separately from ones that look genuinely new — and the
+                  reverse too: anyone already in your directory that this
+                  file doesn't mention at all, in case that's useful to know.
                 </p>
               </div>
 
@@ -577,6 +600,7 @@ export function ImportEmployeesDialog() {
                       setStep("select");
                       setRows([]);
                       setDuplicateRows([]);
+                      setOnlyInDirectory([]);
                       setSelected(new Set());
                     }}
                   >
@@ -661,6 +685,65 @@ export function ImportEmployeesDialog() {
                             })}
                           </TableBody>
                         </Table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {onlyInDirectory.length > 0 && (
+                  <div className="rounded-md border">
+                    <button
+                      type="button"
+                      onClick={() => setShowOnlyInDirectory((v) => !v)}
+                      className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left"
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <Sparkles className="h-4 w-4 text-muted-foreground" />
+                        {onlyInDirectory.length} in your directory but not in this file
+                      </span>
+                      {showOnlyInDirectory ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                    {showOnlyInDirectory && (
+                      <div className="border-t">
+                        <p className="px-4 pt-2.5 text-xs text-muted-foreground">
+                          Likely added here after {file?.name || "this file"} was exported — could
+                          also mean a name/ID spelling difference kept a real match from being found.
+                          Nothing to do here; this is informational only.
+                        </p>
+                        <div className="max-h-56 overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Employee ID</TableHead>
+                                <TableHead>Full Name</TableHead>
+                                <TableHead>Office</TableHead>
+                                <TableHead>Department</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Start Date</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {onlyInDirectory.map((e) => (
+                                <TableRow key={e.id}>
+                                  <TableCell className="font-mono text-xs">{e.id}</TableCell>
+                                  <TableCell className="text-sm font-medium">{e.name}</TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">{e.office}</TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {e.department}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">{e.status}</TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {e.startDate}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     )}
                   </div>
