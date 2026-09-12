@@ -14,6 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ChartContainer,
@@ -40,8 +42,10 @@ import {
   headcountTrend,
   monthlyHiringTrend,
   officeDistribution,
+  parseCalendarDate,
   statusDistribution,
   tenureDistribution,
+  type DateRange,
 } from "@/data/employees";
 import { useEmployees } from "@/data/employee-store";
 import { computeStatus, type NewHire, type OnboardingStatus } from "@/data/new-hire-api";
@@ -91,6 +95,18 @@ const CHECKLIST_STEPS: { key: keyof NewHire; label: string }[] = [
 ];
 
 const ONBOARDING_STATUSES: OnboardingStatus[] = ["Not Started", "In Progress", "Complete"];
+
+/** "YYYY-MM-DD" from local date parts — not toISOString(), which converts to
+ * UTC first and can drift the date by one depending on the viewer's
+ * timezone (same class of bug @/data/employees' parseCalendarDate exists to
+ * avoid). Only used to seed the date inputs' defaults; every value the user
+ * actually picks comes back through the same "YYYY-MM-DD" shape natively. */
+function toDateInputValue(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 const violationTypeConfig = {
   count: { label: "Violations", color: "var(--chart-1)" },
@@ -213,9 +229,25 @@ function AnalyticsPage() {
   const [workforceOffice, setWorkforceOffice] = useState<string[]>([]);
   const [workforceDepartment, setWorkforceDepartment] = useState<string[]>([]);
   const [workforceStatus, setWorkforceStatus] = useState<string[]>([]);
+  // The trend charts (Monthly Hiring Trend, Headcount Growth, Headcount
+  // Trend) plot a span of months, not a single filterable value — a real
+  // calendar From/To, defaulting to the trailing 12 months, so the window
+  // they show is a genuine user-controlled range rather than a fixed "last N
+  // months from today".
+  const [trendFrom, setTrendFrom] = useState(() =>
+    toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1)),
+  );
+  const [trendTo, setTrendTo] = useState(() => toDateInputValue(new Date()));
   const [onboardingStatus, setOnboardingStatus] = useState<string[]>([]);
   const [attendanceOffice, setAttendanceOffice] = useState<string[]>([]);
   const [attendanceType, setAttendanceType] = useState<string[]>([]);
+
+  // "YYYY-MM-DD" strings compare correctly with plain <=, no Date parsing
+  // needed just to validate ordering.
+  const trendRangeValid = trendFrom <= trendTo;
+  const trendRange: DateRange | undefined = trendRangeValid
+    ? { from: parseCalendarDate(trendFrom), to: parseCalendarDate(trendTo) }
+    : undefined;
 
   const filteredEmployees = useMemo(
     () =>
@@ -254,6 +286,9 @@ function AnalyticsPage() {
     if (workforceDepartment.length)
       filterLines.push(`Workforce · Department: ${workforceDepartment.join(", ")}`);
     if (workforceStatus.length) filterLines.push(`Workforce · Status: ${workforceStatus.join(", ")}`);
+    filterLines.push(
+      `Workforce · Trend charts date range: ${trendFrom} to ${trendTo}${trendRangeValid ? "" : " (invalid — showing default 12-month window instead)"}`,
+    );
     if (onboardingStatus.length)
       filterLines.push(`Onboarding · Checklist status: ${onboardingStatus.join(", ")}`);
     if (attendanceOffice.length) filterLines.push(`Attendance · Office: ${attendanceOffice.join(", ")}`);
@@ -267,9 +302,9 @@ function AnalyticsPage() {
     const status = statusDistribution(filteredEmployees);
     const department = departmentDistribution(filteredEmployees);
     const tenure = tenureDistribution(filteredEmployees);
-    const hiring = monthlyHiringTrend(filteredEmployees);
-    const growth = headcountGrowth(filteredEmployees);
-    const trend = headcountTrend(filteredEmployees);
+    const hiring = monthlyHiringTrend(filteredEmployees, trendRange);
+    const growth = headcountGrowth(filteredEmployees, trendRange);
+    const trend = headcountTrend(filteredEmployees, trendRange);
 
     const checklist = CHECKLIST_STEPS.map((field) => ({
       step: field.label,
@@ -436,7 +471,7 @@ function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="workforce" className="space-y-4 pt-4">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <MultiSelectFilter
               label="Office"
               selected={workforceOffice}
@@ -455,21 +490,53 @@ function AnalyticsPage() {
               onChange={setWorkforceStatus}
               options={[...STATUSES]}
             />
+            <div className="flex items-end gap-2">
+              <div className="grid gap-1">
+                <Label htmlFor="trend-from" className="text-xs text-muted-foreground">
+                  Trend charts: from
+                </Label>
+                <Input
+                  id="trend-from"
+                  type="date"
+                  value={trendFrom}
+                  onChange={(e) => setTrendFrom(e.target.value)}
+                  className="h-9 w-[150px]"
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="trend-to" className="text-xs text-muted-foreground">
+                  to
+                </Label>
+                <Input
+                  id="trend-to"
+                  type="date"
+                  value={trendTo}
+                  onChange={(e) => setTrendTo(e.target.value)}
+                  className="h-9 w-[150px]"
+                />
+              </div>
+            </div>
             {(workforceOffice.length > 0 || workforceDepartment.length > 0 || workforceStatus.length > 0) && (
               <span className="text-xs text-muted-foreground">
                 Showing {filteredEmployees.length} of {employees.length} employees
               </span>
             )}
           </div>
+          {!trendRangeValid && (
+            <p className="text-xs text-destructive">
+              "From" must be on or before "to" — the trend charts below are showing their default
+              12-month window until this is fixed.
+            </p>
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
-            <MonthlyHiringTrendChart employees={filteredEmployees} />
-            <HeadcountGrowthChart employees={filteredEmployees} />
+            <MonthlyHiringTrendChart employees={filteredEmployees} range={trendRange} />
+            <HeadcountGrowthChart employees={filteredEmployees} range={trendRange} />
             <DepartmentDistributionChart employees={filteredEmployees} />
             <TenureDistributionChart employees={filteredEmployees} />
             <OfficeDistributionChart employees={filteredEmployees} />
             <StatusDistributionChart employees={filteredEmployees} />
           </div>
-          <HeadcountTrendChart employees={filteredEmployees} />
+          <HeadcountTrendChart employees={filteredEmployees} range={trendRange} />
         </TabsContent>
 
         <TabsContent value="onboarding" className="space-y-4 pt-4">

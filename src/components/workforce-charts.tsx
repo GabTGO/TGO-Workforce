@@ -32,10 +32,16 @@ import {
   officeDistribution,
   statusDistribution,
   tenureDistribution,
+  type DateRange,
   type Employee,
 } from "@/data/employees";
 
 type ChartProps = { employees: Employee[] };
+/** `range` is optional on every trend chart below — omit it to keep each
+ * chart's original fixed trailing window (what the Dashboard's
+ * HeadcountTrendChart still does); pass it (see the Analytics page's date
+ * filter) to make the window a genuine calendar range instead. */
+type TrendChartProps = ChartProps & { range?: DateRange | undefined };
 
 const officeConfig = {
   active: { label: "Active", color: "var(--chart-1)" },
@@ -118,20 +124,22 @@ export function StatusDistributionChart({ employees }: ChartProps) {
   );
 }
 
-export function HeadcountTrendChart({ employees }: ChartProps) {
+export function HeadcountTrendChart({ employees, range }: TrendChartProps) {
   const mounted = useMounted();
   return (
     <Card>
       <CardHeader>
         <CardTitle>Headcount Trend</CardTitle>
-        <CardDescription>Rolling six-month active headcount</CardDescription>
+        <CardDescription>
+          {range ? "Active headcount over the selected date range" : "Rolling six-month active headcount"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {!mounted ? (
           <Skeleton className="h-[260px] w-full" />
         ) : (
         <ChartContainer config={trendConfig} className="h-[260px] w-full">
-          <LineChart data={headcountTrend(employees)}>
+          <LineChart data={headcountTrend(employees, range)}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
             <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
@@ -169,20 +177,22 @@ const tenureConfig = {
   employees: { label: "Employees", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
-export function MonthlyHiringTrendChart({ employees }: ChartProps) {
+export function MonthlyHiringTrendChart({ employees, range }: TrendChartProps) {
   const mounted = useMounted();
   return (
     <Card>
       <CardHeader>
         <CardTitle>Monthly Hiring Trend</CardTitle>
-        <CardDescription>Hires against exits over the last 12 months</CardDescription>
+        <CardDescription>
+          {range ? "Hires against exits over the selected date range" : "Hires against exits over the last 12 months"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {!mounted ? (
           <Skeleton className="h-[280px] w-full" />
         ) : (
           <ChartContainer config={hiringConfig} className="h-[280px] w-full">
-            <BarChart data={monthlyHiringTrend(employees)}>
+            <BarChart data={monthlyHiringTrend(employees, range)}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} />
               <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
@@ -198,20 +208,22 @@ export function MonthlyHiringTrendChart({ employees }: ChartProps) {
   );
 }
 
-export function HeadcountGrowthChart({ employees }: ChartProps) {
+export function HeadcountGrowthChart({ employees, range }: TrendChartProps) {
   const mounted = useMounted();
   return (
     <Card>
       <CardHeader>
         <CardTitle>Headcount Growth</CardTitle>
-        <CardDescription>Cumulative active headcount, rolling 12 months</CardDescription>
+        <CardDescription>
+          {range ? "Cumulative active headcount over the selected date range" : "Cumulative active headcount, rolling 12 months"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {!mounted ? (
           <Skeleton className="h-[280px] w-full" />
         ) : (
           <ChartContainer config={growthConfig} className="h-[280px] w-full">
-            <AreaChart data={headcountGrowth(employees)}>
+            <AreaChart data={headcountGrowth(employees, range)}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} />
               <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />

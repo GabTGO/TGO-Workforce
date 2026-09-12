@@ -180,12 +180,6 @@ export function statusDistribution(employees: Employee[]) {
   }));
 }
 
-export function headcountTrend(employees: Employee[]) {
-  const months = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-  const base = employees.filter((e) => e.status === "Active").length - 5;
-  return months.map((month, i) => ({ month, headcount: base + i + (i % 2) }));
-}
-
 const MONTH_NAMES = [
   "January",
   "February",
@@ -280,43 +274,89 @@ export function tenureDistribution(employees: Employee[]) {
   }));
 }
 
-/** Last 12 months of hires vs exits. */
-export function monthlyHiringTrend(employees: Employee[]) {
-  const out: { month: string; hires: number; exits: number }[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(
-      REFERENCE_NOW.getFullYear(),
-      REFERENCE_NOW.getMonth() - i,
-      1,
-    );
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    out.push({
-      month: `${MONTH_NAMES[d.getMonth()]!.slice(0, 3)} ${String(d.getFullYear()).slice(2)}`,
-      hires: employees.filter((e) => e.startDate.startsWith(key)).length,
-      exits: employees.filter((e) => e.exitDate?.startsWith(key)).length,
-    });
+// --- Date-range-aware trend charts ------------------------------------
+// All three trend functions below (monthlyHiringTrend, headcountGrowth,
+// headcountTrend) take the same optional `range` — an explicit {from, to}
+// calendar window — so the Analytics page's date filter genuinely changes
+// what these charts compute, not just how many trailing months of a fixed
+// "now" they show. Omitting `range` keeps each function's original
+// behavior (a fixed trailing window ending today), so existing callers
+// (the Dashboard's HeadcountTrendChart) are unaffected.
+
+export type DateRange = { from: Date; to: Date };
+
+function defaultTrendRange(monthsBack: number): DateRange {
+  const to = REFERENCE_NOW;
+  const from = new Date(to.getFullYear(), to.getMonth() - (monthsBack - 1), 1);
+  return { from, to };
+}
+
+/** Every {year, month} pair from `from`'s month through `to`'s month,
+ * inclusive — the actual calendar range, not a count of trailing months, so
+ * a custom From/To selection (not just "last N months") produces the right
+ * set of columns. */
+function monthsInRange({ from, to }: DateRange): { year: number; month: number }[] {
+  const out: { year: number; month: number }[] = [];
+  let year = from.getFullYear();
+  let month = from.getMonth();
+  const endYear = to.getFullYear();
+  const endMonth = to.getMonth();
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    out.push({ year, month });
+    month += 1;
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
   }
   return out;
 }
 
-/** Cumulative active headcount at the end of each of the last 12 months. */
-export function headcountGrowth(employees: Employee[]) {
-  const out: { month: string; headcount: number }[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const end = new Date(
-      REFERENCE_NOW.getFullYear(),
-      REFERENCE_NOW.getMonth() - i + 1,
-      0,
-    );
-    const headcount = employees.filter((e) => {
-      if (parseCalendarDate(e.startDate) > end) return false;
-      if (e.exitDate && parseCalendarDate(e.exitDate) <= end) return false;
-      return true;
-    }).length;
-    out.push({
-      month: `${MONTH_NAMES[end.getMonth()]!.slice(0, 3)} ${String(end.getFullYear()).slice(2)}`,
-      headcount,
-    });
-  }
-  return out;
+function monthLabel(year: number, month: number): string {
+  return `${MONTH_NAMES[month]!.slice(0, 3)} ${String(year).slice(2)}`;
+}
+
+/** Active headcount at the end of a given {year, month}. Shared by
+ * headcountGrowth and headcountTrend below — the two only ever differed by
+ * default window length, not by what they actually compute. */
+function activeHeadcountAtMonthEnd(employees: Employee[], year: number, month: number): number {
+  const end = new Date(year, month + 1, 0);
+  return employees.filter((e) => {
+    if (parseCalendarDate(e.startDate) > end) return false;
+    if (e.exitDate && parseCalendarDate(e.exitDate) <= end) return false;
+    return true;
+  }).length;
+}
+
+/** Hires vs exits per month — defaults to the trailing 12 months. */
+export function monthlyHiringTrend(employees: Employee[], range?: DateRange) {
+  return monthsInRange(range ?? defaultTrendRange(12)).map(({ year, month }) => {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+    return {
+      month: monthLabel(year, month),
+      hires: employees.filter((e) => e.startDate.startsWith(key)).length,
+      exits: employees.filter((e) => e.exitDate?.startsWith(key)).length,
+    };
+  });
+}
+
+/** Cumulative active headcount at the end of each month — defaults to the
+ * trailing 12 months. */
+export function headcountGrowth(employees: Employee[], range?: DateRange) {
+  return monthsInRange(range ?? defaultTrendRange(12)).map(({ year, month }) => ({
+    month: monthLabel(year, month),
+    headcount: activeHeadcountAtMonthEnd(employees, year, month),
+  }));
+}
+
+/** Same computation as headcountGrowth, just a shorter default window (6
+ * months) to match this chart's "rolling six-month" framing — previously
+ * this returned entirely synthetic placeholder numbers rather than a real
+ * headcount, which the date-range filter would otherwise have had nothing
+ * genuine to apply to. */
+export function headcountTrend(employees: Employee[], range?: DateRange) {
+  return monthsInRange(range ?? defaultTrendRange(6)).map(({ year, month }) => ({
+    month: monthLabel(year, month),
+    headcount: activeHeadcountAtMonthEnd(employees, year, month),
+  }));
 }
