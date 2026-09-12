@@ -1,9 +1,19 @@
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
-import { ShieldAlert } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Loader2, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ChartContainer,
@@ -20,10 +30,28 @@ import {
   StatusDistributionChart,
   TenureDistributionChart,
 } from "@/components/workforce-charts";
+import { exportAnalyticsPdf, exportAnalyticsXlsx, type AnalyticsExportData } from "@/lib/analytics-export";
+import {
+  DEPARTMENTS,
+  OFFICES,
+  STATUSES,
+  departmentDistribution,
+  headcountGrowth,
+  headcountTrend,
+  monthlyHiringTrend,
+  officeDistribution,
+  statusDistribution,
+  tenureDistribution,
+} from "@/data/employees";
 import { useEmployees } from "@/data/employee-store";
-import type { NewHire } from "@/data/new-hire-api";
+import { computeStatus, type NewHire, type OnboardingStatus } from "@/data/new-hire-api";
 import { useNewHires } from "@/data/new-hire-store";
-import { useAnalyticsOverviewQuery } from "@/data/violation-store";
+import {
+  OFFICES as VIOLATION_OFFICES,
+  VIOLATION_TYPES,
+  type ViolationRecord,
+} from "@/data/violation-api";
+import { useViolationsQuery } from "@/data/violation-store";
 import { ROLE_LABELS } from "@/lib/roles";
 import { useCurrentAccount } from "@/lib/session";
 import { getEffectiveRole, isFullAccessRole } from "@/lib/permissions";
@@ -62,6 +90,8 @@ const CHECKLIST_STEPS: { key: keyof NewHire; label: string }[] = [
   { key: "onboardingDay", label: "Onboarding Day" },
 ];
 
+const ONBOARDING_STATUSES: OnboardingStatus[] = ["Not Started", "In Progress", "Complete"];
+
 const violationTypeConfig = {
   count: { label: "Violations", color: "var(--chart-1)" },
 } satisfies ChartConfig;
@@ -71,8 +101,10 @@ const violationOfficeConfig = {
   CO: { label: "CO", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
-function OnboardingCompletionChart() {
-  const hires = useNewHires();
+/** Onboarding tab's one chart, now filtered by whichever checklist-completion
+ * statuses are checked in the tab's own filter bar — takes `hires` as a prop
+ * (rather than calling useNewHires() itself) so the caller controls scope. */
+function OnboardingCompletionChart({ hires }: { hires: NewHire[] }) {
   const data = CHECKLIST_STEPS.map((field) => ({
     step: field.label,
     count: hires.filter((h) => h[field.key]).length,
@@ -99,12 +131,17 @@ function OnboardingCompletionChart() {
   );
 }
 
-function ViolationsByTypeChart() {
-  const { data } = useAnalyticsOverviewQuery();
-  const rows = Object.entries(data?.byViolationType ?? {}).map(([type, count]) => ({
-    type,
-    count,
-  }));
+/** Attendance tab's two charts, computed client-side from the filtered
+ * `violations` list passed in — previously these read a fixed backend
+ * aggregate (GET /violation-analytics/overview) that had no filter params;
+ * aggregating from the already-fetched raw records here instead means the
+ * tab's Office/Type filters actually take effect with no backend change. */
+function ViolationsByTypeChart({ violations }: { violations: ViolationRecord[] }) {
+  const counts = new Map<string, number>();
+  for (const v of violations) {
+    counts.set(v.violationTypeLabel, (counts.get(v.violationTypeLabel) ?? 0) + 1);
+  }
+  const rows = [...counts.entries()].map(([type, count]) => ({ type, count }));
 
   return (
     <Card>
@@ -127,9 +164,12 @@ function ViolationsByTypeChart() {
   );
 }
 
-function ViolationsByOfficeChart() {
-  const { data } = useAnalyticsOverviewQuery();
-  const rows = Object.entries(data?.byOffice ?? {}).map(([office, count]) => ({
+function ViolationsByOfficeChart({ violations }: { violations: ViolationRecord[] }) {
+  const counts = new Map<string, number>();
+  for (const v of violations) {
+    counts.set(v.office, (counts.get(v.office) ?? 0) + 1);
+  }
+  const rows = [...counts.entries()].map(([office, count]) => ({
     office,
     count,
     fill: `var(--color-${office})`,
@@ -161,6 +201,169 @@ function AnalyticsPage() {
   const employees = useEmployees();
   const { data: account, isLoading: accountLoading } = useCurrentAccount();
   const isAdmin = isFullAccessRole(getEffectiveRole(account));
+
+  const allHires = useNewHires(isAdmin);
+  const { data: violationsPage } = useViolationsQuery({}, 0, 500, isAdmin);
+  const allViolations = violationsPage?.items ?? [];
+
+  // Each tab keeps its own filter state — the three tabs don't share a
+  // filterable dimension in common (violations don't have a department,
+  // new hires don't have an office), so one shared bar would just show
+  // controls that do nothing on two of the three tabs.
+  const [workforceOffice, setWorkforceOffice] = useState<string[]>([]);
+  const [workforceDepartment, setWorkforceDepartment] = useState<string[]>([]);
+  const [workforceStatus, setWorkforceStatus] = useState<string[]>([]);
+  const [onboardingStatus, setOnboardingStatus] = useState<string[]>([]);
+  const [attendanceOffice, setAttendanceOffice] = useState<string[]>([]);
+  const [attendanceType, setAttendanceType] = useState<string[]>([]);
+
+  const filteredEmployees = useMemo(
+    () =>
+      employees.filter(
+        (e) =>
+          (workforceOffice.length === 0 || workforceOffice.includes(e.office)) &&
+          (workforceDepartment.length === 0 || workforceDepartment.includes(e.department)) &&
+          (workforceStatus.length === 0 || workforceStatus.includes(e.status)),
+      ),
+    [employees, workforceOffice, workforceDepartment, workforceStatus],
+  );
+
+  const filteredHires = useMemo(
+    () =>
+      onboardingStatus.length === 0
+        ? allHires
+        : allHires.filter((h) => onboardingStatus.includes(computeStatus(h))),
+    [allHires, onboardingStatus],
+  );
+
+  const filteredViolations = useMemo(
+    () =>
+      allViolations.filter(
+        (v) =>
+          (attendanceOffice.length === 0 || attendanceOffice.includes(v.office)) &&
+          (attendanceType.length === 0 || attendanceType.includes(v.violationTypeLabel)),
+      ),
+    [allViolations, attendanceOffice, attendanceType],
+  );
+
+  const [exporting, setExporting] = useState(false);
+
+  function buildExportData(): AnalyticsExportData {
+    const filterLines: string[] = [];
+    if (workforceOffice.length) filterLines.push(`Workforce · Office: ${workforceOffice.join(", ")}`);
+    if (workforceDepartment.length)
+      filterLines.push(`Workforce · Department: ${workforceDepartment.join(", ")}`);
+    if (workforceStatus.length) filterLines.push(`Workforce · Status: ${workforceStatus.join(", ")}`);
+    if (onboardingStatus.length)
+      filterLines.push(`Onboarding · Checklist status: ${onboardingStatus.join(", ")}`);
+    if (attendanceOffice.length) filterLines.push(`Attendance · Office: ${attendanceOffice.join(", ")}`);
+    if (attendanceType.length) filterLines.push(`Attendance · Violation type: ${attendanceType.join(", ")}`);
+
+    const active = filteredEmployees.filter((e) => e.status === "Active").length;
+    const resigned = filteredEmployees.filter((e) => e.status === "Resigned").length;
+    const terminated = filteredEmployees.filter((e) => e.status === "Terminated").length;
+
+    const office = officeDistribution(filteredEmployees);
+    const status = statusDistribution(filteredEmployees);
+    const department = departmentDistribution(filteredEmployees);
+    const tenure = tenureDistribution(filteredEmployees);
+    const hiring = monthlyHiringTrend(filteredEmployees);
+    const growth = headcountGrowth(filteredEmployees);
+    const trend = headcountTrend(filteredEmployees);
+
+    const checklist = CHECKLIST_STEPS.map((field) => ({
+      step: field.label,
+      count: filteredHires.filter((h) => h[field.key]).length,
+    }));
+
+    const byTypeCounts = new Map<string, number>();
+    for (const v of filteredViolations) {
+      byTypeCounts.set(v.violationTypeLabel, (byTypeCounts.get(v.violationTypeLabel) ?? 0) + 1);
+    }
+    const byOfficeCounts = new Map<string, number>();
+    for (const v of filteredViolations) {
+      byOfficeCounts.set(v.office, (byOfficeCounts.get(v.office) ?? 0) + 1);
+    }
+
+    return {
+      filterLines,
+      summary: [
+        { label: "Total Employees (filtered)", value: filteredEmployees.length },
+        { label: "Active", value: active },
+        { label: "Resigned", value: resigned },
+        { label: "Terminated", value: terminated },
+        { label: "New Hires Tracked (filtered)", value: filteredHires.length },
+        { label: "Attendance Records (filtered)", value: filteredViolations.length },
+      ],
+      sections: [
+        {
+          title: "Office Distribution",
+          columns: ["Office", "Active", "Inactive"],
+          rows: office.map((r) => [r.office, r.active, r.inactive]),
+        },
+        {
+          title: "Status Distribution",
+          columns: ["Status", "Count"],
+          rows: status.map((r) => [r.status, r.count]),
+        },
+        {
+          title: "Department Distribution",
+          columns: ["Department", "Active", "Inactive"],
+          rows: department.map((r) => [r.department, r.active, r.inactive]),
+        },
+        {
+          title: "Tenure Distribution",
+          columns: ["Tenure Band", "Employees"],
+          rows: tenure.map((r) => [r.band, r.employees]),
+        },
+        {
+          title: "Monthly Hiring Trend",
+          columns: ["Month", "Hires", "Exits"],
+          rows: hiring.map((r) => [r.month, r.hires, r.exits]),
+        },
+        {
+          title: "Headcount Growth",
+          columns: ["Month", "Active Headcount"],
+          rows: growth.map((r) => [r.month, r.headcount]),
+        },
+        {
+          title: "Headcount Trend (6mo)",
+          columns: ["Month", "Headcount"],
+          rows: trend.map((r) => [r.month, r.headcount]),
+        },
+        {
+          title: "Onboarding Checklist Completion",
+          columns: ["Step", "New Hires Completed"],
+          rows: checklist.map((r) => [r.step, r.count]),
+        },
+        {
+          title: "Violations by Type",
+          columns: ["Violation Type", "Count"],
+          rows: [...byTypeCounts.entries()],
+        },
+        {
+          title: "Violations by Office",
+          columns: ["Office", "Count"],
+          rows: [...byOfficeCounts.entries()],
+        },
+      ],
+    };
+  }
+
+  async function handleExport(format: "xlsx" | "pdf") {
+    setExporting(true);
+    try {
+      const data = buildExportData();
+      if (format === "xlsx") await exportAnalyticsXlsx(data);
+      else await exportAnalyticsPdf(data);
+      toast.success(`Analytics report exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Analytics rolls up numbers across every module (Employee Directory,
   // Onboarding, Attendance) — no single module-siloed role should see the
@@ -202,6 +405,28 @@ function AnalyticsPage() {
       <PageHeader
         title="Analytics"
         description="Hiring, onboarding progress and attendance analysis across every module."
+        action={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={exporting}>
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Export Report
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("xlsx")}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Export as Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("pdf")}>
+                <FileText className="mr-2 h-4 w-4" /> Export as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
       <Tabs defaultValue="workforce">
         <TabsList>
@@ -211,27 +436,84 @@ function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="workforce" className="space-y-4 pt-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <MonthlyHiringTrendChart employees={employees} />
-            <HeadcountGrowthChart employees={employees} />
-            <DepartmentDistributionChart employees={employees} />
-            <TenureDistributionChart employees={employees} />
-            <OfficeDistributionChart employees={employees} />
-            <StatusDistributionChart employees={employees} />
+          <div className="flex flex-wrap items-center gap-2">
+            <MultiSelectFilter
+              label="Office"
+              selected={workforceOffice}
+              onChange={setWorkforceOffice}
+              options={[...OFFICES]}
+            />
+            <MultiSelectFilter
+              label="Department"
+              selected={workforceDepartment}
+              onChange={setWorkforceDepartment}
+              options={[...DEPARTMENTS]}
+            />
+            <MultiSelectFilter
+              label="Status"
+              selected={workforceStatus}
+              onChange={setWorkforceStatus}
+              options={[...STATUSES]}
+            />
+            {(workforceOffice.length > 0 || workforceDepartment.length > 0 || workforceStatus.length > 0) && (
+              <span className="text-xs text-muted-foreground">
+                Showing {filteredEmployees.length} of {employees.length} employees
+              </span>
+            )}
           </div>
-          <HeadcountTrendChart employees={employees} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <MonthlyHiringTrendChart employees={filteredEmployees} />
+            <HeadcountGrowthChart employees={filteredEmployees} />
+            <DepartmentDistributionChart employees={filteredEmployees} />
+            <TenureDistributionChart employees={filteredEmployees} />
+            <OfficeDistributionChart employees={filteredEmployees} />
+            <StatusDistributionChart employees={filteredEmployees} />
+          </div>
+          <HeadcountTrendChart employees={filteredEmployees} />
         </TabsContent>
 
-        <TabsContent value="onboarding" className="pt-4">
+        <TabsContent value="onboarding" className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <MultiSelectFilter
+              label="Checklist status"
+              selected={onboardingStatus}
+              onChange={setOnboardingStatus}
+              options={[...ONBOARDING_STATUSES]}
+            />
+            {onboardingStatus.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                Showing {filteredHires.length} of {allHires.length} new hires
+              </span>
+            )}
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <OnboardingCompletionChart />
+            <OnboardingCompletionChart hires={filteredHires} />
           </div>
         </TabsContent>
 
-        <TabsContent value="attendance" className="pt-4">
+        <TabsContent value="attendance" className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <MultiSelectFilter
+              label="Office"
+              selected={attendanceOffice}
+              onChange={setAttendanceOffice}
+              options={[...VIOLATION_OFFICES]}
+            />
+            <MultiSelectFilter
+              label="Violation type"
+              selected={attendanceType}
+              onChange={setAttendanceType}
+              options={[...VIOLATION_TYPES]}
+            />
+            {(attendanceOffice.length > 0 || attendanceType.length > 0) && (
+              <span className="text-xs text-muted-foreground">
+                Showing {filteredViolations.length} of {allViolations.length} records
+              </span>
+            )}
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <ViolationsByTypeChart />
-            <ViolationsByOfficeChart />
+            <ViolationsByTypeChart violations={filteredViolations} />
+            <ViolationsByOfficeChart violations={filteredViolations} />
           </div>
         </TabsContent>
       </Tabs>
