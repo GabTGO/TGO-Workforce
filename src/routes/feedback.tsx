@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   AlertTriangle,
   Bug,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   Lightbulb,
   Loader2,
   MessageSquarePlus,
   Rocket,
+  Search,
   Trash2,
   Wrench,
 } from "lucide-react";
@@ -16,6 +19,7 @@ import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
 import { FeedbackFormDialog } from "@/components/feedback-form-dialog";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -36,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Feedback, FeedbackPriority, FeedbackStatus } from "@/data/feedback-api";
+import type { Feedback, FeedbackPriority, FeedbackStatus, FeedbackType } from "@/data/feedback-api";
 import { useDeleteFeedback, useFeedbackQuery, useUpdateFeedback } from "@/data/feedback-store";
 import { getEffectiveRole, isSuperAdminRole } from "@/lib/permissions";
 import { useCurrentAccount } from "@/lib/session";
@@ -79,6 +84,16 @@ const PRIORITY_LABELS: Record<FeedbackPriority, string> = {
   high: "High",
   urgent: "Urgent",
 };
+
+const TYPE_LABELS: Record<FeedbackType, string> = {
+  bug: "Bug",
+  improvement: "Improvement",
+};
+
+// Cards per column, per page — a Kanban card is visually bigger than a
+// table row, so this stays smaller than the ~8-15 row-size pagination used
+// on the Directory/Activity Logs tables.
+const PAGE_SIZE = 6;
 
 // Amber for High (a "worth escalating soon" warning, not yet critical) and
 // the destructive token for Urgent — same amber/destructive convention used
@@ -245,12 +260,41 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
   );
 }
 
+const EMPTY_PAGE_STATE: Record<FeedbackStatus, number> = {
+  pending: 1,
+  working_on_it: 1,
+  resolved: 1,
+  implemented: 1,
+};
+
 function FeedbackPage() {
   const { data: account } = useCurrentAccount();
   const canTriage = isSuperAdminRole(getEffectiveRole(account));
   const { data, isLoading, isError } = useFeedbackQuery();
   const items = data ?? [];
   const [formOpen, setFormOpen] = useState(false);
+
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
+  // One page number per column — moving to page 2 of Pending shouldn't
+  // affect Resolved's own position.
+  const [page, setPage] = useState<Record<FeedbackStatus, number>>(EMPTY_PAGE_STATE);
+
+  const resetPages = () => setPage(EMPTY_PAGE_STATE);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesQuery =
+        !q || item.title.toLowerCase().includes(q) || item.reason.toLowerCase().includes(q);
+      const matchesType = typeFilter.length === 0 || typeFilter.includes(item.type);
+      const matchesPriority = priorityFilter.length === 0 || priorityFilter.includes(item.priority);
+      return matchesQuery && matchesType && matchesPriority;
+    });
+  }, [items, query, typeFilter, priorityFilter]);
+
+  const hasActiveFilters = query.trim() !== "" || typeFilter.length > 0 || priorityFilter.length > 0;
 
   return (
     <div className="space-y-6">
@@ -268,6 +312,44 @@ function FeedbackPage() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              resetPages();
+            }}
+            placeholder="Search title or reason..."
+            className="pl-8"
+          />
+        </div>
+        <MultiSelectFilter
+          label="Type"
+          selected={typeFilter}
+          onChange={(v) => {
+            setTypeFilter(v);
+            resetPages();
+          }}
+          options={Object.keys(TYPE_LABELS)}
+        />
+        <MultiSelectFilter
+          label="Priority"
+          selected={priorityFilter}
+          onChange={(v) => {
+            setPriorityFilter(v);
+            resetPages();
+          }}
+          options={Object.keys(PRIORITY_LABELS)}
+        />
+        {hasActiveFilters && (
+          <span className="text-xs text-muted-foreground">
+            Showing {filtered.length} of {items.length}
+          </span>
+        )}
+      </div>
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading feedback…</p>
       ) : isError ? (
@@ -275,7 +357,13 @@ function FeedbackPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((column) => {
-            const columnItems = items.filter((i) => i.status === column.status);
+            const columnItems = filtered.filter((i) => i.status === column.status);
+            const pageCount = Math.max(1, Math.ceil(columnItems.length / PAGE_SIZE));
+            const currentPage = Math.min(page[column.status], pageCount);
+            const pageItems = columnItems.slice(
+              (currentPage - 1) * PAGE_SIZE,
+              currentPage * PAGE_SIZE,
+            );
             const Icon = column.icon;
             return (
               <div key={column.status} className="space-y-3">
@@ -286,17 +374,42 @@ function FeedbackPage() {
                     {columnItems.length}
                   </Badge>
                 </div>
-                <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-                  {columnItems.length === 0 ? (
+                <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
+                  {pageItems.length === 0 ? (
                     <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                      Nothing here yet.
+                      {columnItems.length === 0 && hasActiveFilters
+                        ? "No matches in this column."
+                        : "Nothing here yet."}
                     </p>
                   ) : (
-                    columnItems.map((item) => (
+                    pageItems.map((item) => (
                       <FeedbackCard key={item.id} item={item} canTriage={canTriage} />
                     ))
                   )}
                 </div>
+                {pageCount > 1 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === 1}
+                      onClick={() => setPage((p) => ({ ...p, [column.status]: currentPage - 1 }))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Page {currentPage} of {pageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === pageCount}
+                      onClick={() => setPage((p) => ({ ...p, [column.status]: currentPage + 1 }))}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}
