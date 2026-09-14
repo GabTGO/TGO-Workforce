@@ -7,7 +7,7 @@ from app.models.activity_log import ActivityCategory, ActivityLog, ActivitySever
 from app.models.app_settings import AppSettings
 from app.models.award import Award
 from app.models.employee import Employee, EmployeeStatus
-from app.models.feedback import Feedback, FeedbackPriority, FeedbackStatus, FeedbackType
+from app.models.feedback import Feedback, FeedbackComment, FeedbackPriority, FeedbackStatus, FeedbackType
 from app.models.new_hire import NewHire
 from app.models.notification import Notification
 from app.models.pending_invite import PendingInvite
@@ -34,6 +34,7 @@ __all__ = [
     "Employee",
     "EmployeeStatus",
     "Feedback",
+    "FeedbackComment",
     "FeedbackPriority",
     "FeedbackStatus",
     "FeedbackType",

@@ -2,11 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createFeedback,
+  createFeedbackComment,
   deleteFeedback,
   fetchFeedback,
+  fetchFeedbackComments,
+  toggleFeedbackCommentReaction,
   updateFeedback,
   type Feedback,
   type FeedbackAdminPatch,
+  type FeedbackCommentInput,
   type FeedbackInput,
 } from "@/data/feedback-api";
 
@@ -53,5 +57,41 @@ export function useDeleteFeedback() {
   return useMutation({
     mutationFn: (id: string) => deleteFeedback(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: FEEDBACK_KEY }),
+  });
+}
+
+// --- Reply thread ------------------------------------------------------------
+
+const feedbackCommentsKey = (feedbackId: string) => [...FEEDBACK_KEY, feedbackId, "comments"] as const;
+
+/** Polls only while a thread dialog is actually open (see `enabled`) — no
+ * point refetching 15s intervals for every card's thread in the background. */
+export function useFeedbackCommentsQuery(feedbackId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: feedbackCommentsKey(feedbackId),
+    queryFn: () => fetchFeedbackComments(feedbackId),
+    enabled,
+    refetchInterval: enabled ? REALTIME_POLL_MS : false,
+  });
+}
+
+export function useCreateFeedbackComment(feedbackId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FeedbackCommentInput) => createFeedbackComment(feedbackId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: feedbackCommentsKey(feedbackId) });
+      // Bumps the card's own commentCount in the board list too.
+      queryClient.invalidateQueries({ queryKey: FEEDBACK_KEY });
+    },
+  });
+}
+
+export function useToggleFeedbackCommentReaction(feedbackId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, emoji }: { commentId: string; emoji: string }) =>
+      toggleFeedbackCommentReaction(feedbackId, commentId, emoji),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: feedbackCommentsKey(feedbackId) }),
   });
 }

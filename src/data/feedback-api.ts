@@ -2,6 +2,7 @@
 // — the Kanban-style bug/improvement board, open to every signed-in account.
 
 import { apiUrl } from "@/lib/api";
+import type { AccountRole } from "@/lib/session";
 
 export type FeedbackType = "bug" | "improvement";
 export type FeedbackStatus = "pending" | "working_on_it" | "resolved" | "implemented";
@@ -20,6 +21,10 @@ export type Feedback = {
   // role gets this as null straight from the backend (see
   // app/api/routes/feedback.py's _to_read), not just hidden client-side.
   reportedByLabel: string | null;
+  // Safe for everyone — see FeedbackRead.is_own's own comment on the backend.
+  // Together with Super Admin, this is exactly who can open the reply thread.
+  isOwn: boolean;
+  commentCount: number;
 };
 
 type BackendFeedback = {
@@ -32,6 +37,8 @@ type BackendFeedback = {
   created_at: string;
   updated_at: string;
   reported_by_label: string | null;
+  is_own: boolean;
+  comment_count: number;
 };
 
 function fromBackend(row: BackendFeedback): Feedback {
@@ -45,6 +52,8 @@ function fromBackend(row: BackendFeedback): Feedback {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     reportedByLabel: row.reported_by_label,
+    isOwn: row.is_own,
+    commentCount: row.comment_count,
   };
 }
 
@@ -114,4 +123,90 @@ export async function updateFeedback(id: string, patch: FeedbackAdminPatch): Pro
 
 export async function deleteFeedback(id: string): Promise<void> {
   await request<void>(`/feedback/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+// --- Reply thread ------------------------------------------------------------
+// Only reachable for a card that's your own or when you're Super Admin — the
+// backend 404s (not 403) for anyone else, so this thread is invisible rather
+// than just locked (see app/api/routes/feedback.py's _can_access_thread).
+
+export type FeedbackComment = {
+  id: string;
+  feedbackId: string;
+  authorLabel: string;
+  authorRole: AccountRole;
+  message: string | null;
+  imageData: string | null;
+  createdAt: string;
+  reactionCounts: Record<string, number>;
+  myReactions: string[];
+};
+
+type BackendFeedbackComment = {
+  id: string;
+  feedback_id: string;
+  author_label: string;
+  author_role: AccountRole;
+  message: string | null;
+  image_data: string | null;
+  created_at: string;
+  reaction_counts: Record<string, number>;
+  my_reactions: string[];
+};
+
+function commentFromBackend(row: BackendFeedbackComment): FeedbackComment {
+  return {
+    id: row.id,
+    feedbackId: row.feedback_id,
+    authorLabel: row.author_label,
+    authorRole: row.author_role,
+    message: row.message,
+    imageData: row.image_data,
+    createdAt: row.created_at,
+    reactionCounts: row.reaction_counts,
+    myReactions: row.my_reactions,
+  };
+}
+
+export async function fetchFeedbackComments(feedbackId: string): Promise<FeedbackComment[]> {
+  const rows = await request<BackendFeedbackComment[]>(
+    `/feedback/${encodeURIComponent(feedbackId)}/comments`,
+  );
+  return rows.map(commentFromBackend);
+}
+
+export type FeedbackCommentInput = {
+  message: string | undefined;
+  /** A data: URL — see FeedbackComment.image_data's backend comment for why
+   * this is stored inline rather than uploaded to object storage. */
+  imageData: string | undefined;
+};
+
+export async function createFeedbackComment(
+  feedbackId: string,
+  input: FeedbackCommentInput,
+): Promise<FeedbackComment> {
+  const row = await request<BackendFeedbackComment>(
+    `/feedback/${encodeURIComponent(feedbackId)}/comments`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message: input.message, image_data: input.imageData }),
+    },
+  );
+  return commentFromBackend(row);
+}
+
+export async function toggleFeedbackCommentReaction(
+  feedbackId: string,
+  commentId: string,
+  emoji: string,
+): Promise<FeedbackComment> {
+  const row = await request<BackendFeedbackComment>(
+    `/feedback/${encodeURIComponent(feedbackId)}/comments/${encodeURIComponent(commentId)}/reactions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    },
+  );
+  return commentFromBackend(row);
 }

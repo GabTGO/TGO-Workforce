@@ -6,19 +6,26 @@ its priority, or see who submitted it — everyone else sees the card
 anonymized (no reporter identity at all, not even to the person who filed
 it) via FeedbackRead's reported_by fields being nulled out server-side for
 non-Super-Admin requests (see app/api/routes/feedback.py).
+
+FeedbackComment (below) is the reply thread on one card — a small chat, not
+a public comment section: only the original reporter and a Super Admin may
+ever read or post to a given card's thread (enforced in
+app/api/routes/feedback.py's _can_access_thread, not here). Everyone
+else doesn't even know the thread exists.
 """
 
 import enum
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.core.db import Base
+from app.models.account import AccountRole
 
 if TYPE_CHECKING:
     from app.models.account import Account
@@ -87,3 +94,50 @@ class Feedback(Base):
     )
 
     reported_by: Mapped["Account | None"] = relationship()
+
+
+class FeedbackComment(Base):
+    __tablename__ = "feedback_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    feedback_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("feedback.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Nullable + SET NULL, same reasoning as Feedback.reported_by_id — a
+    # message in the thread outlives its author's account being deleted.
+    # author_label/author_role are snapshotted at post time (same pattern as
+    # ActivityLog.actor_label) so an old message still reads correctly even
+    # if the person is later renamed or their role changes.
+    author_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL"), index=True
+    )
+    author_label: Mapped[str] = mapped_column(String(200), nullable=False)
+    author_role: Mapped[AccountRole] = mapped_column(
+        Enum(AccountRole, name="account_role", create_type=False),
+        nullable=False,
+    )
+
+    # At least one of these two is always set (enforced in the route, not a
+    # DB constraint) — a message can be text-only, image-only, or both.
+    message: Mapped[str | None] = mapped_column(Text)
+    # A data: URL (base64-encoded) — this app has no object-storage service
+    # wired up yet, so an attached screenshot is stored inline rather than
+    # adding a new external dependency for what's meant to be an occasional
+    # "proof" attachment, not a general file-upload feature. Capped
+    # client- and server-side (see MAX_IMAGE_DATA_URL_LENGTH in
+    # app/api/routes/feedback.py) so one large paste can't bloat the table.
+    image_data: Mapped[str | None] = mapped_column(Text)
+
+    # emoji -> list of account id strings who reacted with it, e.g.
+    # {"👍": ["<uuid>", "<uuid>"]}. A JSONB blob rather than a separate
+    # reactions table — reaction data is small, always read/written as a
+    # whole alongside its comment, and never queried independently of it.
+    reactions: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    author: Mapped["Account | None"] = relationship()

@@ -9,6 +9,7 @@ import {
   Circle,
   Lightbulb,
   Loader2,
+  MessageCircle,
   MessageSquarePlus,
   Rocket,
   Search,
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
 import { FeedbackFormDialog } from "@/components/feedback-form-dialog";
+import { FeedbackThreadDialog } from "@/components/feedback-thread-dialog";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import {
   AlertDialog,
@@ -117,6 +119,10 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
   const updateMutation = useUpdateFeedback();
   const deleteMutation = useDeleteFeedback();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [threadOpen, setThreadOpen] = useState(false);
+  // Same rule as the backend's _can_access_thread: the card's own reporter,
+  // or Super Admin — everyone else never sees this entry point at all.
+  const canOpenThread = canTriage || item.isOwn;
 
   async function handleStatusChange(status: FeedbackStatus) {
     try {
@@ -200,6 +206,18 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
           )}
         </div>
 
+        {canOpenThread && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-full text-xs"
+            onClick={() => setThreadOpen(true)}
+          >
+            <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+            {item.commentCount > 0 ? `${item.commentCount} repl${item.commentCount === 1 ? "y" : "ies"}` : "Reply"}
+          </Button>
+        )}
+
         {canTriage && (
           <div className="grid grid-cols-2 gap-2 border-t pt-3">
             <Select value={item.status} onValueChange={(v) => handleStatusChange(v as FeedbackStatus)}>
@@ -256,6 +274,10 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {canOpenThread && (
+        <FeedbackThreadDialog item={item} open={threadOpen} onOpenChange={setThreadOpen} />
+      )}
     </Card>
   );
 }
