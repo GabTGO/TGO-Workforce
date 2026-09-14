@@ -85,6 +85,10 @@ export type PreviousViolationEntry = {
 
 export type ViolationRecordDetail = ViolationRecord & {
   previousViolations: PreviousViolationEntry[];
+  // True when previousViolations above came from this record's own manual
+  // override (see edit-violation-dialog.tsx) rather than being auto-detected
+  // from the employee's other Sent records this month.
+  previousViolationsIsOverride: boolean;
   subjectPreview: string | null;
   bodyPreview: string | null;
   fromPreview: string | null;
@@ -128,6 +132,7 @@ type BackendViolationRecordDetail = BackendViolationRecord & {
     violation_type: ViolationType;
     violation_type_other: string | null;
   }[];
+  previous_violations_is_override: boolean;
   subject_preview: string | null;
   body_preview: string | null;
   from_preview: string | null;
@@ -175,6 +180,7 @@ function detailFromBackend(row: BackendViolationRecordDetail): ViolationRecordDe
       violationType: p.violation_type,
       violationTypeOther: p.violation_type_other,
     })),
+    previousViolationsIsOverride: row.previous_violations_is_override,
     subjectPreview: row.subject_preview,
     bodyPreview: row.body_preview,
     fromPreview: row.from_preview,
@@ -217,7 +223,9 @@ async function readErrorMessage(response: Response, path: string): Promise<strin
     }
     if (Array.isArray(detail)) {
       const messages = detail
-        .map((item) => (item && typeof item === "object" && "msg" in item ? String(item.msg) : null))
+        .map((item) =>
+          item && typeof item === "object" && "msg" in item ? String(item.msg) : null,
+        )
         .filter((msg): msg is string => Boolean(msg));
       if (messages.length > 0) return messages.join("; ");
     }
@@ -241,7 +249,10 @@ export type ViolationFilters = {
   dateTo?: string | undefined;
 };
 
-function toQuery(filters: ViolationFilters, extra?: Record<string, string | number>): URLSearchParams {
+function toQuery(
+  filters: ViolationFilters,
+  extra?: Record<string, string | number>,
+): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.office) params.set("office", filters.office);
   if (filters.violationType) params.set("violation_type", filters.violationType);
@@ -282,10 +293,15 @@ export type ActivityLogEntry = {
 };
 
 export async function fetchViolationHistory(id: number): Promise<ActivityLogEntry[]> {
-  const rows = await request<{ id: number; actor_label: string; action: string; created_at: string }[]>(
-    `/violations/${id}/history`,
-  );
-  return rows.map((r) => ({ id: r.id, actorLabel: r.actor_label, action: r.action, createdAt: r.created_at }));
+  const rows = await request<
+    { id: number; actor_label: string; action: string; created_at: string }[]
+  >(`/violations/${id}/history`);
+  return rows.map((r) => ({
+    id: r.id,
+    actorLabel: r.actor_label,
+    action: r.action,
+    createdAt: r.created_at,
+  }));
 }
 
 export type NewViolationInput = {
@@ -328,19 +344,37 @@ export type ViolationUpdateInput = Partial<{
   reason: string;
   ccAddresses: string;
   fromAddress: string;
+  // `undefined` (the default, via Partial) = leave whatever's stored
+  // untouched. `null` = reset to auto-detecting from the logs. An array =
+  // use exactly this list instead. See edit-violation-dialog.tsx.
+  previousViolationsOverride: PreviousViolationEntry[] | null;
 }>;
 
-export async function updateViolation(id: number, changes: ViolationUpdateInput): Promise<ViolationRecord> {
+export async function updateViolation(
+  id: number,
+  changes: ViolationUpdateInput,
+): Promise<ViolationRecord> {
   const payload: Record<string, unknown> = {};
   if (changes.office !== undefined) payload["office"] = changes.office;
   if (changes.employeeName !== undefined) payload["employee_name"] = changes.employeeName;
   if (changes.employeeEmail !== undefined) payload["employee_email"] = changes.employeeEmail;
   if (changes.violationType !== undefined) payload["violation_type"] = changes.violationType;
-  if (changes.violationTypeOther !== undefined) payload["violation_type_other"] = changes.violationTypeOther;
+  if (changes.violationTypeOther !== undefined)
+    payload["violation_type_other"] = changes.violationTypeOther;
   if (changes.violationDate !== undefined) payload["violation_date"] = changes.violationDate;
   if (changes.reason !== undefined) payload["reason"] = changes.reason;
   if (changes.ccAddresses !== undefined) payload["cc_addresses"] = changes.ccAddresses;
   if (changes.fromAddress !== undefined) payload["from_address"] = changes.fromAddress;
+  if ("previousViolationsOverride" in changes) {
+    payload["previous_violations_override"] =
+      changes.previousViolationsOverride === null
+        ? null
+        : changes.previousViolationsOverride?.map((e) => ({
+            violation_date: e.violationDate,
+            violation_type: e.violationType,
+            violation_type_other: e.violationTypeOther,
+          }));
+  }
 
   const row = await request<BackendViolationRecord>(`/violations/${id}`, {
     method: "PATCH",
@@ -350,7 +384,9 @@ export async function updateViolation(id: number, changes: ViolationUpdateInput)
 }
 
 async function transition(id: number, action: string): Promise<ViolationRecord> {
-  const row = await request<BackendViolationRecord>(`/violations/${id}/${action}`, { method: "POST" });
+  const row = await request<BackendViolationRecord>(`/violations/${id}/${action}`, {
+    method: "POST",
+  });
   return fromBackend(row);
 }
 
@@ -369,7 +405,11 @@ export async function deleteViolation(id: number): Promise<void> {
 export type BulkSkip = { id: number; violationRecordId: string | null; reason: string };
 export type BulkDeleteResult = { deleted: number[]; skipped: BulkSkip[] };
 
-function skipFromBackend(s: { id: number; violation_record_id: string | null; reason: string }): BulkSkip {
+function skipFromBackend(s: {
+  id: number;
+  violation_record_id: string | null;
+  reason: string;
+}): BulkSkip {
   return { id: s.id, violationRecordId: s.violation_record_id, reason: s.reason };
 }
 
@@ -389,8 +429,17 @@ export async function bulkPreviewViolations(ids: number[]): Promise<ViolationRec
   return rows.map(detailFromBackend);
 }
 
-export type BulkSendOutcome = { id: number; violationRecordId: string; employeeName: string; error: string | null };
-export type BulkSendResult = { sent: BulkSendOutcome[]; failed: BulkSendOutcome[]; skipped: BulkSkip[] };
+export type BulkSendOutcome = {
+  id: number;
+  violationRecordId: string;
+  employeeName: string;
+  error: string | null;
+};
+export type BulkSendResult = {
+  sent: BulkSendOutcome[];
+  failed: BulkSendOutcome[];
+  skipped: BulkSkip[];
+};
 
 function outcomeFromBackend(o: {
   id: number;
@@ -398,13 +447,28 @@ function outcomeFromBackend(o: {
   employee_name: string;
   error: string | null;
 }): BulkSendOutcome {
-  return { id: o.id, violationRecordId: o.violation_record_id, employeeName: o.employee_name, error: o.error };
+  return {
+    id: o.id,
+    violationRecordId: o.violation_record_id,
+    employeeName: o.employee_name,
+    error: o.error,
+  };
 }
 
 export async function bulkSendNowViolations(ids: number[]): Promise<BulkSendResult> {
   const result = await request<{
-    sent: { id: number; violation_record_id: string; employee_name: string; error: string | null }[];
-    failed: { id: number; violation_record_id: string; employee_name: string; error: string | null }[];
+    sent: {
+      id: number;
+      violation_record_id: string;
+      employee_name: string;
+      error: string | null;
+    }[];
+    failed: {
+      id: number;
+      violation_record_id: string;
+      employee_name: string;
+      error: string | null;
+    }[];
     skipped: { id: number; violation_record_id: string | null; reason: string }[];
   }>("/violations/bulk-send-now", { method: "POST", body: JSON.stringify({ ids }) });
   return {
@@ -515,7 +579,12 @@ export async function previewImport(file: File): Promise<ImportPreviewResult> {
   };
 }
 
-export type ImportResult = { batchId: number; rowCount: number; successCount: number; errorCount: number };
+export type ImportResult = {
+  batchId: number;
+  rowCount: number;
+  successCount: number;
+  errorCount: number;
+};
 
 export async function commitImport(
   filename: string,
@@ -533,10 +602,12 @@ export async function commitImport(
       reason: r.reason ?? "No reason given",
     })),
   };
-  const data = await request<{ batch_id: number; row_count: number; success_count: number; error_count: number }>(
-    "/violations/import/commit",
-    { method: "POST", body: JSON.stringify(payload) },
-  );
+  const data = await request<{
+    batch_id: number;
+    row_count: number;
+    success_count: number;
+    error_count: number;
+  }>("/violations/import/commit", { method: "POST", body: JSON.stringify(payload) });
   return {
     batchId: data.batch_id,
     rowCount: data.row_count,
@@ -587,7 +658,10 @@ export async function fetchAnalyticsOverview(): Promise<AnalyticsOverview> {
     byViolationType: data.by_violation_type,
     byOffice: data.by_office,
     byMonth: data.by_month,
-    topEmployees: data.top_employees.map((e) => ({ employeeName: e.employee_name, count: e.count })),
+    topEmployees: data.top_employees.map((e) => ({
+      employeeName: e.employee_name,
+      count: e.count,
+    })),
     avgApprovalTurnaroundMinutes: data.avg_approval_turnaround_minutes,
   };
 }

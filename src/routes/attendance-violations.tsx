@@ -204,7 +204,6 @@ function AttendanceViolationsPage() {
   }, [filters, page]);
 
   const checkedRecords = records.filter((r) => checkedIds.has(r.id));
-  const editTarget = records.find((r) => r.id === editTargetId) ?? null;
   const deleteTarget = records.find((r) => r.id === deleteTargetId) ?? null;
   const allOnPageChecked = records.length > 0 && records.every((r) => checkedIds.has(r.id));
   const toggleAllOnPage = () => {
@@ -645,14 +644,12 @@ function AttendanceViolationsPage() {
         onDone={() => setCheckedIds(new Set())}
       />
 
-      {editTarget && (
-        <EditViolationDialog
-          record={editTarget}
-          open={editTargetId !== null}
-          onOpenChange={(open) => setEditTargetId(open ? editTargetId : null)}
-          onSaved={() => setEditTargetId(null)}
-        />
-      )}
+      <EditViolationDialog
+        recordId={editTargetId}
+        open={editTargetId !== null}
+        onOpenChange={(open) => setEditTargetId(open ? editTargetId : null)}
+        onSaved={() => setEditTargetId(null)}
+      />
     </div>
   );
 }

@@ -43,6 +43,20 @@ class ViolationRecordCreate(ViolationRecordBase):
     two — mirroring the source app's create_record()."""
 
 
+class PreviousViolationEntry(BaseModel):
+    violation_date: date
+    violation_type: ViolationType
+    violation_type_other: Optional[str] = None
+
+    def as_line(self) -> str:
+        label = (
+            self.violation_type_other
+            if self.violation_type == ViolationType.OTHER and self.violation_type_other
+            else self.violation_type.value
+        )
+        return f"{label} {self.violation_date.month}/{self.violation_date.day}"
+
+
 class ViolationRecordUpdate(BaseModel):
     """Every field optional — a PATCH only touches what's actually sent, same
     pattern as EmployeeUpdate. Only allowed while the record is Draft, Ready
@@ -62,20 +76,15 @@ class ViolationRecordUpdate(BaseModel):
     # normalization.
     cc_addresses: Optional[str] = None
     from_address: Optional[str] = None
-
-
-class PreviousViolationEntry(BaseModel):
-    violation_date: date
-    violation_type: ViolationType
-    violation_type_other: Optional[str] = None
-
-    def as_line(self) -> str:
-        label = (
-            self.violation_type_other
-            if self.violation_type == ViolationType.OTHER and self.violation_type_other
-            else self.violation_type.value
-        )
-        return f"{self.violation_date.month}/{self.violation_date.day} - {label}"
+    # Manual override for the "Previous attendance violation for this month"
+    # line in the notice email — see app/models/violation.py's
+    # previous_violations_override docstring. Sending an empty list ([])
+    # explicitly means "no previous violations, don't auto-detect" — distinct
+    # from omitting this field entirely (leaves whatever's already stored
+    # untouched) or from sending `null`, which the route treats as "go back
+    # to auto-detecting from the logs" (see _normalize_previous_violations_override
+    # in app/api/routes/violations.py).
+    previous_violations_override: Optional[list[PreviousViolationEntry]] = None
 
 
 class ViolationRecordRead(BaseModel):
@@ -113,6 +122,12 @@ class ViolationRecordRead(BaseModel):
 
 class ViolationRecordDetail(ViolationRecordRead):
     previous_violations: list[PreviousViolationEntry] = []
+    # True when previous_violations above came from this record's own
+    # previous_violations_override rather than being auto-detected from the
+    # employee's other Sent records this month — lets the UI show "auto-
+    # detected" vs. "manually set" and offer "reset to auto-detected"
+    # accordingly (see app/api/routes/violations.py's _resolve_previous_violations).
+    previous_violations_is_override: bool = False
     subject_preview: Optional[str] = None
     body_preview: Optional[str] = None
     # The *effective* From/Cc that will actually be used when this record is

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,11 +13,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EmailChipInput } from "@/components/attendance/email-chip-input";
-import { OFFICES, VIOLATION_TYPES, type Office, type ViolationRecord, type ViolationType } from "@/data/violation-api";
-import { useEmailSenderConfigQuery, useUpdateViolation } from "@/data/violation-store";
+import {
+  OFFICES,
+  VIOLATION_TYPES,
+  type Office,
+  type PreviousViolationEntry,
+  type ViolationRecordDetail,
+  type ViolationType,
+  type ViolationUpdateInput,
+} from "@/data/violation-api";
+import {
+  useEmailSenderConfigQuery,
+  useUpdateViolation,
+  useViolationQuery,
+} from "@/data/violation-store";
 
 // Matches backend/app/schemas/violation.py's ViolationRecordUpdate exactly,
 // and the same three statuses PATCH /violations/{id} actually accepts
@@ -35,9 +54,14 @@ type FormState = {
   reason: string;
   ccAddresses: string;
   fromAddress: string;
+  // null = keep auto-detecting from the logs (record.previousViolations is
+  // shown read-only in that state); an array = the exact override to save —
+  // see PreviousViolationsEditor below. Seeded from the record's own stored
+  // override if it already has one, otherwise null.
+  previousViolationsOverride: PreviousViolationEntry[] | null;
 };
 
-function toForm(record: ViolationRecord): FormState {
+function toForm(record: ViolationRecordDetail): FormState {
   return {
     office: record.office,
     employeeName: record.employeeName,
@@ -48,6 +72,9 @@ function toForm(record: ViolationRecord): FormState {
     reason: record.reason ?? "",
     ccAddresses: record.ccAddresses ?? "",
     fromAddress: record.fromAddress ?? "",
+    previousViolationsOverride: record.previousViolationsIsOverride
+      ? record.previousViolations
+      : null,
   };
 }
 
@@ -55,40 +82,158 @@ export function canEditViolation(status: string): boolean {
   return EDITABLE_STATUSES.has(status);
 }
 
-export function EditViolationDialog({
+/** "9/8" from a "YYYY-MM-DD" string — plain string slicing rather than
+ * `new Date(...)`, since these are calendar dates with no time-of-day/
+ * timezone of their own (same class of bug @/data/employees' parseCalendarDate
+ * exists to avoid, just done here with a one-line split instead of pulling
+ * that Employee-domain helper into the Attendance domain). */
+function monthDay(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${Number(m)}/${Number(d)}`;
+}
+
+function previousEntryLabel(e: PreviousViolationEntry): string {
+  const type =
+    e.violationType === "Other" && e.violationTypeOther ? e.violationTypeOther : e.violationType;
+  return `${type} ${monthDay(e.violationDate)}`;
+}
+
+/** The Add/Edit/Delete controls for a record's "Previous attendance
+ * violation for this month" list, once switched into override mode (see the
+ * "Edit" button next to the read-only auto-detected view below). Each row is
+ * directly editable in place — no separate add/edit sub-dialog — since an
+ * entry is just a violation type plus a date. */
+function PreviousViolationsEditor({
+  entries,
+  onChange,
+  defaultDate,
+  defaultType,
+}: {
+  entries: PreviousViolationEntry[];
+  onChange: (next: PreviousViolationEntry[]) => void;
+  defaultDate: string;
+  defaultType: ViolationType;
+}) {
+  function updateEntry(index: number, patch: Partial<PreviousViolationEntry>) {
+    onChange(entries.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  }
+  function removeEntry(index: number) {
+    onChange(entries.filter((_, i) => i !== index));
+  }
+  function addEntry() {
+    onChange([
+      ...entries,
+      { violationDate: defaultDate, violationType: defaultType, violationTypeOther: null },
+    ]);
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {entries.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Nothing listed — add an entry, or reset to auto-detected.
+        </p>
+      )}
+      {entries.map((entry, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-1.5 rounded-md border p-1.5">
+          <Select
+            value={entry.violationType}
+            onValueChange={(v) =>
+              updateEntry(i, {
+                violationType: v as ViolationType,
+                violationTypeOther: v === "Other" ? entry.violationTypeOther : null,
+              })
+            }
+          >
+            <SelectTrigger className="h-8 w-[130px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VIOLATION_TYPES.map((v) => (
+                <SelectItem key={v} value={v}>
+                  {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {entry.violationType === "Other" && (
+            <Input
+              className="h-8 w-[110px] text-xs"
+              placeholder="Specify"
+              value={entry.violationTypeOther ?? ""}
+              onChange={(e) => updateEntry(i, { violationTypeOther: e.target.value })}
+            />
+          )}
+          <Input
+            type="date"
+            className="h-8 w-[140px] text-xs"
+            value={entry.violationDate}
+            onChange={(e) => updateEntry(i, { violationDate: e.target.value })}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => removeEntry(i)}
+            aria-label="Remove entry"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="w-fit" onClick={addEntry}>
+        <Plus className="size-3.5" /> Add entry
+      </Button>
+    </div>
+  );
+}
+
+/** The actual form — only ever mounted once `record` (a full
+ * ViolationRecordDetail) has loaded, so `form` can stay a plain non-nullable
+ * FormState instead of every setForm callback having to deal with a
+ * possibly-null previous value. Remounts fresh (via the `key={record.id}` at
+ * the call site below) whenever the dialog opens for a different/refetched
+ * record. */
+function EditViolationForm({
   record,
-  open,
   onOpenChange,
   onSaved,
 }: {
-  record: ViolationRecord;
-  open: boolean;
+  record: ViolationRecordDetail;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState<FormState>(() => toForm(record));
   const updateMutation = useUpdateViolation();
 
-  const { data: config } = useEmailSenderConfigQuery(open);
+  const { data: config } = useEmailSenderConfigQuery();
   const defaultAddress = config?.fromAddress ?? "the configured default";
-  const alternateAliases = (config?.knownFromAddresses ?? []).filter((a) => a !== config?.fromAddress);
-
-  // Re-seed the form from the record every time the dialog opens, so a
-  // previous cancelled edit (or a change from someone else) isn't still
-  // sitting in state next time this opens.
-  useEffect(() => {
-    if (open) setForm(toForm(record));
-  }, [open, record]);
+  const alternateAliases = (config?.knownFromAddresses ?? []).filter(
+    (a) => a !== config?.fromAddress,
+  );
 
   const original = toForm(record);
-  const hasChanges = (Object.keys(form) as (keyof FormState)[]).some((key) => form[key] !== original[key]);
+  const previousViolationsChanged =
+    JSON.stringify(form.previousViolationsOverride) !==
+    JSON.stringify(original.previousViolationsOverride);
+  const hasChanges =
+    (Object.keys(form) as (keyof FormState)[]).some(
+      (key) => key !== "previousViolationsOverride" && form[key] !== original[key],
+    ) || previousViolationsChanged;
   const otherMissing = form.violationType === "Other" && !form.violationTypeOther.trim();
 
   function handleSave() {
-    const changes: Record<string, string> = {};
+    const changes: ViolationUpdateInput = {};
     (Object.keys(form) as (keyof FormState)[]).forEach((key) => {
-      if (form[key] !== original[key]) changes[key] = form[key];
+      if (key === "previousViolationsOverride") return;
+      if (form[key] !== original[key]) {
+        (changes as Record<string, string>)[key] = form[key] as string;
+      }
     });
+    if (previousViolationsChanged) {
+      changes.previousViolationsOverride = form.previousViolationsOverride;
+    }
     updateMutation.mutate(
       { id: record.id, changes },
       {
@@ -97,146 +242,282 @@ export function EditViolationDialog({
           onOpenChange(false);
           onSaved();
         },
-        onError: (err) => toast.error(err instanceof Error ? err.message : "Couldn't save those changes"),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Couldn't save those changes"),
       },
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !updateMutation.isPending && onOpenChange(next)}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit record details</DialogTitle>
-          <DialogDescription>
-            {record.violationRecordId} · only available while this record is Draft, Ready to Prepare, or Needs
-            Correction — approving or preparing locks these fields.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>Edit record details</DialogTitle>
+        <DialogDescription>
+          {record.violationRecordId} · only available while this record is Draft, Ready to Prepare,
+          or Needs Correction — approving or preparing locks these fields.
+        </DialogDescription>
+      </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Office</label>
-            <Select value={form.office} onValueChange={(v) => setForm((f) => ({ ...f, office: v as Office }))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OFFICES.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Violation type</label>
-            <Select
-              value={form.violationType}
-              onValueChange={(v) => setForm((f) => ({ ...f, violationType: v as ViolationType }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VIOLATION_TYPES.map((v) => (
-                  <SelectItem key={v} value={v}>
-                    {v}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {form.violationType === "Other" && (
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Please specify the violation type</label>
-              <Input
-                value={form.violationTypeOther}
-                onChange={(e) => setForm((f) => ({ ...f, violationTypeOther: e.target.value }))}
-              />
-            </div>
-          )}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Office</label>
+          <Select
+            value={form.office}
+            onValueChange={(v) => setForm((f) => ({ ...f, office: v as Office }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OFFICES.map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Violation type</label>
+          <Select
+            value={form.violationType}
+            onValueChange={(v) => setForm((f) => ({ ...f, violationType: v as ViolationType }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VIOLATION_TYPES.map((v) => (
+                <SelectItem key={v} value={v}>
+                  {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {form.violationType === "Other" && (
           <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Employee name</label>
+            <label className="text-xs text-muted-foreground">
+              Please specify the violation type
+            </label>
             <Input
-              value={form.employeeName}
-              onChange={(e) => setForm((f) => ({ ...f, employeeName: e.target.value }))}
+              value={form.violationTypeOther}
+              onChange={(e) => setForm((f) => ({ ...f, violationTypeOther: e.target.value }))}
             />
           </div>
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Employee email</label>
-            <Input
-              type="email"
-              value={form.employeeEmail}
-              onChange={(e) => setForm((f) => ({ ...f, employeeEmail: e.target.value }))}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Violation date</label>
-            <Input
-              type="date"
-              value={form.violationDate}
-              onChange={(e) => setForm((f) => ({ ...f, violationDate: e.target.value }))}
-            />
-          </div>
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Reason</label>
-            <Textarea
-              rows={3}
-              placeholder="Leave blank for 'No reason given'"
-              value={form.reason}
-              onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-            />
-          </div>
-
-          <div className="col-span-2 border-t pt-3">
-            <p className="text-xs font-medium text-muted-foreground">Sender &amp; Cc for this notice</p>
-          </div>
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">From address override</label>
-            <Select
-              value={form.fromAddress || "__default__"}
-              onValueChange={(v) => setForm((f) => ({ ...f, fromAddress: v === "__default__" ? "" : v }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__default__">Use default ({defaultAddress})</SelectItem>
-                {alternateAliases.map((address) => (
-                  <SelectItem key={address} value={address}>
-                    {address}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">
-              Only addresses Zoho has actually validated for this account are offered here — a hand-typed address
-              that isn't validated would just fail at send time.
-            </p>
-          </div>
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Additional Cc addresses</label>
-            <EmailChipInput
-              value={form.ccAddresses}
-              onChange={(v) => setForm((f) => ({ ...f, ccAddresses: v }))}
-              placeholder="Type an email…"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              {defaultAddress} always stays Cc'd regardless — these are added on top of it, not instead.
-            </p>
-          </div>
+        )}
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Employee name</label>
+          <Input
+            value={form.employeeName}
+            onChange={(e) => setForm((f) => ({ ...f, employeeName: e.target.value }))}
+          />
+        </div>
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Employee email</label>
+          <Input
+            type="email"
+            value={form.employeeEmail}
+            onChange={(e) => setForm((f) => ({ ...f, employeeEmail: e.target.value }))}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Violation date</label>
+          <Input
+            type="date"
+            value={form.violationDate}
+            onChange={(e) => setForm((f) => ({ ...f, violationDate: e.target.value }))}
+          />
+        </div>
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Reason</label>
+          <Textarea
+            rows={3}
+            placeholder="Leave blank for 'No reason given'"
+            value={form.reason}
+            onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+          />
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" disabled={updateMutation.isPending} onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={!hasChanges || updateMutation.isPending || otherMissing} onClick={handleSave}>
-            {updateMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Pencil className="size-4" />}
-            Save changes
-          </Button>
-        </DialogFooter>
+        <div className="col-span-2 border-t pt-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">
+              Previous attendance violation for this month
+            </p>
+            {form.previousViolationsOverride === null ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() =>
+                  setForm((f) => ({
+                    ...f,
+                    previousViolationsOverride: record.previousViolations.map((e) => ({ ...e })),
+                  }))
+                }
+              >
+                <Pencil className="size-3" /> Edit
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setForm((f) => ({ ...f, previousViolationsOverride: null }))}
+              >
+                Reset to auto-detected
+              </Button>
+            )}
+          </div>
+          {form.previousViolationsOverride === null ? (
+            <>
+              {record.previousViolations.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  None detected from the attendance logs.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {record.previousViolations.map((entry, i) => (
+                    <Badge key={i} variant="secondary" className="font-normal">
+                      {previousEntryLabel(entry)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Auto-detected from this employee's other Sent records this month. Click Edit to add,
+                change, or remove an entry — for example if the system missed one or got it wrong.
+              </p>
+            </>
+          ) : (
+            <>
+              <PreviousViolationsEditor
+                entries={form.previousViolationsOverride}
+                onChange={(next) => setForm((f) => ({ ...f, previousViolationsOverride: next }))}
+                defaultDate={record.violationDate}
+                defaultType={record.violationType}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Manually set — shown exactly as listed here in the notice email, instead of
+                auto-detecting.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="col-span-2 border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            Sender &amp; Cc for this notice
+          </p>
+        </div>
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">From address override</label>
+          <Select
+            value={form.fromAddress || "__default__"}
+            onValueChange={(v) =>
+              setForm((f) => ({ ...f, fromAddress: v === "__default__" ? "" : v }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__default__">Use default ({defaultAddress})</SelectItem>
+              {alternateAliases.map((address) => (
+                <SelectItem key={address} value={address}>
+                  {address}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Only addresses Zoho has actually validated for this account are offered here — a
+            hand-typed address that isn't validated would just fail at send time.
+          </p>
+        </div>
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Additional Cc addresses</label>
+          <EmailChipInput
+            value={form.ccAddresses}
+            onChange={(v) => setForm((f) => ({ ...f, ccAddresses: v }))}
+            placeholder="Type an email…"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {defaultAddress} always stays Cc'd regardless — these are added on top of it, not
+            instead.
+          </p>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          disabled={updateMutation.isPending}
+          onClick={() => onOpenChange(false)}
+        >
+          Cancel
+        </Button>
+        <Button
+          disabled={!hasChanges || updateMutation.isPending || otherMissing}
+          onClick={handleSave}
+        >
+          {updateMutation.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Pencil className="size-4" />
+          )}
+          Save changes
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+export function EditViolationDialog({
+  recordId,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  recordId: number | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  // Fetches the full ViolationRecordDetail itself (same pattern as
+  // SendConfirmDialog) rather than requiring the caller to already have one
+  // on hand — attendance-violations.tsx's row/bulk views only ever have the
+  // plain list-row shape, which is missing previousViolations/
+  // previousViolationsIsOverride entirely. React Query dedupes this against
+  // whatever the wizard already fetched for the same id, so opening Edit
+  // from inside the wizard doesn't refetch.
+  const { data: record } = useViolationQuery(open ? recordId : null);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        {record ? (
+          // key={record.id} remounts EditViolationForm (resetting its form
+          // state from scratch) if this dialog is ever reused for a
+          // different record without fully closing first.
+          <EditViolationForm
+            key={record.id}
+            record={record}
+            onOpenChange={onOpenChange}
+            onSaved={onSaved}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Edit record details</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center justify-center py-10 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -440,7 +440,11 @@ export function ViolationWizard({
                 <EmailPreview record={record} />
                 {record.previousViolations.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Previous violations this month: {record.previousViolations.length} on file.
+                    Previous violations this month: {record.previousViolations.length} on file
+                    {record.previousViolationsIsOverride ? " (manually set)" : ""}.
+                    {canEditViolation(status) &&
+                      canWrite &&
+                      " Edit details to add, change, or remove one."}
                   </p>
                 )}
               </div>
@@ -469,7 +473,7 @@ export function ViolationWizard({
       />
 
       <EditViolationDialog
-        record={record}
+        recordId={currentRecord.id}
         open={editOpen}
         onOpenChange={setEditOpen}
         onSaved={() => {}}

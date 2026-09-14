@@ -14,10 +14,10 @@ approved_by/created_by below.
 import enum
 import uuid
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -132,6 +132,20 @@ class ViolationRecord(Base):
     # Zoho Mail account (settings.zoho_mail_known_aliases).
     cc_addresses: Mapped[str | None] = mapped_column(String(500))
     from_address: Mapped[str | None] = mapped_column(String(255))
+
+    # Manual override for "previous attendance violation for this month" in
+    # the notice email (see app/services/violation_email_template.py's
+    # build_body and app/services/violation_history.py's log-based
+    # auto-detection). NULL (the default) means "keep auto-detecting from the
+    # employee's other Sent records this month" — unedited, original
+    # behavior. A non-null list (an empty one included) means a human has
+    # explicitly reviewed this record's previous-violation summary and that
+    # exact list should be used verbatim instead, for whenever the log-based
+    # detection missed something or included something wrong. Each entry:
+    # {"violation_date": "YYYY-MM-DD", "violation_type": "...",
+    # "violation_type_other": "..." | None} — mirrors
+    # app/schemas/violation.py's PreviousViolationEntry.
+    previous_violations_override: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
 
     # Soft delete: the activity log references this record only by a
     # free-text target (the violation_record_id string), and that audit trail

@@ -61,7 +61,7 @@ from app.services.app_settings import get_app_settings
 from app.services.notify import notify_permission_holders
 from app.services.violation_email import ZohoMailError, send_email
 from app.services.violation_email_template import build_body, build_cc_address, build_from_address, build_subject
-from app.services.violation_history import get_previous_violations_for_month
+from app.services.violation_history import resolve_previous_violations
 
 router = APIRouter(
     prefix="/violations",
@@ -138,14 +138,10 @@ def _validate_for_preparation(record: ViolationRecord) -> list[str]:
 
 
 async def _to_detail(db: AsyncSession, record: ViolationRecord) -> ViolationRecordDetail:
-    previous = await get_previous_violations_for_month(
-        db,
-        employee_email=record.employee_email,
-        violation_date=record.violation_date,
-        exclude_record_id=record.id,
-    )
+    previous, is_override = await resolve_previous_violations(db, record)
     detail = ViolationRecordDetail.model_validate(record)
     detail.previous_violations = previous
+    detail.previous_violations_is_override = is_override
     detail.subject_preview = build_subject(record)
     detail.body_preview = await build_body(db, record)
     detail.from_preview = build_from_address(record)
@@ -287,6 +283,29 @@ async def update_record(
         final_type = changes.get("violation_type", record.violation_type)
         final_other = changes.get("violation_type_other", record.violation_type_other)
         changes["violation_type_other"] = _resolve_violation_type_other(final_type, final_other)
+    if "previous_violations_override" in changes:
+        # model_dump() (default "python" mode) leaves each entry's
+        # violation_date/violation_type as real date/enum objects — fine for
+        # every other field here (SQLAlchemy coerces those directly), but
+        # JSONB storage needs plain JSON-safe values, so this one field is
+        # rebuilt from the payload's actual Pydantic objects instead of the
+        # already-dumped dict. `None` means "reset to auto-detecting from the
+        # logs" (see app/models/violation.py's docstring on this column).
+        override = payload.previous_violations_override
+        changes["previous_violations_override"] = (
+            None
+            if override is None
+            else [
+                {
+                    "violation_date": entry.violation_date.isoformat(),
+                    "violation_type": entry.violation_type.value,
+                    "violation_type_other": _resolve_violation_type_other(
+                        entry.violation_type, entry.violation_type_other
+                    ),
+                }
+                for entry in override
+            ]
+        )
 
     for field, value in changes.items():
         setattr(record, field, value)
