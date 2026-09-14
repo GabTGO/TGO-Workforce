@@ -21,12 +21,13 @@ this app. The shared GET /activity-logs?category=onboarding endpoint
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
     get_current_account,
+    get_effective_role,
     require_onboarding_writer,
     require_permission,
 )
@@ -72,17 +73,18 @@ WriterAccount = Annotated[Account, Depends(require_onboarding_writer)]
 # onboarding_specialist name-assignment, completed_by) stay open to any
 # onboarding role — they're not part of the SOP's protected-range table.
 ROLE_FIELD_ACCESS: dict[str, set[AccountRole]] = {
-    "jo_discussion": {AccountRole.RECRUITMENT_LEAD, AccountRole.ADMIN},
-    "confirmation_signed": {AccountRole.RECRUITMENT_LEAD, AccountRole.ADMIN},
+    "jo_discussion": {AccountRole.RECRUITMENT_LEAD, AccountRole.ADMIN, AccountRole.SUPER_ADMIN},
+    "confirmation_signed": {AccountRole.RECRUITMENT_LEAD, AccountRole.ADMIN, AccountRole.SUPER_ADMIN},
     "welcome_email_sent": {
         AccountRole.RECRUITMENT_LEAD,
         AccountRole.ONBOARDING_SPECIALIST,
         AccountRole.ADMIN,
+        AccountRole.SUPER_ADMIN,
     },
-    "new_hire_info": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
-    "id_photo": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
-    "credentials_created": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
-    "onboarding_day": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN},
+    "new_hire_info": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN, AccountRole.SUPER_ADMIN},
+    "id_photo": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN, AccountRole.SUPER_ADMIN},
+    "credentials_created": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN, AccountRole.SUPER_ADMIN},
+    "onboarding_day": {AccountRole.ONBOARDING_SPECIALIST, AccountRole.ADMIN, AccountRole.SUPER_ADMIN},
 }
 
 FIELD_LABELS = {
@@ -175,6 +177,7 @@ async def update_new_hire(
     payload: NewHireUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     account: WriterAccount,
+    request: Request,
 ) -> NewHire:
     """Backs both the Edit dialog and the inline checklist checkbox toggles —
     a checkbox click is just a one-field PATCH."""
@@ -188,9 +191,17 @@ async def update_new_hire(
     # whole request outright. Fields absent from ROLE_FIELD_ACCESS (name,
     # start_date, etc.) aren't part of the SOP's protected ranges, so they're
     # open to any onboarding role (already enforced by WriterAccount above).
+    #
+    # Uses the *effective* role (real role, unless a Super Admin has an
+    # active sandbox override — see get_effective_role) rather than
+    # account.role directly, same as every other permission check in this
+    # app: a genuine Super Admin always passes (see ROLE_FIELD_ACCESS's own
+    # AccountRole.SUPER_ADMIN entries), but one sandboxed into a lesser role
+    # is correctly held to that role's checklist-field restrictions too.
+    role = get_effective_role(account, request)
     for field in changes:
         allowed_roles = ROLE_FIELD_ACCESS.get(field)
-        if allowed_roles is not None and account.role not in allowed_roles:
+        if allowed_roles is not None and role not in allowed_roles:
             label = FIELD_LABELS.get(field, field)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

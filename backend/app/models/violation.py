@@ -196,6 +196,7 @@ def _format_account_label(account: object | None) -> str | None:
     from app.models.account import AccountRole  # local import: avoid a hard module-level cycle
 
     role_labels = {
+        AccountRole.SUPER_ADMIN: "Super Admin",
         AccountRole.ADMIN: "Admin",
         AccountRole.PEOPLE_OPS: "People Ops",
         AccountRole.HR: "HR",
