@@ -484,19 +484,23 @@ function UserManagementPage() {
                 </CardTitle>
                 <CardDescription>
                   Attendance Violations normally sends employee notice emails through the Zoho Mail
-                  API. Turn this on while that isn't set up yet — approvers send from their own MS
-                  Outlook instead.
+                  API. Turn this on while that isn't set up yet — approvers send from their own mail
+                  app instead (whichever one is set up on their computer or browser — Outlook, Zoho
+                  Mail, or anything else that can register for mailto: links).
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                   <div>
-                    <p className="text-sm font-medium">Use MS Outlook instead of Zoho Mail</p>
+                    <p className="text-sm font-medium">
+                      Use your own mail app instead of Zoho Mail
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      When on, "Send now" and bulk send open the email in the approver's own Outlook
-                      (via mailto:) and mark the record Sent right away — the app can't confirm
-                      whether it was actually sent from there, so this is a "mark as sent," not a
-                      delivery guarantee. From/Cc become editable at send time either way.
+                      When on, "Send now" and bulk send open the email in whatever's registered as
+                      the approver's default mail app (via mailto:) and mark the record Sent right
+                      away — the app can't confirm whether it was actually sent from there, so this
+                      is a "mark as sent," not a delivery guarantee. From/Cc become editable at send
+                      time either way.
                     </p>
                   </div>
                   <Switch
@@ -505,6 +509,14 @@ function UserManagementPage() {
                     onCheckedChange={handleOutlookToggle}
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Only have Outlook set up, but someone actually uses Zoho Mail? Zoho Mail can
+                  register itself as the browser's default mailto: handler too — in Zoho Mail, go to{" "}
+                  <span className="font-medium">Settings → System → Mail To Handlers</span> and turn
+                  on "Enable Mail To Handler," then allow it when the browser asks. After that,
+                  "Send now" opens Zoho Mail's own compose window instead of Outlook — no app update
+                  needed.
+                </p>
               </CardContent>
             </Card>
           )}

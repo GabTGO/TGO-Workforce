@@ -28,16 +28,22 @@ import { buildMailtoUrl, htmlToPlainText, openMailto } from "@/lib/mailto";
 // Ported from the standalone attendance app's
 // src/components/bulk-send-dialog.tsx.
 //
-// When a Super Admin has turned on "Use MS Outlook" (see
-// backend/app/models/app_settings.py's use_outlook_for_violations),
-// confirming here marks every eligible record Sent via the Outlook
-// alternate path (no Zoho Mail call) and opens one Outlook compose window
-// per record in sequence, staggered slightly so the OS/browser has time to
-// hand each one off before the next fires.
+// When a Super Admin has turned on the mail-app alternate path (see
+// backend/app/models/app_settings.py's use_outlook_for_violations — a plain
+// mailto: link under the hood, so it opens whatever's registered as the
+// sender's default mail app, not necessarily Outlook), confirming here marks
+// every eligible record Sent via that alternate path (no Zoho Mail call) and
+// opens one compose window per record in sequence, staggered slightly so
+// the OS/browser has time to hand each one off before the next fires.
 type Checks = { recipients: boolean; content: boolean; approved: boolean; irreversible: boolean };
-const EMPTY_CHECKS: Checks = { recipients: false, content: false, approved: false, irreversible: false };
+const EMPTY_CHECKS: Checks = {
+  recipients: false,
+  content: false,
+  approved: false,
+  irreversible: false,
+};
 
-const OUTLOOK_OPEN_STAGGER_MS = 500;
+const MAIL_APP_OPEN_STAGGER_MS = 500;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -55,10 +61,14 @@ export function BulkSendDialog({
   onDone: () => void;
 }) {
   const [checks, setChecks] = useState<Checks>(EMPTY_CHECKS);
-  const [openingOutlook, setOpeningOutlook] = useState(false);
+  const [openingMailApp, setOpeningMailApp] = useState(false);
 
-  const eligible = records.filter((r) => r.emailStatus === "Approved" || r.emailStatus === "Resend Approved");
-  const ineligible = records.filter((r) => !(r.emailStatus === "Approved" || r.emailStatus === "Resend Approved"));
+  const eligible = records.filter(
+    (r) => r.emailStatus === "Approved" || r.emailStatus === "Resend Approved",
+  );
+  const ineligible = records.filter(
+    (r) => !(r.emailStatus === "Approved" || r.emailStatus === "Resend Approved"),
+  );
   const ids = eligible.map((r) => r.id);
 
   const { data: previews, isLoading } = useBulkPreviewViolationsQuery(ids, open);
@@ -72,7 +82,7 @@ export function BulkSendDialog({
   const outlookMode = !!appSettings?.useOutlookForViolations;
   const sendMutation = useBulkSendNowViolations();
   const outlookMutation = useBulkSendViaOutlook();
-  const busy = sendMutation.isPending || outlookMutation.isPending || openingOutlook;
+  const busy = sendMutation.isPending || outlookMutation.isPending || openingMailApp;
 
   const resetAndClose = () => {
     setChecks(EMPTY_CHECKS);
@@ -110,11 +120,11 @@ export function BulkSendDialog({
         return;
       }
       toast.success(
-        `Marked ${result.sent.length} as sent — opening ${result.sent.length} Outlook window${
+        `Marked ${result.sent.length} as sent — opening ${result.sent.length} mail app window${
           result.sent.length === 1 ? "" : "s"
         } one at a time.`,
       );
-      setOpeningOutlook(true);
+      setOpeningMailApp(true);
       for (const record of result.sent) {
         openMailto(
           buildMailtoUrl({
@@ -124,11 +134,11 @@ export function BulkSendDialog({
             body: htmlToPlainText(record.bodyPreview ?? ""),
           }),
         );
-        await delay(OUTLOOK_OPEN_STAGGER_MS);
+        await delay(MAIL_APP_OPEN_STAGGER_MS);
       }
-      setOpeningOutlook(false);
+      setOpeningMailApp(false);
     } catch (err) {
-      setOpeningOutlook(false);
+      setOpeningMailApp(false);
       toast.error(err instanceof Error ? err.message : "Couldn't mark these as sent");
     }
   }
@@ -149,12 +159,14 @@ export function BulkSendDialog({
         <DialogHeader>
           <DialogTitle>
             {outlookMode ? "Mark " : "Send "}
-            {eligible.length} email{eligible.length === 1 ? "" : "s"} {outlookMode ? "as sent" : "now"}?
+            {eligible.length} email{eligible.length === 1 ? "" : "s"}{" "}
+            {outlookMode ? "as sent" : "now"}?
           </DialogTitle>
           <DialogDescription>
-            Only Approved / Resend Approved records can be sent this way. Work through the checklist below —
+            Only Approved / Resend Approved records can be sent this way. Work through the checklist
+            below —
             {outlookMode
-              ? " confirming marks every record below Sent and opens each one in your own Outlook to actually send, one window at a time."
+              ? " confirming marks every record below Sent and opens each one in your default mail app to actually send, one window at a time."
               : " confirming sends real emails immediately via Zoho Mail and can't be undone."}
           </DialogDescription>
         </DialogHeader>
@@ -163,8 +175,9 @@ export function BulkSendDialog({
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              Please make sure Outlook is already open before continuing — confirming marks every record
-              below Sent right away and opens one Outlook window per record in sequence.
+              Please make sure your mail app is already open (or that you're signed in, if it's a
+              web app like Zoho Mail) before continuing — confirming marks every record below Sent
+              right away and opens one window per record in sequence.
             </span>
           </div>
         )}
@@ -173,14 +186,17 @@ export function BulkSendDialog({
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              {ineligible.length} of {records.length} selected record{records.length === 1 ? "" : "s"} will be
-              skipped — not Approved: {ineligible.map((r) => r.employeeName).join(", ")}
+              {ineligible.length} of {records.length} selected record
+              {records.length === 1 ? "" : "s"} will be skipped — not Approved:{" "}
+              {ineligible.map((r) => r.employeeName).join(", ")}
             </span>
           </div>
         )}
 
         {eligible.length === 0 ? (
-          <p className="text-sm text-muted-foreground">None of the selected records are Approved, so there's nothing to send.</p>
+          <p className="text-sm text-muted-foreground">
+            None of the selected records are Approved, so there's nothing to send.
+          </p>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
@@ -200,10 +216,15 @@ export function BulkSendDialog({
                 {previews?.map((p) => (
                   <tr key={p.id} className="border-t">
                     <td className="px-3 py-1.5">
-                      {p.employeeName} <span className="text-muted-foreground">({p.employeeEmail})</span>
+                      {p.employeeName}{" "}
+                      <span className="text-muted-foreground">({p.employeeEmail})</span>
                     </td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{p.fromPreview ?? defaultAddress}</td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{p.ccPreview ?? defaultAddress}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">
+                      {p.fromPreview ?? defaultAddress}
+                    </td>
+                    <td className="px-3 py-1.5 text-muted-foreground">
+                      {p.ccPreview ?? defaultAddress}
+                    </td>
                     <td className="max-w-[16rem] truncate px-3 py-1.5">{p.subjectPreview}</td>
                   </tr>
                 ))}
@@ -235,7 +256,7 @@ export function BulkSendDialog({
               onChange={(v) => setChecks((c) => ({ ...c, irreversible: v }))}
               label={
                 outlookMode
-                  ? `I understand this marks ${eligible.length} record${eligible.length === 1 ? "" : "s"} Sent and opens ${eligible.length} Outlook window${eligible.length === 1 ? "" : "s"} for me to actually send, and cannot be undone.`
+                  ? `I understand this marks ${eligible.length} record${eligible.length === 1 ? "" : "s"} Sent and opens ${eligible.length} mail app window${eligible.length === 1 ? "" : "s"} for me to actually send, and cannot be undone.`
                   : `I understand this sends ${eligible.length} real email${eligible.length === 1 ? "" : "s"} immediately (from the sender shown for each record above) and cannot be undone.`
               }
             />
@@ -251,7 +272,7 @@ export function BulkSendDialog({
             onClick={handleConfirm}
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {outlookMode ? `Mark sent & open in Outlook` : `Confirm — send ${eligible.length}`}
+            {outlookMode ? `Mark sent & open mail app` : `Confirm — send ${eligible.length}`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,18 +1,25 @@
-// Backs the "send via Outlook" alternate path for Attendance Violations (see
+// Backs the mail-app alternate path for Attendance Violations (see
 // backend/app/models/app_settings.py's use_outlook_for_violations) — builds a
 // mailto: link from a violation email's rendered preview and hands it off to
-// whatever the browser/OS has registered as the mail client (MS Outlook, in
-// practice, since that's who this was built for).
+// whatever the browser/OS has registered as the default mail client. This was
+// built for (and is still named after) MS Outlook, but a mailto: link isn't
+// Outlook-specific — it opens whatever the person's machine or browser has
+// registered, which can just as easily be Zoho Mail. Someone stuck getting
+// Outlook here who actually wants Zoho Mail doesn't need a code change: in
+// Zoho Mail, Settings → System → Mail To Handlers → "Enable Mail To Handler"
+// registers Zoho Mail itself as the browser's mailto: handler (see
+// https://www.zoho.com/mail/help/defaultcomposer.html), and every mailto:
+// link — including these — opens Zoho Mail's compose window from then on.
 //
 // Two things a mailto: link genuinely cannot do, worth knowing before relying
 // on this:
-//   - There's no standard "from" parameter. Outlook sends from whichever
-//     account is currently selected as default in the compose window — the
+//   - There's no standard "from" parameter. The mail app sends from whichever
+//     account is currently selected as default in its compose window — the
 //     "From" override captured in the UI here is still saved on the record
 //     (for audit/record-keeping and for the next time this record's email is
-//     previewed), but it can't force which mailbox Outlook actually sends
-//     from. The UI must tell the person that explicitly rather than implying
-//     it "just works."
+//     previewed), but it can't force which mailbox the mail app actually
+//     sends from. The UI must tell the person that explicitly rather than
+//     implying it "just works."
 //   - The body must be plain text (mailto has no HTML body concept) — see
 //     htmlToPlainText below, which converts the violation email template's
 //     simple HTML (labeled lines, <br>, <p>) into readable plain text.

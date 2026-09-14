@@ -21,16 +21,41 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogFooter, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ViolationWizard } from "@/components/attendance/violation-wizard";
 import { ImportViolationsDialog } from "@/components/attendance/import-violations-dialog";
 import { BulkDeleteDialog } from "@/components/attendance/bulk-delete-dialog";
 import { BulkSendDialog } from "@/components/attendance/bulk-send-dialog";
 import { DeleteViolationDialog } from "@/components/attendance/delete-violation-dialog";
-import { canEditViolation, EditViolationDialog } from "@/components/attendance/edit-violation-dialog";
-import { SendConfirmDialog, type ConfirmableAction } from "@/components/attendance/send-confirm-dialog";
+import {
+  canEditViolation,
+  EditViolationDialog,
+} from "@/components/attendance/edit-violation-dialog";
+import {
+  SendConfirmDialog,
+  type ConfirmableAction,
+} from "@/components/attendance/send-confirm-dialog";
 import {
   EMAIL_STATUSES,
   OFFICES,
@@ -74,7 +99,8 @@ export const Route = createFileRoute("/attendance-violations")({
       },
       {
         property: "og:description",
-        content: "Attendance violation tracking and email automation for Torero Global Outsourcing HR Operations.",
+        content:
+          "Attendance violation tracking and email automation for Torero Global Outsourcing HR Operations.",
       },
     ],
   }),
@@ -94,24 +120,35 @@ function StatusCell({
 }) {
   const showApprover =
     approvedByName &&
-    (status === "Approved" || status === "Resend Approved" || status === "Sent" || status === "Failed");
-  // "manual_outlook" means this was marked Sent via the MS Outlook alternate
-  // path (backend/app/models/app_settings.py's use_outlook_for_violations) —
-  // never actually confirmed delivered by Zoho, unlike a normal "Sent".
+    (status === "Approved" ||
+      status === "Resend Approved" ||
+      status === "Sent" ||
+      status === "Failed");
+  // "manual_outlook" means this was marked Sent via the mail-app alternate
+  // path (backend/app/models/app_settings.py's use_outlook_for_violations —
+  // a plain mailto: link, so it could have been Outlook, Zoho Mail, or
+  // anything else registered as the sender's default mail app) — never
+  // actually confirmed delivered by Zoho, unlike a normal "Sent".
   const sentViaOutlook = automationResult === "manual_outlook";
   return (
     <div className="flex flex-col gap-0.5">
       {status === "Sent" ? (
         <span
           className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"
-          title={sentViaOutlook ? "Marked as sent via Outlook — not confirmed by automated delivery" : undefined}
+          title={
+            sentViaOutlook
+              ? "Marked as sent via the sender's own mail app — not confirmed by automated delivery"
+              : undefined
+          }
         >
           <CheckCircle2 className="size-3.5" /> {sentViaOutlook ? "Marked as Sent" : "Sent"}
         </span>
       ) : (
         <Badge variant="secondary">{status}</Badge>
       )}
-      {showApprover && <span className="text-[11px] text-muted-foreground">Approved by {approvedByName}</span>}
+      {showApprover && (
+        <span className="text-[11px] text-muted-foreground">Approved by {approvedByName}</span>
+      )}
     </div>
   );
 }
@@ -136,7 +173,10 @@ function AttendanceViolationsPage() {
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [confirmTarget, setConfirmTarget] = useState<{ id: number; action: ConfirmableAction } | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{
+    id: number;
+    action: ConfirmableAction;
+  } | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
@@ -187,7 +227,10 @@ function AttendanceViolationsPage() {
   const transition = useViolationTransition();
 
   function runTransition(id: number, action: TransitionAction) {
-    transition.mutate({ id, action }, { onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed") });
+    transition.mutate(
+      { id, action },
+      { onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed") },
+    );
   }
 
   const exportUrl = exportViolationsUrl(filters, "xlsx");
@@ -218,8 +261,8 @@ function AttendanceViolationsPage() {
               <p className="font-medium">No access</p>
               <p className="text-sm text-muted-foreground">
                 Your account ({account ? ROLE_LABELS[account.role] : "signed out"}) doesn't have
-                access to Attendance Violations. Ask a Super Admin to grant it from the
-                permission matrix on User Management if you need it.
+                access to Attendance Violations. Ask a Super Admin to grant it from the permission
+                matrix on User Management if you need it.
               </p>
             </div>
           </CardContent>
@@ -234,15 +277,23 @@ function AttendanceViolationsPage() {
         title="Attendance Violations"
         description="Track violation records through preparation, approval and automated employee notification."
         badge={
-          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400">
-            {outlookMode ? "In Progress / Using MS Outlook" : "In Progress"}
+          <Badge
+            variant="outline"
+            className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          >
+            {outlookMode ? "In Progress / Using Your Mail App" : "In Progress"}
           </Badge>
         }
       />
 
       {overview && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MetricCard title="Total Records" value={overview.totalRecords} hint="All offices" icon={ClipboardList} />
+          <MetricCard
+            title="Total Records"
+            value={overview.totalRecords}
+            hint="All offices"
+            icon={ClipboardList}
+          />
           <MetricCard
             title="Pending Preparation"
             value={overview.pendingPreparation}
@@ -255,7 +306,12 @@ function AttendanceViolationsPage() {
             hint="Email Prepared"
             icon={ShieldAlert}
           />
-          <MetricCard title="Failed" value={overview.failedCount} hint="Send failures" icon={XCircle} />
+          <MetricCard
+            title="Failed"
+            value={overview.failedCount}
+            hint="Send failures"
+            icon={XCircle}
+          />
         </div>
       )}
 
@@ -390,7 +446,10 @@ function AttendanceViolationsPage() {
                     />
                   </TableCell>
                   <TableCell>
-                    <button className="text-left hover:underline" onClick={() => setSelectedId(r.id)}>
+                    <button
+                      className="text-left hover:underline"
+                      onClick={() => setSelectedId(r.id)}
+                    >
                       {r.employeeName}
                     </button>
                     <div className="text-xs text-muted-foreground">{r.employeeEmail}</div>
@@ -415,41 +474,73 @@ function AttendanceViolationsPage() {
                           <Pencil className="size-3.5" /> Edit
                         </Button>
                       )}
-                      {(r.emailStatus === "Hold" || r.emailStatus === "Needs Correction") && canWrite && (
-                        <Button size="sm" variant="outline" onClick={() => runTransition(r.id, "mark-ready")}>
-                          Mark Ready
-                        </Button>
-                      )}
+                      {(r.emailStatus === "Hold" || r.emailStatus === "Needs Correction") &&
+                        canWrite && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => runTransition(r.id, "mark-ready")}
+                          >
+                            Mark Ready
+                          </Button>
+                        )}
                       {r.emailStatus === "Ready to Prepare" && canWrite && (
-                        <Button size="sm" variant="outline" onClick={() => runTransition(r.id, "prepare")}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => runTransition(r.id, "prepare")}
+                        >
                           Prepare
                         </Button>
                       )}
                       {r.emailStatus === "Email Prepared" && canApprove && (
                         <>
-                          <Button size="sm" onClick={() => setConfirmTarget({ id: r.id, action: "approve" })}>
+                          <Button
+                            size="sm"
+                            onClick={() => setConfirmTarget({ id: r.id, action: "approve" })}
+                          >
                             Approve
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => runTransition(r.id, "hold")}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => runTransition(r.id, "hold")}
+                          >
                             Hold
                           </Button>
-                          <Button size="sm" variant="destructive" onClick={() => runTransition(r.id, "needs-correction")}>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => runTransition(r.id, "needs-correction")}
+                          >
                             Needs Correction
                           </Button>
                         </>
                       )}
-                      {(r.emailStatus === "Approved" || r.emailStatus === "Resend Approved") && canApprove && (
-                        <Button size="sm" onClick={() => setConfirmTarget({ id: r.id, action: "send-now" })}>
-                          Send now
-                        </Button>
-                      )}
+                      {(r.emailStatus === "Approved" || r.emailStatus === "Resend Approved") &&
+                        canApprove && (
+                          <Button
+                            size="sm"
+                            onClick={() => setConfirmTarget({ id: r.id, action: "send-now" })}
+                          >
+                            Send now
+                          </Button>
+                        )}
                       {r.emailStatus === "Sent" && canApprove && (
-                        <Button size="sm" variant="outline" onClick={() => runTransition(r.id, "resend")}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => runTransition(r.id, "resend")}
+                        >
                           Resend
                         </Button>
                       )}
                       {r.emailStatus === "Failed" && canApprove && (
-                        <Button size="sm" variant="outline" onClick={() => setConfirmTarget({ id: r.id, action: "reapprove" })}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfirmTarget({ id: r.id, action: "reapprove" })}
+                        >
                           Re-approve &amp; retry
                         </Button>
                       )}
@@ -481,22 +572,38 @@ function AttendanceViolationsPage() {
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          {total === 0 ? "0 records" : `${page * PAGE_SIZE + 1}–${Math.min(total, (page + 1) * PAGE_SIZE)} of ${total}`}
+          {total === 0
+            ? "0 records"
+            : `${page * PAGE_SIZE + 1}–${Math.min(total, (page + 1) * PAGE_SIZE)} of ${total}`}
         </span>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
             <ChevronLeft className="size-4" /> Previous
           </Button>
           <span>
             Page {page + 1} of {pageCount}
           </span>
-          <Button variant="outline" size="sm" disabled={page + 1 >= pageCount} onClick={() => setPage((p) => p + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page + 1 >= pageCount}
+            onClick={() => setPage((p) => p + 1)}
+          >
             Next <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
 
-      <ViolationWizard recordId={selectedId} open={selectedId !== null} onOpenChange={(open) => !open && setSelectedId(null)} />
+      <ViolationWizard
+        recordId={selectedId}
+        open={selectedId !== null}
+        onOpenChange={(open) => !open && setSelectedId(null)}
+      />
 
       <SendConfirmDialog
         recordId={confirmTarget?.id ?? null}
@@ -568,7 +675,10 @@ function CreateViolationForm({ onCreated }: { onCreated: () => void }) {
     <div className="flex flex-col gap-3">
       <DialogTitle>New violation record</DialogTitle>
       <div className="grid grid-cols-2 gap-3">
-        <Select value={form.office} onValueChange={(v) => setForm((f) => ({ ...f, office: v as Office }))}>
+        <Select
+          value={form.office}
+          onValueChange={(v) => setForm((f) => ({ ...f, office: v as Office }))}
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -580,7 +690,10 @@ function CreateViolationForm({ onCreated }: { onCreated: () => void }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={form.violationType} onValueChange={(v) => setForm((f) => ({ ...f, violationType: v as ViolationType }))}>
+        <Select
+          value={form.violationType}
+          onValueChange={(v) => setForm((f) => ({ ...f, violationType: v as ViolationType }))}
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -623,11 +736,18 @@ function CreateViolationForm({ onCreated }: { onCreated: () => void }) {
       </div>
       <DialogFooter>
         <Button
-          disabled={createMutation.isPending || otherMissing || !form.employeeName || !form.employeeEmail || !form.violationDate}
+          disabled={
+            createMutation.isPending ||
+            otherMissing ||
+            !form.employeeName ||
+            !form.employeeEmail ||
+            !form.violationDate
+          }
           onClick={() =>
             createMutation.mutate(form, {
               onSuccess: onCreated,
-              onError: (err) => toast.error(err instanceof Error ? err.message : "Could not create record"),
+              onError: (err) =>
+                toast.error(err instanceof Error ? err.message : "Could not create record"),
             })
           }
         >

@@ -15,9 +15,21 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { SendConfirmDialog, type ConfirmableAction } from "@/components/attendance/send-confirm-dialog";
-import { canEditViolation, EditViolationDialog } from "@/components/attendance/edit-violation-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  SendConfirmDialog,
+  type ConfirmableAction,
+} from "@/components/attendance/send-confirm-dialog";
+import {
+  canEditViolation,
+  EditViolationDialog,
+} from "@/components/attendance/edit-violation-dialog";
 import type { EmailStatus, ViolationRecordDetail } from "@/data/violation-api";
 import {
   useEmailSenderConfigQuery,
@@ -90,7 +102,9 @@ function Stepper({ status }: { status: EmailStatus }) {
             </span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={cn("mx-2 h-0.5 flex-1 rounded", i < current ? "bg-primary" : "bg-border")} />
+            <div
+              className={cn("mx-2 h-0.5 flex-1 rounded", i < current ? "bg-primary" : "bg-border")}
+            />
           )}
         </div>
       ))}
@@ -103,7 +117,9 @@ function StatusBanner({ record }: { record: ViolationRecordDetail }) {
     return (
       <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
         <PauseCircle className="mt-0.5 size-4 shrink-0" />
-        <span>On hold — the automation will not send this until it's marked Ready to Prepare again.</span>
+        <span>
+          On hold — the automation will not send this until it's marked Ready to Prepare again.
+        </span>
       </div>
     );
   }
@@ -111,7 +127,9 @@ function StatusBanner({ record }: { record: ViolationRecordDetail }) {
     return (
       <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
         <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-        <span>Flagged for correction. Edit the record's details, then mark it Ready to Prepare again.</span>
+        <span>
+          Flagged for correction. Edit the record's details, then mark it Ready to Prepare again.
+        </span>
       </div>
     );
   }
@@ -121,7 +139,9 @@ function StatusBanner({ record }: { record: ViolationRecordDetail }) {
         <AlertTriangle className="mt-0.5 size-4 shrink-0" />
         <div>
           <p className="font-medium">Send failed</p>
-          <p className="mt-0.5 text-destructive/90">{record.automationError || "No error detail was recorded."}</p>
+          <p className="mt-0.5 text-destructive/90">
+            {record.automationError || "No error detail was recorded."}
+          </p>
         </div>
       </div>
     );
@@ -215,7 +235,10 @@ export function ViolationWizard({
         <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {record.employeeName} <span className="font-normal text-muted-foreground">— {record.violationRecordId}</span>
+              {record.employeeName}{" "}
+              <span className="font-normal text-muted-foreground">
+                — {record.violationRecordId}
+              </span>
             </DialogTitle>
             <DialogDescription>
               {record.violationTypeLabel} · {record.office} · {record.violationDate}
@@ -242,17 +265,20 @@ export function ViolationWizard({
                   </div>
                   {record.createdByName && (
                     <div>
-                      <span className="text-muted-foreground">Created by:</span> {record.createdByName}
+                      <span className="text-muted-foreground">Created by:</span>{" "}
+                      {record.createdByName}
                     </div>
                   )}
                   {record.approvedByName && (
                     <div>
-                      <span className="text-muted-foreground">Approved by:</span> {record.approvedByName}
+                      <span className="text-muted-foreground">Approved by:</span>{" "}
+                      {record.approvedByName}
                     </div>
                   )}
                   {record.fromAddress && (
                     <div>
-                      <span className="text-muted-foreground">From override:</span> {record.fromAddress}
+                      <span className="text-muted-foreground">From override:</span>{" "}
+                      {record.fromAddress}
                     </div>
                   )}
                   {record.ccAddresses && (
@@ -263,7 +289,12 @@ export function ViolationWizard({
                 </div>
 
                 {canEditViolation(status) && canWrite && (
-                  <Button variant="outline" size="sm" className="w-fit" onClick={() => setEditOpen(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    onClick={() => setEditOpen(true)}
+                  >
                     <Pencil className="size-3.5" /> Edit details
                   </Button>
                 )}
@@ -276,16 +307,23 @@ export function ViolationWizard({
                         : "The automation will validate this record and generate the email content."}
                     </p>
                     {canWrite ? (
-                      <Button disabled={busy} onClick={() => runTransition(status === "Draft" ? "mark-ready" : "prepare")}>
+                      <Button
+                        disabled={busy}
+                        onClick={() => runTransition(status === "Draft" ? "mark-ready" : "prepare")}
+                      >
                         {status === "Draft" ? "Mark Ready to Prepare" : "Prepare email"}
                       </Button>
                     ) : (
-                      <p className="text-xs text-muted-foreground">You don't have permission to advance this record.</p>
+                      <p className="text-xs text-muted-foreground">
+                        You don't have permission to advance this record.
+                      </p>
                     )}
                   </div>
                 )}
 
-                {(status === "Email Prepared" || status === "Hold" || status === "Needs Correction") && (
+                {(status === "Email Prepared" ||
+                  status === "Hold" ||
+                  status === "Needs Correction") && (
                   <div className="flex flex-col gap-3">
                     {status === "Email Prepared" &&
                       (canApprove ? (
@@ -293,16 +331,25 @@ export function ViolationWizard({
                           <Button disabled={busy} onClick={() => setPendingAction("approve")}>
                             Approve
                           </Button>
-                          <Button variant="outline" disabled={busy} onClick={() => runTransition("hold")}>
+                          <Button
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => runTransition("hold")}
+                          >
                             Hold
                           </Button>
-                          <Button variant="destructive" disabled={busy} onClick={() => runTransition("needs-correction")}>
+                          <Button
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() => runTransition("needs-correction")}
+                          >
                             Needs Correction
                           </Button>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">
-                          Awaiting review — you don't have permission to approve, hold, or flag this record.
+                          Awaiting review — you don't have permission to approve, hold, or flag this
+                          record.
                         </p>
                       ))}
                     {(status === "Hold" || status === "Needs Correction") &&
@@ -311,7 +358,9 @@ export function ViolationWizard({
                           Mark Ready to Prepare again
                         </Button>
                       ) : (
-                        <p className="text-xs text-muted-foreground">You don't have permission to resume this record.</p>
+                        <p className="text-xs text-muted-foreground">
+                          You don't have permission to resume this record.
+                        </p>
                       ))}
                   </div>
                 )}
@@ -329,7 +378,9 @@ export function ViolationWizard({
                         <Send className="size-4" /> Send now
                       </Button>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Awaiting an approver to send this email.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Awaiting an approver to send this email.
+                      </p>
                     )}
                   </div>
                 )}
@@ -345,8 +396,8 @@ export function ViolationWizard({
                         </p>
                         {record.automationResult === "manual_outlook" ? (
                           <p className="mt-0.5">
-                            To {record.sentTo} · Sent manually via Outlook — not confirmed by automated
-                            delivery.
+                            To {record.sentTo} · Sent manually via the sender's own mail app — not
+                            confirmed by automated delivery.
                           </p>
                         ) : (
                           <p className="mt-0.5">
@@ -356,7 +407,11 @@ export function ViolationWizard({
                       </div>
                     </div>
                     {canApprove && (
-                      <Button variant="outline" disabled={busy} onClick={() => runTransition("resend")}>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => runTransition("resend")}
+                      >
                         <RotateCcw className="size-4" /> Resend
                       </Button>
                     )}
@@ -405,12 +460,20 @@ export function ViolationWizard({
           const action = pendingAction === "send-now" ? "send-now" : "approve";
           transition.mutate(
             { id: currentRecord.id, action },
-            { onSuccess: () => setPendingAction(null), onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed") },
+            {
+              onSuccess: () => setPendingAction(null),
+              onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed"),
+            },
           );
         }}
       />
 
-      <EditViolationDialog record={record} open={editOpen} onOpenChange={setEditOpen} onSaved={() => {}} />
+      <EditViolationDialog
+        record={record}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={() => {}}
+      />
     </>
   );
 }

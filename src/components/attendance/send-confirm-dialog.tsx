@@ -14,12 +14,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { EmailChipInput } from "@/components/attendance/email-chip-input";
 import { useAppSettingsQuery } from "@/data/app-settings-store";
-import { useEmailSenderConfigQuery, useSendViaOutlook, useViolationQuery } from "@/data/violation-store";
+import {
+  useEmailSenderConfigQuery,
+  useSendViaOutlook,
+  useViolationQuery,
+} from "@/data/violation-store";
 import { buildMailtoUrl, htmlToPlainText, openMailto } from "@/lib/mailto";
 
 export type ConfirmableAction = "approve" | "send-now" | "reapprove";
 
-const ACTION_COPY: Record<ConfirmableAction, { title: string; confirmLabel: string; note: string }> = {
+const ACTION_COPY: Record<
+  ConfirmableAction,
+  { title: string; confirmLabel: string; note: string }
+> = {
   approve: {
     title: "Approve this email?",
     confirmLabel: "Approve",
@@ -43,15 +50,19 @@ const ACTION_COPY: Record<ConfirmableAction, { title: string; confirmLabel: stri
 // sender seeing the exact rendered email first. Ported from the standalone
 // attendance app's src/components/send-confirm-dialog.tsx.
 //
-// When a Super Admin has turned on "Use MS Outlook" (see
-// backend/app/models/app_settings.py's use_outlook_for_violations) and this
-// is specifically the "send-now" action, this dialog switches to a
-// different flow entirely: instead of delegating to the parent's onConfirm
-// (which fires the normal Zoho Mail send), it lets the sender adjust
-// From/Cc right here, marks the record Sent via the Outlook alternate path
-// itself, and opens the composed email in the sender's own Outlook. Approve
-// and Re-approve are untouched by the toggle either way — neither of those
-// ever sends an email directly (see backend/app/api/routes/violations.py).
+// When a Super Admin has turned on the mail-app alternate path (see
+// backend/app/models/app_settings.py's use_outlook_for_violations — named
+// for who first asked for it, but it's a plain mailto: link under the hood,
+// so it opens whatever's registered as the sender's default mail app, not
+// necessarily Outlook — Zoho Mail can register for this too, see its own
+// "Mail To Handlers" setting) and this is specifically the "send-now"
+// action, this dialog switches to a different flow entirely: instead of
+// delegating to the parent's onConfirm (which fires the normal Zoho Mail
+// send), it lets the sender adjust From/Cc right here, marks the record
+// Sent via the alternate path itself, and opens the composed email in the
+// sender's own mail app. Approve and Re-approve are untouched by the toggle
+// either way — neither of those ever sends an email directly (see
+// backend/app/api/routes/violations.py).
 export function SendConfirmDialog({
   recordId,
   action,
@@ -115,7 +126,7 @@ export function SendConfirmDialog({
         body: htmlToPlainText(updated.bodyPreview ?? ""),
       });
       openMailto(url);
-      toast.success("Marked as sent — finish it from the Outlook window that just opened.");
+      toast.success("Marked as sent — finish it from the mail app window that just opened.");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't mark this as sent");
@@ -128,10 +139,12 @@ export function SendConfirmDialog({
     <Dialog open={open} onOpenChange={(next) => !busy && !outlookBusy && onOpenChange(next)}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{outlookMode ? "Send this email via Outlook?" : copy.title}</DialogTitle>
+          <DialogTitle>
+            {outlookMode ? "Send this email via your mail app?" : copy.title}
+          </DialogTitle>
           <DialogDescription>
             {outlookMode
-              ? "This marks the record Sent and opens it in your own Outlook to actually send — nothing goes through Zoho Mail."
+              ? "This marks the record Sent and opens it in your default mail app (Outlook, Zoho Mail, or whatever's registered) to actually send — nothing goes through Zoho Mail's API."
               : copy.note}
           </DialogDescription>
         </DialogHeader>
@@ -172,11 +185,14 @@ export function SendConfirmDialog({
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
               <span>
-                Please make sure Outlook is already open before continuing — this marks the record Sent
-                right away, so it's easiest to have the compose window land somewhere you'll actually see it.
+                Please make sure your mail app is already open (or that you're signed in, if it's a
+                web app like Zoho Mail) before continuing — this marks the record Sent right away,
+                so it's easiest to have the compose window land somewhere you'll actually see it.
               </span>
             </div>
-            <p className="text-xs font-medium text-muted-foreground">Before opening Outlook</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              Before opening your mail app
+            </p>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground">Send from</label>
               <Input
@@ -186,14 +202,18 @@ export function SendConfirmDialog({
                 onChange={(e) => setFromOverride(e.target.value)}
               />
               <p className="text-[11px] text-muted-foreground">
-                Outlook sends from whichever account you're signed into there — this just records who this
-                should have gone out as. Switch mailboxes in Outlook itself before sending if it needs to
-                match.
+                Your mail app sends from whichever account you're signed into there — this just
+                records who this should have gone out as. Switch accounts there yourself before
+                sending if it needs to match.
               </p>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground">Additional Cc addresses</label>
-              <EmailChipInput value={ccOverride} onChange={setCcOverride} placeholder="Type an email…" />
+              <EmailChipInput
+                value={ccOverride}
+                onChange={setCcOverride}
+                placeholder="Type an email…"
+              />
               <p className="text-[11px] text-muted-foreground">
                 The default sender always stays Cc'd regardless — these are added on top of it.
               </p>
@@ -202,13 +222,24 @@ export function SendConfirmDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={busy || outlookBusy} onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            disabled={busy || outlookBusy}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           {outlookMode ? (
-            <Button disabled={outlookBusy || !record || waitingOnSettings} onClick={handleOutlookConfirm}>
-              {outlookBusy ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
-              Open in Outlook
+            <Button
+              disabled={outlookBusy || !record || waitingOnSettings}
+              onClick={handleOutlookConfirm}
+            >
+              {outlookBusy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ExternalLink className="size-4" />
+              )}
+              Open in mail app
             </Button>
           ) : (
             <Button disabled={busy || !record || waitingOnSettings} onClick={onConfirm}>

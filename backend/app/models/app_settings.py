@@ -31,14 +31,21 @@ class AppSettings(Base):
     # An alternative to Zoho Mail while the attendance team's Zoho Mail API
     # credentials aren't set up yet (see zoho_mail_* in app/core/config.py —
     # all empty by default). When on, POST /violations/{id}/send-now and
-    # /bulk-send-now are replaced in the UI by a "send via Outlook" flow: the
-    # approver opens the record's email in their own MS Outlook (pre-filled
-    # via a mailto: link) and sends it there themselves — see
-    # /violations/{id}/send-via-outlook, which marks the record Sent
-    # (automation_result="manual_outlook") without ever calling the Zoho Mail
-    # API, since the app has no way to confirm what actually happened in
-    # Outlook. Off by default (today's behavior: send-now/bulk-send-now call
-    # Zoho Mail directly).
+    # /bulk-send-now are replaced in the UI by a "send via your mail app"
+    # flow: the approver opens the record's email in whatever's registered as
+    # their default mail app (pre-filled via a mailto: link) and sends it
+    # there themselves — see /violations/{id}/send-via-outlook, which marks
+    # the record Sent (automation_result="manual_outlook") without ever
+    # calling the Zoho Mail API, since the app has no way to confirm what
+    # actually happened in that mail app. Named/routed for MS Outlook (who
+    # this was originally built for), but a mailto: link isn't Outlook-
+    # specific — it opens whichever app is the registered default handler,
+    # which can just as easily be Zoho Mail itself (Zoho Mail has its own
+    # "Mail To Handlers" setting to register for this — see
+    # https://www.zoho.com/mail/help/defaultcomposer.html — so someone who
+    # wants Zoho Mail instead of Outlook here doesn't need a code change).
+    # Off by default (today's behavior: send-now/bulk-send-now call Zoho Mail
+    # directly).
     use_outlook_for_violations: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
