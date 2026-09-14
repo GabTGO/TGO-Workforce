@@ -167,9 +167,6 @@ export function AppSidebar() {
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight">
-                Torero Global Outsourcing
-              </p>
               <p className="truncate text-xs uppercase tracking-wide text-muted-foreground">
                 HR Operations
               </p>
