@@ -189,29 +189,6 @@ require_employee_writer = require_permission(Permission.EMPLOYEES_MANAGE)
 require_onboarding_writer = require_permission(Permission.ONBOARDING_MANAGE)
 
 
-# --- TEMPORARY: Attendance Violations is still in progress -----------------
-# While this module is being built and tested, every write/approve/delete
-# action is restricted to a single developer account regardless of role —
-# everyone else can still view records (the plain view-permission dependency
-# below is untouched by this), but any attempt to create, edit, prepare,
-# approve, hold, send, import, or delete gets this message instead. To lift
-# the restriction once the module is ready for general HR/Projects use:
-# delete this constant, this function, and its three call sites below
-# (require_violation_writer, require_violation_approver, require_violation_admin).
-ATTENDANCE_DEV_ONLY_EMAIL = "gabriel.battung@tgocorp.com"
-
-
-def _require_attendance_in_progress_dev(account: Account) -> None:
-    if account.email.lower() != ATTENDANCE_DEV_ONLY_EMAIL.lower():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Attendance Violations is still in progress — only the developer "
-                "account is authorized to do that right now."
-            ),
-        )
-
-
 async def require_violation_writer(
     account: Account = Depends(require_account),
     db: AsyncSession = Depends(get_db),
@@ -222,8 +199,7 @@ async def require_violation_writer(
     adds/updates the tracker row; that doesn't have to be HR itself). Gated
     on Permission.ATTENDANCE_MANAGE (matrix-configurable — HR and Projects
     both hold it by default); only HR can actually approve/send — see
-    require_violation_approver below. Also temporarily dev-only — see above."""
-    _require_attendance_in_progress_dev(account)
+    require_violation_approver below."""
     role = get_effective_role(account, request)
     if not await has_permission(db, account, Permission.ATTENDANCE_MANAGE, role=role):
         raise HTTPException(
@@ -243,8 +219,7 @@ async def require_violation_approver(
     attendance violation email without an explicit HR approval status."
     Gated on Permission.ATTENDANCE_APPROVE (matrix-configurable — only HR
     holds it by default; Projects can prepare a record but never approve its
-    own submission). Also temporarily dev-only — see above."""
-    _require_attendance_in_progress_dev(account)
+    own submission)."""
     role = get_effective_role(account, request)
     if not await has_permission(db, account, Permission.ATTENDANCE_APPROVE, role=role):
         raise HTTPException(
@@ -254,12 +229,8 @@ async def require_violation_approver(
     return account
 
 
-async def require_violation_admin(
-    account: Account = Depends(require_admin),
-) -> Account:
-    """Same as require_admin, plus the temporary in-progress gate above — used
-    in place of plain require_admin for violations.py's hard-delete routes
-    only, so this module-specific restriction doesn't leak into /accounts or
-    any other admin-only route that also depends on require_admin."""
-    _require_attendance_in_progress_dev(account)
-    return account
+# Same as require_admin — a distinct name (rather than routes depending on
+# require_admin directly) just for symmetry with require_violation_writer/
+# require_violation_approver above, so violations.py's three auth tiers read
+# as one family of module-specific dependencies.
+require_violation_admin = require_admin

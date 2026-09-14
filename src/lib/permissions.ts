@@ -23,10 +23,7 @@
 import type { AccountProfile, AccountRole, Permission } from "@/lib/session";
 
 // Mirrors FULL_ACCESS_ROLES in backend/app/services/permissions.py.
-export const FULL_ACCESS_ROLES: ReadonlySet<AccountRole> = new Set([
-  "admin",
-  "super_admin",
-]);
+export const FULL_ACCESS_ROLES: ReadonlySet<AccountRole> = new Set(["admin", "super_admin"]);
 
 export function isFullAccessRole(role: AccountRole | undefined): boolean {
   return !!role && FULL_ACCESS_ROLES.has(role);
@@ -121,12 +118,7 @@ export function canManageAwards(permissions: Permission[] | undefined): boolean 
 const ONBOARDING_FIELD_ACCESS: Record<string, ReadonlySet<AccountRole>> = {
   joDiscussion: new Set(["admin", "super_admin", "recruitment_lead"]),
   confirmationSigned: new Set(["admin", "super_admin", "recruitment_lead"]),
-  welcomeEmailSent: new Set([
-    "admin",
-    "super_admin",
-    "recruitment_lead",
-    "onboarding_specialist",
-  ]),
+  welcomeEmailSent: new Set(["admin", "super_admin", "recruitment_lead", "onboarding_specialist"]),
   newHireInfo: new Set(["admin", "super_admin", "onboarding_specialist"]),
   idPhoto: new Set(["admin", "super_admin", "onboarding_specialist"]),
   credentialsCreated: new Set(["admin", "super_admin", "onboarding_specialist"]),
@@ -138,23 +130,4 @@ export function canEditOnboardingField(
   field: keyof typeof ONBOARDING_FIELD_ACCESS,
 ): boolean {
   return !!role && (ONBOARDING_FIELD_ACCESS[field]?.has(role) ?? false);
-}
-
-// --- TEMPORARY: Attendance Violations is still in progress -----------------
-// Mirrors backend/app/core/auth.py's _require_attendance_in_progress_dev —
-// that's the enforced version of this same check (every write/approve/
-// delete endpoint 403s for anyone but this email, regardless of role); this
-// copy is just the UI-side hint so the buttons everyone still sees (per
-// canManageAttendance/canApproveAttendance above) can show a clear message
-// on click instead of a raw network-error toast. To lift the restriction
-// once the module is ready for general HR/Projects use: delete this
-// constant, isAttendanceDevOnlyBlocked, and its call sites in
-// src/data/violation-store.ts.
-export const ATTENDANCE_DEV_ONLY_EMAIL = "gabriel.battung@tgocorp.com";
-
-export const ATTENDANCE_IN_PROGRESS_MESSAGE =
-  "Attendance Violations is still in progress — only the developer account is authorized to do that right now.";
-
-export function isAttendanceDevOnlyBlocked(email: string | undefined): boolean {
-  return (email ?? "").toLowerCase() !== ATTENDANCE_DEV_ONLY_EMAIL.toLowerCase();
 }

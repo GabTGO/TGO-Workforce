@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Users,
@@ -15,7 +16,12 @@ import {
   Send,
   CircleAlert,
   Trophy,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
@@ -23,13 +29,13 @@ import { MetricCard } from "@/components/metric-card";
 import { HeadcountTrendChart } from "@/components/workforce-charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -54,6 +60,11 @@ import {
 import { computeStatus } from "@/data/new-hire-api";
 import { useNewHires } from "@/data/new-hire-store";
 import { useViolationsQuery } from "@/data/violation-store";
+import {
+  exportAnalyticsPdf,
+  exportAnalyticsXlsx,
+  type AnalyticsExportData,
+} from "@/lib/analytics-export";
 import { useCurrentAccount } from "@/lib/session";
 import {
   canManageEmployees,
@@ -89,8 +100,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Dashboard — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
-        content:
-          "Live workforce metrics for TGO automation and AI operations teams.",
+        content: "Live workforce metrics for TGO automation and AI operations teams.",
       },
     ],
   }),
@@ -136,7 +146,9 @@ function Dashboard() {
   const recentExits = employees
     .flatMap((e) => {
       if (!e.exitDate) return [];
-      const daysAgo = Math.round((Date.now() - parseCalendarDate(e.exitDate).getTime()) / 86_400_000);
+      const daysAgo = Math.round(
+        (Date.now() - parseCalendarDate(e.exitDate).getTime()) / 86_400_000,
+      );
       return daysAgo >= 0 && daysAgo <= RECENT_MILESTONE_DAYS ? [{ ...e, daysAgo }] : [];
     })
     .sort((a, b) => a.daysAgo - b.daysAgo);
@@ -144,7 +156,9 @@ function Dashboard() {
   const awards = useAwards(canViewAwardsModule);
   const recentAwards = awards
     .flatMap((a) => {
-      const daysAgo = Math.round((Date.now() - parseCalendarDate(a.awardedDate).getTime()) / 86_400_000);
+      const daysAgo = Math.round(
+        (Date.now() - parseCalendarDate(a.awardedDate).getTime()) / 86_400_000,
+      );
       return daysAgo >= 0 && daysAgo <= RECENT_MILESTONE_DAYS ? [{ ...a, daysAgo }] : [];
     })
     .sort((a, b) => a.daysAgo - b.daysAgo);
@@ -165,9 +179,7 @@ function Dashboard() {
   const violations = violationsPage?.items ?? [];
   const violationStats = {
     total: violationsPage?.total ?? violations.length,
-    pending: violations.filter(
-      (v) => !["Sent", "Failed"].includes(v.emailStatus),
-    ).length,
+    pending: violations.filter((v) => !["Sent", "Failed"].includes(v.emailStatus)).length,
     sent: violations.filter((v) => v.emailStatus === "Sent").length,
     failed: violations.filter((v) => v.emailStatus === "Failed").length,
   };
@@ -183,6 +195,116 @@ function Dashboard() {
   const showAnniversaries = canViewMilestonesModule && (account?.notify_anniversaries ?? true);
   const showBirthdaysCard = canViewMilestonesModule && (account?.notify_birthdays ?? true);
   const showAwardsCard = canViewAwardsModule;
+
+  const [exporting, setExporting] = useState(false);
+
+  // "Export All Data" — a raw, unfiltered dump of every module the signed-in
+  // role can already see on this page, as full record-level tables rather
+  // than the dashboard's own recent-activity windows. Each section is gated
+  // on exactly the same permission the corresponding card above already
+  // checks, so this never hands out a table the viewer couldn't otherwise
+  // see — it's the same data, just as a downloadable file instead of a
+  // paginated mini-table. Reuses Analytics' export engine (same design:
+  // dark header band, striped rows) rather than a second implementation.
+  function buildExportData(): AnalyticsExportData {
+    const summary: { label: string; value: string | number }[] = [];
+    const sections: AnalyticsExportData["sections"] = [];
+
+    if (canViewEmployeesModule) {
+      summary.push(
+        { label: "Total Employees", value: employees.length },
+        { label: "Active", value: m.active },
+        { label: "Resigned", value: resignedCount },
+        { label: "Terminated", value: terminatedCount },
+      );
+      sections.push({
+        title: "Employees",
+        columns: ["Name", "Office", "Department", "Position", "Status", "Start Date", "Exit Date"],
+        rows: employees.map((e) => [
+          e.name,
+          e.office,
+          e.department,
+          e.position,
+          e.status,
+          formatDate(e.startDate),
+          formatDate(e.exitDate),
+        ]),
+      });
+    }
+
+    if (isFullAccess) {
+      sections.push({
+        title: "Office Distribution",
+        columns: ["Office", "Active", "Inactive"],
+        rows: dist.map((d) => [d.office, d.active, d.inactive]),
+      });
+    }
+
+    if (canViewOnboardingModule) {
+      summary.push(
+        { label: "New Hires Tracked", value: onboardingStats.total },
+        { label: "Onboarding In Progress", value: onboardingStats.inProgress },
+        { label: "Onboarding Complete", value: onboardingStats.complete },
+      );
+      sections.push({
+        title: "New Hires (Onboarding)",
+        columns: ["Name", "Onboarding Status", "Start Date"],
+        rows: newHires.map((h) => [h.name, computeStatus(h), formatDate(h.startDate)]),
+      });
+    }
+
+    if (canViewAttendanceModule) {
+      summary.push(
+        { label: "Attendance Records", value: violationStats.total },
+        { label: "Pending", value: violationStats.pending },
+        { label: "Sent", value: violationStats.sent },
+        { label: "Failed", value: violationStats.failed },
+      );
+      sections.push({
+        title: "Attendance Violations",
+        columns: ["Employee", "Office", "Violation Type", "Date", "Email Status"],
+        rows: violations.map((v) => [
+          v.employeeName,
+          v.office,
+          v.violationTypeLabel,
+          formatDate(v.violationDate),
+          v.emailStatus,
+        ]),
+      });
+    }
+
+    if (showAwardsCard) {
+      summary.push({ label: "Awards Given (all-time)", value: awards.length });
+      sections.push({
+        title: "Recognition & Awards",
+        columns: ["Employee", "Office", "Award", "Given By", "Date"],
+        rows: awards.map((a) => [
+          a.employeeName,
+          a.employeeOffice,
+          a.title,
+          a.awardedByLabel,
+          formatDate(a.awardedDate),
+        ]),
+      });
+    }
+
+    return { filterLines: [], summary, sections };
+  }
+
+  async function handleExport(format: "xlsx" | "pdf") {
+    setExporting(true);
+    try {
+      const data = buildExportData();
+      if (format === "xlsx") await exportAnalyticsXlsx(data, "TGO_Dashboard_Full_Export");
+      else await exportAnalyticsPdf(data, "TGO_Dashboard_Full_Export");
+      toast.success(`All data exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -201,6 +323,26 @@ function Dashboard() {
                 Open directory <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exporting}>
+                  {exporting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Export All Data
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("xlsx")}>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Export as Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("pdf")}>
+                  <FileText className="mr-2 h-4 w-4" /> Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       />
@@ -234,7 +376,12 @@ function Dashboard() {
                       {recentNewHires.map((e) => {
                         const daysAgo = tenureDays(e.startDate);
                         return (
-                          <TableRow key={e.id} className={daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                          <TableRow
+                            key={e.id}
+                            className={
+                              daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                            }
+                          >
                             <TableCell className="font-medium">{e.name}</TableCell>
                             <TableCell className="text-muted-foreground">{e.office}</TableCell>
                             <TableCell className="text-right text-muted-foreground">
@@ -260,7 +407,9 @@ function Dashboard() {
                   <Award className="h-4 w-4 text-muted-foreground" />
                   Anniversaries ({RECENT_MILESTONE_DAYS} days)
                 </CardTitle>
-                <CardDescription>Work anniversaries in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+                <CardDescription>
+                  Work anniversaries in the last {RECENT_MILESTONE_DAYS} days
+                </CardDescription>
               </CardHeader>
               <CardContent className="max-h-80 overflow-y-auto p-0">
                 {recentAnniversaries.length === 0 ? (
@@ -278,7 +427,12 @@ function Dashboard() {
                     </TableHeader>
                     <TableBody>
                       {recentAnniversaries.map((e) => (
-                        <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                        <TableRow
+                          key={e.id}
+                          className={
+                            e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                          }
+                        >
                           <TableCell>
                             <p className="font-medium">{e.name}</p>
                             <p className="text-xs text-muted-foreground">{e.department}</p>
@@ -308,7 +462,9 @@ function Dashboard() {
                   <Cake className="h-4 w-4 text-muted-foreground" />
                   Birthdays ({RECENT_MILESTONE_DAYS} days)
                 </CardTitle>
-                <CardDescription>Celebrations in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+                <CardDescription>
+                  Celebrations in the last {RECENT_MILESTONE_DAYS} days
+                </CardDescription>
               </CardHeader>
               <CardContent className="max-h-80 overflow-y-auto p-0">
                 {recentBirthdays.length === 0 ? (
@@ -326,7 +482,12 @@ function Dashboard() {
                     </TableHeader>
                     <TableBody>
                       {recentBirthdays.map((e) => (
-                        <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                        <TableRow
+                          key={e.id}
+                          className={
+                            e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                          }
+                        >
                           <TableCell className="font-medium">{e.name}</TableCell>
                           <TableCell className="text-muted-foreground">{e.office}</TableCell>
                           <TableCell className="text-right text-muted-foreground">
@@ -351,7 +512,9 @@ function Dashboard() {
                   <Trophy className="h-4 w-4 text-muted-foreground" />
                   Awards ({RECENT_MILESTONE_DAYS} days)
                 </CardTitle>
-                <CardDescription>Recognition given in the last {RECENT_MILESTONE_DAYS} days</CardDescription>
+                <CardDescription>
+                  Recognition given in the last {RECENT_MILESTONE_DAYS} days
+                </CardDescription>
               </CardHeader>
               <CardContent className="max-h-80 overflow-y-auto p-0">
                 {recentAwards.length === 0 ? (
@@ -369,7 +532,12 @@ function Dashboard() {
                     </TableHeader>
                     <TableBody>
                       {recentAwards.map((a) => (
-                        <TableRow key={a.id} className={a.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                        <TableRow
+                          key={a.id}
+                          className={
+                            a.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                          }
+                        >
                           <TableCell>
                             <p className="font-medium">{a.employeeName}</p>
                             <p className="text-xs text-muted-foreground">{a.employeeOffice}</p>
@@ -421,14 +589,21 @@ function Dashboard() {
                   </TableHeader>
                   <TableBody>
                     {recentExits.map((e) => (
-                      <TableRow key={e.id} className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}>
+                      <TableRow
+                        key={e.id}
+                        className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}
+                      >
                         <TableCell className="font-medium">{e.name}</TableCell>
                         <TableCell>
-                          <Badge variant={EXIT_STATUS_VARIANT[e.status] ?? "secondary"}>{e.status}</Badge>
+                          <Badge variant={EXIT_STATUS_VARIANT[e.status] ?? "secondary"}>
+                            {e.status}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{e.office}</TableCell>
                         <TableCell className="text-muted-foreground">{e.department}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatDate(e.exitDate)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDate(e.exitDate)}
+                        </TableCell>
                         <TableCell className="text-right text-muted-foreground">
                           {e.daysAgo === 0 ? "today" : `${e.daysAgo} days`}
                         </TableCell>
@@ -443,54 +618,55 @@ function Dashboard() {
       )}
 
       {isFullAccess && (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <MetricCard
-          title="Active Employees"
-          value={m.active}
-          hint="Currently employed"
-          icon={Users}
-        />
-        <MetricCard
-          title="Resigned"
-          value={resignedCount}
-          hint="Voluntarily left"
-          icon={UserMinus}
-        />
-        <MetricCard
-          title="Terminated"
-          value={terminatedCount}
-          hint="Involuntarily separated"
-          icon={UserX}
-        />
-        <MetricCard
-          title="New Hires"
-          value={recentNewHires.length}
-          hint={`Started in last ${RECENT_HIRE_DAYS} days`}
-          icon={UserPlus}
-        />
-        <MetricCard
-          title="Exits"
-          value={recentExits.length}
-          hint={`Departures in last ${RECENT_MILESTONE_DAYS} days`}
-          icon={LogOut}
-        />
-        <MetricCard
-          title="PH Eastwood (Active)"
-          value={m.eastwood}
-          hint="Manila delivery hub"
-          icon={Building2}
-        />
-        <MetricCard
-          title="CO Medellin (Active)"
-          value={m.medellin}
-          hint="LATAM delivery hub"
-          icon={Globe2}
-        />
-      </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <MetricCard
+            title="Active Employees"
+            value={m.active}
+            hint="Currently employed"
+            icon={Users}
+          />
+          <MetricCard
+            title="Resigned"
+            value={resignedCount}
+            hint="Voluntarily left"
+            icon={UserMinus}
+          />
+          <MetricCard
+            title="Terminated"
+            value={terminatedCount}
+            hint="Involuntarily separated"
+            icon={UserX}
+          />
+          <MetricCard
+            title="New Hires"
+            value={recentNewHires.length}
+            hint={`Started in last ${RECENT_HIRE_DAYS} days`}
+            icon={UserPlus}
+          />
+          <MetricCard
+            title="Exits"
+            value={recentExits.length}
+            hint={`Departures in last ${RECENT_MILESTONE_DAYS} days`}
+            icon={LogOut}
+          />
+          <MetricCard
+            title="PH Eastwood (Active)"
+            value={m.eastwood}
+            hint="Manila delivery hub"
+            icon={Building2}
+          />
+          <MetricCard
+            title="CO Medellin (Active)"
+            value={m.medellin}
+            hint="LATAM delivery hub"
+            icon={Globe2}
+          />
+        </div>
       )}
 
       {(isFullAccess && (canViewOnboardingModule || canViewAttendanceModule)) ||
-      (!isFullAccess && (canViewEmployeesModule || canViewOnboardingModule || canViewAttendanceModule)) ? (
+      (!isFullAccess &&
+        (canViewEmployeesModule || canViewOnboardingModule || canViewAttendanceModule)) ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {!isFullAccess && canViewEmployeesModule && (
             <Card>
@@ -613,15 +789,11 @@ function Dashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Hub Utilisation</CardTitle>
-              <CardDescription>
-                Share of total workforce per office
-              </CardDescription>
+              <CardDescription>Share of total workforce per office</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {dist.map((d) => {
-                const pct = total
-                  ? Math.round(((d.active + d.inactive) / total) * 100)
-                  : 0;
+                const pct = total ? Math.round(((d.active + d.inactive) / total) * 100) : 0;
                 return (
                   <div key={d.office} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">

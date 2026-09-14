@@ -1,6 +1,17 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Download, FileSpreadsheet, FileText, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,6 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -32,7 +45,11 @@ import {
   StatusDistributionChart,
   TenureDistributionChart,
 } from "@/components/workforce-charts";
-import { exportAnalyticsPdf, exportAnalyticsXlsx, type AnalyticsExportData } from "@/lib/analytics-export";
+import {
+  exportAnalyticsPdf,
+  exportAnalyticsXlsx,
+  type AnalyticsExportData,
+} from "@/lib/analytics-export";
 import {
   DEPARTMENTS,
   OFFICES,
@@ -53,9 +70,15 @@ import { useNewHires } from "@/data/new-hire-store";
 import {
   OFFICES as VIOLATION_OFFICES,
   VIOLATION_TYPES,
+  EMAIL_STATUSES,
+  type EmailStatus,
   type ViolationRecord,
 } from "@/data/violation-api";
 import { useViolationsQuery } from "@/data/violation-store";
+import { useAwards } from "@/data/award-store";
+import type { Award } from "@/data/award-api";
+import { useFeedbackQuery } from "@/data/feedback-store";
+import type { Feedback, FeedbackStatus, FeedbackType } from "@/data/feedback-api";
 import { ROLE_LABELS } from "@/lib/roles";
 import { useCurrentAccount } from "@/lib/session";
 import { getEffectiveRole, isFullAccessRole } from "@/lib/permissions";
@@ -117,6 +140,59 @@ const violationOfficeConfig = {
   CO: { label: "CO", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
+const MONTH_TREND_WINDOW = 6;
+
+/** Trailing N calendar months (oldest first), each as a "YYYY-MM" match key
+ * plus a short display label — shared by the Attendance and Recognition
+ * tabs' own trend charts below, same bucketing idea as
+ * @/data/employees' monthLabel/monthsInRange but scoped locally here since
+ * violations and awards aren't Employee-domain data. */
+function trailingMonths(count: number): { key: string; label: string }[] {
+  const now = new Date();
+  const out: { key: string; label: string }[] = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    out.push({ key, label });
+  }
+  return out;
+}
+
+const violationTrendConfig = {
+  count: { label: "Violations", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+const violationStatusConfig = {
+  count: { label: "Records" },
+} satisfies ChartConfig;
+
+const awardsTrendConfig = {
+  count: { label: "Awards given", color: "var(--chart-3)" },
+} satisfies ChartConfig;
+
+const FEEDBACK_TYPE_LABELS: Record<FeedbackType, string> = {
+  bug: "Bug",
+  improvement: "Improvement",
+};
+
+const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
+  pending: "Pending",
+  working_on_it: "Working On It",
+  resolved: "Resolved",
+  implemented: "Implemented",
+};
+
+const feedbackTypeConfig = {
+  count: { label: "Reports" },
+  Bug: { label: "Bug", color: "var(--chart-4)" },
+  Improvement: { label: "Improvement", color: "var(--chart-2)" },
+} satisfies ChartConfig;
+
+const feedbackStatusConfig = {
+  count: { label: "Cards", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
 /** Onboarding tab's one chart, now filtered by whichever checklist-completion
  * statuses are checked in the tab's own filter bar — takes `hires` as a prop
  * (rather than calling useNewHires() itself) so the caller controls scope. */
@@ -141,6 +217,56 @@ function OnboardingCompletionChart({ hires }: { hires: NewHire[] }) {
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar dataKey="count" fill="var(--chart-1)" radius={4} />
           </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+const onboardingStatusConfig = {
+  count: { label: "New hires" },
+} satisfies ChartConfig;
+
+// Not folded into onboardingStatusConfig's own `color` fields — ChartContainer
+// turns each config key into a `--color-<key>` CSS custom property, and a
+// custom property name can't contain a space (which "Not Started"/"In
+// Progress" both do). A plain lookup sidesteps that entirely.
+const ONBOARDING_STATUS_COLORS: Record<OnboardingStatus, string> = {
+  "Not Started": "var(--chart-5)",
+  "In Progress": "var(--chart-2)",
+  Complete: "var(--chart-1)",
+};
+
+/** Onboarding tab's second chart — how many tracked new hires currently sit
+ * in each checklist-completion bucket, same three buckets as the tab's own
+ * filter (@/data/new-hire-api's computeStatus). Complements
+ * OnboardingCompletionChart above (which step, not which hire, is behind). */
+function OnboardingStatusChart({ hires }: { hires: NewHire[] }) {
+  const data = ONBOARDING_STATUSES.map((status) => ({
+    status,
+    count: hires.filter((h) => computeStatus(h) === status).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Onboarding Status Breakdown</CardTitle>
+        <CardDescription>New hires by checklist-completion status</CardDescription>
+      </CardHeader>
+      <CardContent className="flex justify-center">
+        <ChartContainer
+          config={onboardingStatusConfig}
+          className="mx-auto h-[280px] w-full max-w-[320px]"
+        >
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent nameKey="status" />} />
+            <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={95}>
+              {data.map((row) => (
+                <Cell key={row.status} fill={ONBOARDING_STATUS_COLORS[row.status]} />
+              ))}
+            </Pie>
+            <ChartLegend content={<ChartLegendContent nameKey="status" />} />
+          </PieChart>
         </ChartContainer>
       </CardContent>
     </Card>
@@ -213,6 +339,171 @@ function ViolationsByOfficeChart({ violations }: { violations: ViolationRecord[]
   );
 }
 
+/** Where every violation currently sits in the prepare → approve → send
+ * pipeline — a horizontal bar keeps all nine EmailStatus values readable
+ * without rotating x-axis labels (several, like "Ready to Prepare", are too
+ * long to fit upright). */
+function ViolationsByStatusChart({ violations }: { violations: ViolationRecord[] }) {
+  const counts = new Map<EmailStatus, number>();
+  for (const v of violations) {
+    counts.set(v.emailStatus, (counts.get(v.emailStatus) ?? 0) + 1);
+  }
+  const data = EMAIL_STATUSES.map((status) => ({ status, count: counts.get(status) ?? 0 }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Violations by Status</CardTitle>
+        <CardDescription>
+          Where records sit in the prepare → approve → send pipeline
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={violationStatusConfig} className="h-[300px] w-full">
+          <BarChart data={data} layout="vertical" margin={{ left: 8 }}>
+            <CartesianGrid horizontal={false} />
+            <XAxis type="number" allowDecimals={false} fontSize={12} />
+            <YAxis type="category" dataKey="status" width={110} tick={{ fontSize: 11 }} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="count" fill="var(--chart-1)" radius={4} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Violation records opened per month, trailing six months — the Attendance
+ * tab's own volume-over-time view (separate from Workforce's headcount
+ * trend, which this tab doesn't share a filterable dimension with). */
+function ViolationsMonthlyTrendChart({ violations }: { violations: ViolationRecord[] }) {
+  const months = trailingMonths(MONTH_TREND_WINDOW);
+  const data = months.map(({ key, label }) => ({
+    month: label,
+    count: violations.filter((v) => v.violationDate.startsWith(key)).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Monthly Violations Trend</CardTitle>
+        <CardDescription>
+          Violation records logged per month, last {MONTH_TREND_WINDOW} months
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={violationTrendConfig} className="h-[280px] w-full">
+          <BarChart data={data}>
+            <CartesianGrid vertical={false} />
+            <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="count" fill="var(--chart-1)" radius={4} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Recognition tab's trend chart — awards given per month, trailing six
+ * months. Unfiltered (this tab has no filter bar — see AnalyticsPage), same
+ * as the other two Recognition charts below. */
+function AwardsMonthlyTrendChart({ awards }: { awards: Award[] }) {
+  const months = trailingMonths(MONTH_TREND_WINDOW);
+  const data = months.map(({ key, label }) => ({
+    month: label,
+    count: awards.filter((a) => a.awardedDate.startsWith(key)).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Awards Given Per Month</CardTitle>
+        <CardDescription>
+          Recognition given company-wide, last {MONTH_TREND_WINDOW} months
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={awardsTrendConfig} className="h-[280px] w-full">
+          <LineChart data={data}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke="var(--chart-3)"
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FeedbackByTypeChart({ feedback }: { feedback: Feedback[] }) {
+  const data = (["bug", "improvement"] as const).map((type) => ({
+    type: FEEDBACK_TYPE_LABELS[type],
+    count: feedback.filter((f) => f.type === type).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Feedback by Type</CardTitle>
+        <CardDescription>Bug reports vs. improvement suggestions</CardDescription>
+      </CardHeader>
+      <CardContent className="flex justify-center">
+        <ChartContainer
+          config={feedbackTypeConfig}
+          className="mx-auto h-[280px] w-full max-w-[320px]"
+        >
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent nameKey="type" />} />
+            <Pie data={data} dataKey="count" nameKey="type" innerRadius={55} outerRadius={95}>
+              {data.map((row) => (
+                <Cell key={row.type} fill={`var(--color-${row.type})`} />
+              ))}
+            </Pie>
+            <ChartLegend content={<ChartLegendContent nameKey="type" />} />
+          </PieChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FeedbackByStatusChart({ feedback }: { feedback: Feedback[] }) {
+  const data = (["pending", "working_on_it", "resolved", "implemented"] as const).map((status) => ({
+    status: FEEDBACK_STATUS_LABELS[status],
+    count: feedback.filter((f) => f.status === status).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Feedback by Status</CardTitle>
+        <CardDescription>Where every card sits on the Feedback board</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={feedbackStatusConfig} className="h-[280px] w-full">
+          <BarChart data={data}>
+            <CartesianGrid vertical={false} />
+            <XAxis dataKey="status" tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals={false} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="count" fill="var(--chart-1)" radius={4} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AnalyticsPage() {
   const employees = useEmployees();
   const { data: account, isLoading: accountLoading } = useCurrentAccount();
@@ -221,6 +512,9 @@ function AnalyticsPage() {
   const allHires = useNewHires(isAdmin);
   const { data: violationsPage } = useViolationsQuery({}, 0, 500, isAdmin);
   const allViolations = violationsPage?.items ?? [];
+  const awards = useAwards(isAdmin);
+  const { data: feedbackData } = useFeedbackQuery();
+  const feedback = feedbackData ?? [];
 
   // Each tab keeps its own filter state — the three tabs don't share a
   // filterable dimension in common (violations don't have a department,
@@ -282,17 +576,21 @@ function AnalyticsPage() {
 
   function buildExportData(): AnalyticsExportData {
     const filterLines: string[] = [];
-    if (workforceOffice.length) filterLines.push(`Workforce · Office: ${workforceOffice.join(", ")}`);
+    if (workforceOffice.length)
+      filterLines.push(`Workforce · Office: ${workforceOffice.join(", ")}`);
     if (workforceDepartment.length)
       filterLines.push(`Workforce · Department: ${workforceDepartment.join(", ")}`);
-    if (workforceStatus.length) filterLines.push(`Workforce · Status: ${workforceStatus.join(", ")}`);
+    if (workforceStatus.length)
+      filterLines.push(`Workforce · Status: ${workforceStatus.join(", ")}`);
     filterLines.push(
       `Workforce · Trend charts date range: ${trendFrom} to ${trendTo}${trendRangeValid ? "" : " (invalid — showing default 12-month window instead)"}`,
     );
     if (onboardingStatus.length)
       filterLines.push(`Onboarding · Checklist status: ${onboardingStatus.join(", ")}`);
-    if (attendanceOffice.length) filterLines.push(`Attendance · Office: ${attendanceOffice.join(", ")}`);
-    if (attendanceType.length) filterLines.push(`Attendance · Violation type: ${attendanceType.join(", ")}`);
+    if (attendanceOffice.length)
+      filterLines.push(`Attendance · Office: ${attendanceOffice.join(", ")}`);
+    if (attendanceType.length)
+      filterLines.push(`Attendance · Violation type: ${attendanceType.join(", ")}`);
 
     const active = filteredEmployees.filter((e) => e.status === "Active").length;
     const resigned = filteredEmployees.filter((e) => e.status === "Resigned").length;
@@ -319,6 +617,34 @@ function AnalyticsPage() {
     for (const v of filteredViolations) {
       byOfficeCounts.set(v.office, (byOfficeCounts.get(v.office) ?? 0) + 1);
     }
+    const byStatusCounts = new Map<EmailStatus, number>();
+    for (const v of filteredViolations) {
+      byStatusCounts.set(v.emailStatus, (byStatusCounts.get(v.emailStatus) ?? 0) + 1);
+    }
+    const violationMonths = trailingMonths(MONTH_TREND_WINDOW).map(({ key, label }) => ({
+      month: label,
+      count: filteredViolations.filter((v) => v.violationDate.startsWith(key)).length,
+    }));
+
+    const onboardingStatusRows = ONBOARDING_STATUSES.map((s) => ({
+      status: s,
+      count: filteredHires.filter((h) => computeStatus(h) === s).length,
+    }));
+
+    const awardMonths = trailingMonths(MONTH_TREND_WINDOW).map(({ key, label }) => ({
+      month: label,
+      count: awards.filter((a) => a.awardedDate.startsWith(key)).length,
+    }));
+    const feedbackByType = (["bug", "improvement"] as const).map((t) => ({
+      type: FEEDBACK_TYPE_LABELS[t],
+      count: feedback.filter((f) => f.type === t).length,
+    }));
+    const feedbackByStatus = (["pending", "working_on_it", "resolved", "implemented"] as const).map(
+      (s) => ({
+        status: FEEDBACK_STATUS_LABELS[s],
+        count: feedback.filter((f) => f.status === s).length,
+      }),
+    );
 
     return {
       filterLines,
@@ -329,6 +655,8 @@ function AnalyticsPage() {
         { label: "Terminated", value: terminated },
         { label: "New Hires Tracked (filtered)", value: filteredHires.length },
         { label: "Attendance Records (filtered)", value: filteredViolations.length },
+        { label: "Awards Given (all-time)", value: awards.length },
+        { label: "Feedback Cards (all-time)", value: feedback.length },
       ],
       sections: [
         {
@@ -372,6 +700,11 @@ function AnalyticsPage() {
           rows: checklist.map((r) => [r.step, r.count]),
         },
         {
+          title: "Onboarding Status Breakdown",
+          columns: ["Status", "New Hires"],
+          rows: onboardingStatusRows.map((r) => [r.status, r.count]),
+        },
+        {
           title: "Violations by Type",
           columns: ["Violation Type", "Count"],
           rows: [...byTypeCounts.entries()],
@@ -380,6 +713,31 @@ function AnalyticsPage() {
           title: "Violations by Office",
           columns: ["Office", "Count"],
           rows: [...byOfficeCounts.entries()],
+        },
+        {
+          title: "Violations by Status",
+          columns: ["Status", "Count"],
+          rows: [...byStatusCounts.entries()],
+        },
+        {
+          title: "Monthly Violations Trend",
+          columns: ["Month", "Violations"],
+          rows: violationMonths.map((r) => [r.month, r.count]),
+        },
+        {
+          title: "Awards Given Per Month",
+          columns: ["Month", "Awards"],
+          rows: awardMonths.map((r) => [r.month, r.count]),
+        },
+        {
+          title: "Feedback by Type",
+          columns: ["Type", "Count"],
+          rows: feedbackByType.map((r) => [r.type, r.count]),
+        },
+        {
+          title: "Feedback by Status",
+          columns: ["Status", "Count"],
+          rows: feedbackByStatus.map((r) => [r.status, r.count]),
         },
       ],
     };
@@ -468,6 +826,7 @@ function AnalyticsPage() {
           <TabsTrigger value="workforce">Workforce</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="recognition">Recognition</TabsTrigger>
         </TabsList>
 
         <TabsContent value="workforce" className="space-y-4 pt-4">
@@ -516,7 +875,9 @@ function AnalyticsPage() {
                 />
               </div>
             </div>
-            {(workforceOffice.length > 0 || workforceDepartment.length > 0 || workforceStatus.length > 0) && (
+            {(workforceOffice.length > 0 ||
+              workforceDepartment.length > 0 ||
+              workforceStatus.length > 0) && (
               <span className="text-xs text-muted-foreground">
                 Showing {filteredEmployees.length} of {employees.length} employees
               </span>
@@ -555,6 +916,7 @@ function AnalyticsPage() {
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <OnboardingCompletionChart hires={filteredHires} />
+            <OnboardingStatusChart hires={filteredHires} />
           </div>
         </TabsContent>
 
@@ -581,6 +943,19 @@ function AnalyticsPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <ViolationsByTypeChart violations={filteredViolations} />
             <ViolationsByOfficeChart violations={filteredViolations} />
+            <ViolationsByStatusChart violations={filteredViolations} />
+            <ViolationsMonthlyTrendChart violations={filteredViolations} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="recognition" className="space-y-4 pt-4">
+          <p className="text-xs text-muted-foreground">
+            Company-wide Recognition &amp; Awards and Feedback board activity — unfiltered.
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AwardsMonthlyTrendChart awards={awards} />
+            <FeedbackByTypeChart feedback={feedback} />
+            <FeedbackByStatusChart feedback={feedback} />
           </div>
         </TabsContent>
       </Tabs>

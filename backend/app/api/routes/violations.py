@@ -18,10 +18,6 @@ additionally require require_violation_approver (Permission.ATTENDANCE_APPROVE
 — HR only by default, SOP section 10's explicit-HR-approval gate).
 Delete/bulk-delete require require_violation_admin (same as require_admin
 elsewhere, Admin/Super-Admin-only hard delete).
-
-TEMPORARY: all three of those dependencies currently also gate on a single
-developer account regardless of role, while this module is still in
-progress — see app/core/auth.py's _require_attendance_in_progress_dev.
 """
 
 import re
