@@ -32,6 +32,14 @@ export function isFullAccessRole(role: AccountRole | undefined): boolean {
   return !!role && FULL_ACCESS_ROLES.has(role);
 }
 
+// Narrower than isFullAccessRole above — a few things (editing the
+// permission matrix, triaging the Feedback board's status/priority/reporter
+// identity) are Super Admin-only, deliberately excluding a plain Admin. Feed
+// this getEffectiveRole(account)'s result, same as isFullAccessRole.
+export function isSuperAdminRole(role: AccountRole | undefined): boolean {
+  return role === "super_admin";
+}
+
 // Mirrors backend/app/core/auth.py's get_effective_role: the role every
 // admin/super-admin gate and nav/page permission check should actually use —
 // the real persisted role, unless a Super Admin has an active sandbox

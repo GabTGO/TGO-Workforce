@@ -1,12 +1,16 @@
 """Session-backed auth, wired to the Zoho OAuth login flow.
 
 The session itself is a signed, httpOnly cookie (Starlette's SessionMiddleware,
-added in app/main.py) holding nothing but the account id — no secrets, and it
-can't be read or tampered with from JavaScript. get_current_account() resolves
-that id to a live Account row (or None if there's no session, the account was
-deleted, or it's been deactivated). require_account() is the same check for
-routes that should outright reject a signed-out request instead of treating
-it as "acting as System" (see app/api/routes/employees.py for that pattern).
+added in app/main.py) holding the account id plus (since the "active
+sessions" feature — see app/models/session.py) a session id. get_current_account()
+resolves the account id to a live Account row (or None if there's no
+session, the account was deleted, or it's been deactivated), and — when a
+session id is also present — checks it against AccountSession for
+revocation, so a Super Admin's POST /accounts/sessions/{id}/terminate takes
+effect on that browser's very next request. require_account() is the same
+check for routes that should outright reject a signed-out request instead of
+treating it as "acting as System" (see app/api/routes/employees.py for that
+pattern).
 
 Module-level access (can this role see/use Onboarding at all, etc.) is
 governed by the dynamic permission matrix — see require_permission() below
@@ -15,6 +19,7 @@ and app/services/permissions.py. Admin and Super Admin bypass it entirely.
 
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +27,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
 from app.models.permission import Permission
+from app.models.session import AccountSession
 from app.services.permissions import PERMISSION_LABELS, has_permission
+
+# How stale last_seen_at has to be before a request bothers updating it — a
+# write on literally every authenticated request (this app polls several
+# endpoints every 15s while a tab is open) would be wasteful; this still
+# keeps "Active now" accurate to within a minute, which is plenty for a
+# presence indicator.
+SESSION_LAST_SEEN_THROTTLE = timedelta(seconds=60)
 
 # Session key for a Super Admin's active "sandbox" — see /auth/sandbox/enter
 # and /auth/sandbox/exit in app/api/routes/auth.py. Only ever consulted for
@@ -65,6 +78,26 @@ async def get_current_account(
     account = await db.get(Account, account_id)
     if account is None or not account.is_active:
         return None
+
+    # A cookie set before the "active sessions" feature shipped has no
+    # session_id in it at all — skip the revocation check entirely for those
+    # rather than treating a missing id as "revoked" (that would force-log-out
+    # every already-signed-in person the moment this deploys).
+    raw_session_id = request.session.get("session_id")
+    if raw_session_id:
+        try:
+            session_id = uuid.UUID(raw_session_id)
+        except ValueError:
+            session_id = None
+        if session_id is not None:
+            account_session = await db.get(AccountSession, session_id)
+            if account_session is None or account_session.revoked_at is not None:
+                return None
+            now = datetime.now(UTC)
+            if now - account_session.last_seen_at >= SESSION_LAST_SEEN_THROTTLE:
+                account_session.last_seen_at = now
+                await db.commit()
+
     return account
 
 

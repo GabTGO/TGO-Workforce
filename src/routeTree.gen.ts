@@ -18,6 +18,7 @@ import { Route as AttendanceViolationsRouteImport } from './routes/attendance-vi
 import { Route as AwardsRouteImport } from './routes/awards'
 import { Route as BirthdaysRouteImport } from './routes/birthdays'
 import { Route as DirectoryRouteImport } from './routes/directory'
+import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NewHiresRouteImport } from './routes/new-hires'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -70,6 +71,11 @@ const DirectoryRoute = DirectoryRouteImport.update({
   path: '/directory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeedbackRoute = FeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
   '/directory': typeof DirectoryRoute
+  '/feedback': typeof FeedbackRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
   '/directory': typeof DirectoryRoute
+  '/feedback': typeof FeedbackRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
   '/directory': typeof DirectoryRoute
+  '/feedback': typeof FeedbackRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/awards'
     | '/birthdays'
     | '/directory'
+    | '/feedback'
     | '/login'
     | '/new-hires'
     | '/onboarding'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/awards'
     | '/birthdays'
     | '/directory'
+    | '/feedback'
     | '/login'
     | '/new-hires'
     | '/onboarding'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/awards'
     | '/birthdays'
     | '/directory'
+    | '/feedback'
     | '/login'
     | '/new-hires'
     | '/onboarding'
@@ -217,6 +229,7 @@ export interface RootRouteChildren {
   AwardsRoute: typeof AwardsRoute
   BirthdaysRoute: typeof BirthdaysRoute
   DirectoryRoute: typeof DirectoryRoute
+  FeedbackRoute: typeof FeedbackRoute
   LoginRoute: typeof LoginRoute
   NewHiresRoute: typeof NewHiresRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -290,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/feedback': {
+      id: '/feedback'
+      path: '/feedback'
+      fullPath: '/feedback'
+      preLoaderRoute: typeof FeedbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -345,6 +365,7 @@ const rootRouteChildren: RootRouteChildren = {
   AwardsRoute: AwardsRoute,
   BirthdaysRoute: BirthdaysRoute,
   DirectoryRoute: DirectoryRoute,
+  FeedbackRoute: FeedbackRoute,
   LoginRoute: LoginRoute,
   NewHiresRoute: NewHiresRoute,
   OnboardingRoute: OnboardingRoute,

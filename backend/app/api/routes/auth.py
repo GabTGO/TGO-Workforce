@@ -25,6 +25,7 @@
 """
 
 import secrets
+import uuid
 from datetime import UTC, datetime
 
 import httpx
@@ -39,11 +40,13 @@ from app.core.db import get_db
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.pending_invite import PendingInvite
+from app.models.session import AccountSession
 from app.schemas.account import AccountPreferencesUpdate, AccountRead, SandboxRoleRequest
 from app.services import zoho
 from app.services.activity_log import record_activity
 from app.services.app_settings import get_app_settings
 from app.services.permissions import MATRIX_ROLES, get_account_permissions
+from app.services.session_info import get_client_ip, lookup_location_label, parse_device_label
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -77,6 +80,34 @@ async def zoho_login(request: Request, settings: Settings = Depends(get_settings
     return RedirectResponse(zoho.build_authorize_url(settings, state))
 
 
+async def _log_login_attempt(
+    db: AsyncSession,
+    *,
+    success: bool,
+    action: str,
+    account: Account | None = None,
+    actor_label: str | None = None,
+    ip_address: str | None = None,
+) -> None:
+    """Every sign-in attempt, success or failure, lands in the same shared
+    Activity Log (category=ACCESS) the rest of the app already uses — see
+    CATEGORY_PERMISSION in app/services/permissions.py, which keeps this
+    category admin/super-admin-only regardless of the matrix. No separate
+    login-log table/page; the existing Activity Logs page's category/severity
+    filters already cover "who signed in, and did it succeed" once these rows
+    exist."""
+    await record_activity(
+        db,
+        action=action,
+        category=ActivityCategory.ACCESS,
+        account=account,
+        actor_label=actor_label if account is None else None,
+        severity=ActivitySeverity.INFO if success else ActivitySeverity.WARNING,
+        details={"ip_address": ip_address} if ip_address else None,
+        commit=True,
+    )
+
+
 @router.get("/zoho/callback")
 async def zoho_callback(
     request: Request,
@@ -88,19 +119,41 @@ async def zoho_callback(
 ):
     expected_state = request.session.pop("oauth_state", None)
     failure_redirect = f"{settings.frontend_url}/login?error=zoho"
+    client_ip = get_client_ip(request)
 
     if error or not code or not state or state != expected_state:
+        await _log_login_attempt(
+            db,
+            success=False,
+            action="Sign-in failed: Zoho OAuth error or invalid state",
+            actor_label="Unknown",
+            ip_address=client_ip,
+        )
         return RedirectResponse(failure_redirect)
 
     try:
         token_payload = await zoho.exchange_code_for_token(settings, code)
         profile = await zoho.fetch_user_info(token_payload["access_token"])
     except (httpx.HTTPError, zoho.ZohoAuthError, KeyError):
+        await _log_login_attempt(
+            db,
+            success=False,
+            action="Sign-in failed: couldn't complete the Zoho OAuth exchange",
+            actor_label="Unknown",
+            ip_address=client_ip,
+        )
         return RedirectResponse(failure_redirect)
 
     zuid = str(profile.get("ZUID") or "")
     email = profile.get("Email")
     if not zuid or not email:
+        await _log_login_attempt(
+            db,
+            success=False,
+            action="Sign-in failed: Zoho profile missing ZUID or email",
+            actor_label=email or "Unknown",
+            ip_address=client_ip,
+        )
         return RedirectResponse(failure_redirect)
 
     result = await db.execute(select(Account).where(Account.zoho_user_id == zuid))
@@ -127,6 +180,13 @@ async def zoho_callback(
             app_settings = await get_app_settings(db)
             if app_settings.invite_only_signup:
                 await db.commit()  # persist the get-or-create'd settings row, if it was just created
+                await _log_login_attempt(
+                    db,
+                    success=False,
+                    action="Sign-in rejected: invite required",
+                    actor_label=email,
+                    ip_address=client_ip,
+                )
                 return RedirectResponse(f"{settings.frontend_url}/login?error=invite_only")
 
         account = Account(
@@ -164,9 +224,40 @@ async def zoho_callback(
     await db.refresh(account)
 
     if not account.is_active:
+        await _log_login_attempt(
+            db,
+            success=False,
+            action="Sign-in rejected: account inactive",
+            account=account,
+            ip_address=client_ip,
+        )
         return RedirectResponse(f"{settings.frontend_url}/login?error=inactive")
 
+    # Server-side session row (see app/models/session.py) — its id, not just
+    # the account id, now goes into the cookie, so a Super Admin can later
+    # revoke exactly this browser's session (POST
+    # /accounts/sessions/{id}/terminate) without touching anyone else's.
+    user_agent = request.headers.get("user-agent")
+    account_session = AccountSession(
+        id=uuid.uuid4(),
+        account_id=account.id,
+        ip_address=client_ip,
+        device_label=parse_device_label(user_agent),
+        location_label=await lookup_location_label(client_ip),
+    )
+    db.add(account_session)
+    await db.commit()
+
     request.session["account_id"] = str(account.id)
+    request.session["session_id"] = str(account_session.id)
+
+    await _log_login_attempt(
+        db,
+        success=True,
+        action="Signed in",
+        account=account,
+        ip_address=client_ip,
+    )
     return RedirectResponse(settings.frontend_url)
 
 
@@ -255,5 +346,16 @@ async def exit_sandbox(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: Request) -> None:
+async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+    raw_session_id = request.session.get("session_id")
+    if raw_session_id:
+        try:
+            session_id = uuid.UUID(raw_session_id)
+        except ValueError:
+            session_id = None
+        if session_id is not None:
+            account_session = await db.get(AccountSession, session_id)
+            if account_session is not None and account_session.revoked_at is None:
+                account_session.revoked_at = datetime.now(UTC)
+                await db.commit()
     request.session.clear()

@@ -7,6 +7,7 @@ import {
   UserPlus,
   Award,
   Cake,
+  MessageSquare,
   ScrollText,
   Settings,
   UserCog,
@@ -64,6 +65,11 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       // own isFullAccessRole gate, which enforces this independent of what
       // the nav shows.
       { title: "Analytics", url: "/analytics", icon: BarChart3, adminOnly: true },
+      // No permission/adminOnly flag — open to every signed-in role, same as
+      // the backend route (see app/api/routes/feedback.py). Only who can
+      // *triage* a card (status/priority/reporter identity) differs, and
+      // that's enforced inside the page itself, not by hiding the nav link.
+      { title: "Feedback", url: "/feedback", icon: MessageSquare },
     ],
   },
   {

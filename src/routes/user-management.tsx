@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ActiveSessionsPanel } from "@/components/active-sessions-panel";
 import { AddUserDialog } from "@/components/add-user-dialog";
 import { PageHeader } from "@/components/app-shell";
 import { MetricCard } from "@/components/metric-card";
@@ -499,6 +500,8 @@ function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <ActiveSessionsPanel />
 
       {isSuperAdmin && (
         <Card>

@@ -5,11 +5,17 @@ the two enum values, and Postgres refuses to use a brand-new enum value
 inside the same transaction that added it. By the time this one runs, both
 values are safely usable.
 
-Mirrors DEFAULT_GRANTS in app/services/permissions.py: every matrix role
-gets awards.view (same "everyone can see it" treatment as milestones.view),
-but only People Ops gets awards.manage by default — the role that already
-holds employees.manage. A Super Admin can widen this from the permission
-matrix afterward.
+Unlike milestones.view (which was previously ungated — every signed-in role
+already saw Anniversaries/Birthdays before the matrix existed, so its seed
+had to preserve that "everyone" baseline), Recognition & Awards is a brand
+new module with no prior "open to everyone" behavior to preserve. Its
+default is deliberately narrow: only People Ops starts with awards.view
+*and* awards.manage. Every other matrix role starts with neither — a Super
+Admin grants awards.view to whichever other roles should see the board from
+the permission matrix, same as onboarding.view/attendance.view already
+aren't blanket-granted to every role.
+
+Mirrors DEFAULT_GRANTS in app/services/permissions.py.
 
 Revision ID: 4f2b8e0c9a13
 Revises: 4d7c1f9a6b2e
@@ -27,15 +33,6 @@ revision: str = "4f2b8e0c9a13"
 down_revision: Union[str, None] = "4d7c1f9a6b2e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
-MATRIX_ROLES = (
-    "people_ops",
-    "hr",
-    "projects",
-    "recruitment_lead",
-    "onboarding_specialist",
-    "viewer",
-)
 
 
 def upgrade() -> None:
@@ -60,9 +57,13 @@ def upgrade() -> None:
         sa.column("role", account_role_enum),
         sa.column("permission", permission_enum),
     )
-    rows = [{"role": role, "permission": "awards.view"} for role in MATRIX_ROLES]
-    rows.append({"role": "people_ops", "permission": "awards.manage"})
-    op.bulk_insert(role_permissions, rows)
+    op.bulk_insert(
+        role_permissions,
+        [
+            {"role": "people_ops", "permission": "awards.view"},
+            {"role": "people_ops", "permission": "awards.manage"},
+        ],
+    )
 
 
 def downgrade() -> None:

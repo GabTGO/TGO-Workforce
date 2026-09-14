@@ -113,33 +113,28 @@ DEFAULT_GRANTS: dict[AccountRole, set[Permission]] = {
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
         Permission.ATTENDANCE_APPROVE,
-        Permission.AWARDS_VIEW,
     },
     AccountRole.PROJECTS: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
-        Permission.AWARDS_VIEW,
     },
     AccountRole.RECRUITMENT_LEAD: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ONBOARDING_MANAGE,
-        Permission.AWARDS_VIEW,
     },
     AccountRole.ONBOARDING_SPECIALIST: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ONBOARDING_VIEW,
         Permission.ONBOARDING_MANAGE,
-        Permission.AWARDS_VIEW,
     },
     AccountRole.VIEWER: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
-        Permission.AWARDS_VIEW,
     },
 }
 

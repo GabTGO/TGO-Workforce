@@ -17,6 +17,7 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { ActiveSessionsPanel } from "@/components/active-sessions-panel";
 import { PageHeader } from "@/components/app-shell";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { MetricCard } from "@/components/metric-card";
@@ -204,6 +205,8 @@ function Dashboard() {
           </div>
         }
       />
+
+      <ActiveSessionsPanel />
 
       {(showNewHires || showAnniversaries || showBirthdaysCard || showAwardsCard) && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
