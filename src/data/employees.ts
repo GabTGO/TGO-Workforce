@@ -235,6 +235,67 @@ export function anniversaries(employees: Employee[]) {
     .sort((a, b) => a.monthIndex - b.monthIndex || a.day - b.day);
 }
 
+// --- Recurring-date windows (birthdays, anniversaries) -----------------
+// Shared by the Dashboard's "recent" cards and the dedicated Anniversaries/
+// Birthdays pages' own time filters — one implementation instead of three
+// copies drifting apart.
+
+/** How many days ago a recurring month/day (birthday, anniversary) last
+ * occurred — rolls back a year when this year's date hasn't happened yet, so
+ * e.g. a Jan 5 birthday checked in December still reads as "~330 days ago"
+ * rather than a negative, still-upcoming number. */
+export function daysSinceLastOccurrence(monthIndex: number, day: number): number {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let occurrence = new Date(now.getFullYear(), monthIndex, day);
+  if (occurrence > startOfToday) occurrence = new Date(now.getFullYear() - 1, monthIndex, day);
+  return Math.round((startOfToday.getTime() - occurrence.getTime()) / 86_400_000);
+}
+
+/** The mirror image of daysSinceLastOccurrence: how many days from today
+ * until this month/day's *next* occurrence, rolling forward a year if this
+ * year's date has already passed. */
+export function daysUntilNextOccurrence(monthIndex: number, day: number): number {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let occurrence = new Date(now.getFullYear(), monthIndex, day);
+  if (occurrence < startOfToday) occurrence = new Date(now.getFullYear() + 1, monthIndex, day);
+  return Math.round((occurrence.getTime() - startOfToday.getTime()) / 86_400_000);
+}
+
+export type MilestoneTimeFilter = "all" | "this-month" | "last-7" | "next-7" | "last-30" | "next-30";
+
+export const MILESTONE_TIME_FILTER_LABELS: Record<MilestoneTimeFilter, string> = {
+  all: "All year",
+  "this-month": "This month",
+  "last-7": "Last 7 days",
+  "next-7": "Next 7 days",
+  "last-30": "Last 30 days",
+  "next-30": "Next 30 days",
+};
+
+/** Backs the time-window Select on the Anniversaries/Birthdays pages. */
+export function matchesMilestoneTimeFilter(
+  monthIndex: number,
+  day: number,
+  filter: MilestoneTimeFilter,
+): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "this-month":
+      return monthIndex === REFERENCE_NOW.getMonth();
+    case "last-7":
+      return daysSinceLastOccurrence(monthIndex, day) <= 7;
+    case "next-7":
+      return daysUntilNextOccurrence(monthIndex, day) <= 7;
+    case "last-30":
+      return daysSinceLastOccurrence(monthIndex, day) <= 30;
+    case "next-30":
+      return daysUntilNextOccurrence(monthIndex, day) <= 30;
+  }
+}
+
 export function departmentDistribution(employees: Employee[]) {
   return DEPARTMENTS.map((department) => ({
     department,

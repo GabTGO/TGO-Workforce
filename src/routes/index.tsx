@@ -43,6 +43,7 @@ import { useAwards } from "@/data/award-store";
 import { useEmployees } from "@/data/employee-store";
 import {
   anniversaries,
+  daysSinceLastOccurrence,
   formatDate,
   metrics,
   officeDistribution,
@@ -64,19 +65,6 @@ import {
   getEffectiveRole,
   isFullAccessRole,
 } from "@/lib/permissions";
-
-// How many days ago a recurring month/day (birthday, anniversary) last
-// occurred — rolls back a year when this year's date hasn't happened yet, so
-// e.g. a Jan 5 birthday checked in December still reads as "~330 days ago"
-// rather than a negative, still-upcoming number. Backs the Dashboard's
-// "last 30 days" milestone cards below.
-function daysSinceLastOccurrence(monthIndex: number, day: number): number {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let occurrence = new Date(now.getFullYear(), monthIndex, day);
-  if (occurrence > startOfToday) occurrence = new Date(now.getFullYear() - 1, monthIndex, day);
-  return Math.round((startOfToday.getTime() - occurrence.getTime()) / 86_400_000);
-}
 
 const RECENT_MILESTONE_DAYS = 30;
 const RECENT_HIRE_DAYS = 14;
