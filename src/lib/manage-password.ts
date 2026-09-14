@@ -7,4 +7,4 @@
 // Shared by ManageEmployeesDialog (unlocking the manage screen, and now
 // confirming a single delete) and EmployeeTable (confirming a checkbox
 // bulk-delete) so the one value lives in one place instead of drifting.
-export const MANAGE_PASSWORD = "Gemma";
+export const MANAGE_PASSWORD = "TGOHR";
