@@ -209,6 +209,7 @@ export function upcomingBirthdays(employees: Employee[]) {
           monthIndex: d.getMonth(),
           day: d.getDate(),
           monthName: MONTH_NAMES[d.getMonth()]!,
+          birthYear: d.getFullYear(),
         },
       ];
     })

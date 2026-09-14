@@ -34,8 +34,6 @@ const TIME_FILTERS: MilestoneTimeFilter[] = [
   "next-30",
 ];
 
-const CURRENT_YEAR = new Date().getFullYear();
-
 export const Route = createFileRoute("/birthdays")({
   head: () => ({
     meta: [
@@ -177,7 +175,7 @@ function BirthdaysPage() {
                         <p className="truncate text-xs text-muted-foreground">{e.office}</p>
                       </div>
                       <Badge variant="outline">
-                        {e.monthName.slice(0, 3)} {e.day}, {CURRENT_YEAR}
+                        {e.monthName.slice(0, 3)} {e.day}, {e.birthYear}
                       </Badge>
                     </div>
                   ))}
