@@ -386,11 +386,14 @@ function AttendanceViolationsPage() {
             {checkedIds.size} record{checkedIds.size === 1 ? "" : "s"} selected
           </span>
           <div className="flex items-center gap-2">
+            {/* Bulk send is temporarily disabled — uncomment below to
+                re-enable it. Bulk delete and everything else in the
+                checkbox selection is unaffected.
             {canApprove && (
               <Button size="sm" onClick={() => setBulkSendOpen(true)}>
                 <Send className="size-4" /> Bulk send
               </Button>
-            )}
+            )} */}
             {isAdmin && (
               <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
                 <Trash2 className="size-4" /> Bulk delete

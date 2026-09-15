@@ -91,9 +91,9 @@ async def build_body(db: AsyncSession, record: ViolationRecord) -> str:
         f"<strong>What:</strong> {html.escape(record.violation_type_label)}<br>"
         f"<strong>When:</strong> {record.violation_date.strftime('%Y-%m-%d')}<br>"
         f"<strong>Reason:</strong> {html.escape(reason)}<br>"
-        f"<strong>Previous attendance violation for this month:</strong> {previous_html}<br>"
-        f'For any questions and/or concerns please reach out to: <a href="mailto:{contact}">{contact}</a>'
+        f"<strong>Previous attendance violation for this month:</strong> {previous_html}"
         "</p>"
+        f'<p>For any questions and/or concerns please reach out to: <a href="mailto:{contact}">{contact}</a></p>'
         "<p>Regards,<br>"
         "<strong>TGO Attendance Team</strong></p>"
     )
