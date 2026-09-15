@@ -2,8 +2,11 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpDown,
+  Check,
+  ChevronsUpDown,
   Lock,
   Pencil,
+  Plus,
   Search,
   ShieldCheck,
   Trash2,
@@ -24,13 +27,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -46,11 +53,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  useEmployees,
-  useUpdateEmployee,
-  useDeleteEmployee,
-} from "@/data/employee-store";
+import { useEmployees, useUpdateEmployee, useDeleteEmployee } from "@/data/employee-store";
 import {
   DEPARTMENTS,
   OFFICES,
@@ -61,14 +64,11 @@ import {
   type EmployeeStatus,
 } from "@/data/employees";
 import { MANAGE_PASSWORD } from "@/lib/manage-password";
+import { cn } from "@/lib/utils";
 
-type SortKey =
-  "id" | "name" | "office" | "department" | "position" | "birthday" | "status";
+type SortKey = "id" | "name" | "office" | "department" | "position" | "birthday" | "status";
 
-const statusVariant: Record<
-  EmployeeStatus,
-  "default" | "secondary" | "destructive"
-> = {
+const statusVariant: Record<EmployeeStatus, "default" | "secondary" | "destructive"> = {
   Active: "default",
   Resigned: "secondary",
   Terminated: "destructive",
@@ -94,9 +94,7 @@ export function ManageEmployeesDialog() {
   // URL, since the Employee ID field below is now editable and pendingSave
   // may carry a *different* id than the one this record is actually stored
   // under.
-  const [editingOriginalId, setEditingOriginalId] = useState<string | null>(
-    null,
-  );
+  const [editingOriginalId, setEditingOriginalId] = useState<string | null>(null);
   const [pendingSave, setPendingSave] = useState<Employee | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Employee | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
@@ -175,9 +173,7 @@ export function ManageEmployeesDialog() {
       setEditingOriginalId(null);
     } catch (error) {
       console.error(error);
-      toast.error(
-        `Couldn't save changes to ${pendingSave.name}. Please try again.`,
-      );
+      toast.error(`Couldn't save changes to ${pendingSave.name}. Please try again.`);
     } finally {
       setPendingSave(null);
     }
@@ -204,13 +200,7 @@ export function ManageEmployeesDialog() {
     }
   }
 
-  const SortHeader = ({
-    label,
-    sortKey,
-  }: {
-    label: string;
-    sortKey: SortKey;
-  }) => (
+  const SortHeader = ({ label, sortKey }: { label: string; sortKey: SortKey }) => (
     <button
       type="button"
       onClick={() => toggleSort(sortKey)}
@@ -239,8 +229,7 @@ export function ManageEmployeesDialog() {
               <div>
                 <h2 className="text-base font-semibold">Manage Employees</h2>
                 <p className="text-sm text-muted-foreground">
-                  Enter the workspace password to edit or remove employee
-                  records.
+                  Enter the workspace password to edit or remove employee records.
                 </p>
               </div>
               <div className="grid w-full gap-2 pt-2 text-left">
@@ -257,9 +246,7 @@ export function ManageEmployeesDialog() {
                   autoFocus
                 />
                 {passwordError && (
-                  <p className="text-xs text-destructive">
-                    Incorrect password. Try again.
-                  </p>
+                  <p className="text-xs text-destructive">Incorrect password. Try again.</p>
                 )}
               </div>
             </div>
@@ -322,38 +309,21 @@ export function ManageEmployeesDialog() {
                 <TableBody>
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell
-                        colSpan={8}
-                        className="h-24 text-center text-muted-foreground"
-                      >
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         No employees match your search.
                       </TableCell>
                     </TableRow>
                   )}
                   {filtered.map((e) => (
                     <TableRow key={e.id}>
-                      <TableCell className="font-mono text-xs">
-                        {e.id}
-                      </TableCell>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        {e.name}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {e.office}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {e.department}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {e.position}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {formatDate(e.birthday)}
-                      </TableCell>
+                      <TableCell className="font-mono text-xs">{e.id}</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{e.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">{e.office}</TableCell>
+                      <TableCell className="whitespace-nowrap">{e.department}</TableCell>
+                      <TableCell className="whitespace-nowrap">{e.position}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(e.birthday)}</TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant[e.status]}>
-                          {e.status}
-                        </Badge>
+                        <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
                       </TableCell>
                       <TableCell className="sticky right-0 bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                         <div className="flex items-center gap-1.5">
@@ -386,11 +356,7 @@ export function ManageEmployeesDialog() {
               <p className="text-sm text-muted-foreground">
                 Showing {filtered.length} of {rows.length} employees
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleClose(false)}
-              >
+              <Button variant="outline" size="sm" onClick={() => handleClose(false)}>
                 Close
               </Button>
             </div>
@@ -409,22 +375,15 @@ export function ManageEmployeesDialog() {
         />
       )}
 
-      <AlertDialog
-        open={!!pendingSave}
-        onOpenChange={(o) => !o && setPendingSave(null)}
-      >
+      <AlertDialog open={!!pendingSave} onOpenChange={(o) => !o && setPendingSave(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
               <ShieldCheck className="h-5 w-5" />
             </div>
-            <AlertDialogTitle>
-              Save changes to {pendingSave?.name}?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Save changes to {pendingSave?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingSave &&
-              editingOriginalId &&
-              pendingSave.id !== editingOriginalId
+              {pendingSave && editingOriginalId && pendingSave.id !== editingOriginalId
                 ? `This also renames the Employee ID from ${editingOriginalId} to ${pendingSave.id}.`
                 : "Please confirm you want to apply these changes to this employee's record."}
             </AlertDialogDescription>
@@ -433,10 +392,7 @@ export function ManageEmployeesDialog() {
             <AlertDialogCancel onClick={() => setEditing(pendingSave)}>
               Back to edit
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmSave}
-              disabled={updateMutation.isPending}
-            >
+            <AlertDialogAction onClick={confirmSave} disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Saving..." : "Confirm & Save"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -460,8 +416,7 @@ export function ManageEmployeesDialog() {
             </div>
             <AlertDialogTitle>Remove {pendingDelete?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes {pendingDelete?.id} from the directory.
-              This can't be undone.
+              This permanently removes {pendingDelete?.id} from the directory. This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-2 py-1">
@@ -477,9 +432,7 @@ export function ManageEmployeesDialog() {
               onKeyDown={(e) => e.key === "Enter" && confirmDelete()}
               autoFocus
             />
-            {deletePasswordError && (
-              <p className="text-xs text-destructive">Incorrect password.</p>
-            )}
+            {deletePasswordError && <p className="text-xs text-destructive">Incorrect password.</p>}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -500,6 +453,102 @@ export function ManageEmployeesDialog() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/** A Select that also lets someone type a brand-new value the fixed preset
+ * list doesn't have — Department and Position are plain free-text fields on
+ * the Employee model already (see @/data/employees), so DEPARTMENTS/
+ * POSITIONS are just presets to pick from quickly, not a closed enum the
+ * backend enforces. Typing something that matches no preset swaps the empty
+ * state for an "Add "<value>"" action instead. */
+function CreatableComboboxField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  // A custom value from a previous "Add" stays selectable (and shown as
+  // selected) even though it isn't one of the fixed presets.
+  const allOptions = useMemo(
+    () => (value && !options.includes(value) ? [...options, value] : options),
+    [options, value],
+  );
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className="truncate">{value || placeholder}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] max-w-[90vw] p-0" align="start">
+        <Command>
+          <CommandInput
+            placeholder={`Search or add a ${label.toLowerCase()}...`}
+            value={query}
+            onValueChange={setQuery}
+          />
+          <CommandList>
+            <CommandEmpty>
+              {query.trim() ? (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  onClick={() => {
+                    onChange(query.trim());
+                    setOpen(false);
+                  }}
+                >
+                  <Plus className="h-4 w-4 shrink-0" />
+                  Add &quot;{query.trim()}&quot;
+                </button>
+              ) : (
+                <span className="text-muted-foreground">No matches.</span>
+              )}
+            </CommandEmpty>
+            <CommandGroup>
+              {allOptions.map((o) => (
+                <CommandItem
+                  key={o}
+                  value={o}
+                  onSelect={() => {
+                    onChange(o);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn("h-4 w-4", value === o ? "opacity-100" : "opacity-0")} />
+                  <span className="truncate">{o}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -531,8 +580,8 @@ function EditEmployeeDialog({
               onChange={(e) => setForm({ ...form, id: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
-              Used as this record's identifier in Activity Logs and Excel/CSV
-              imports — change it only to fix a mistake. Must be unique.
+              Used as this record's identifier in Activity Logs and Excel/CSV imports — change it
+              only to fix a mistake. Must be unique.
             </p>
           </div>
 
@@ -547,10 +596,7 @@ function EditEmployeeDialog({
 
           <div className="grid gap-2">
             <Label>Office Location</Label>
-            <Select
-              value={form.office}
-              onValueChange={(v) => setForm({ ...form, office: v })}
-            >
+            <Select value={form.office} onValueChange={(v) => setForm({ ...form, office: v })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -566,40 +612,24 @@ function EditEmployeeDialog({
 
           <div className="grid gap-2">
             <Label>Departments</Label>
-            <Select
+            <CreatableComboboxField
+              label="Department"
               value={form.department}
-              onValueChange={(v) => setForm({ ...form, department: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {DEPARTMENTS.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setForm({ ...form, department: v })}
+              options={DEPARTMENTS}
+              placeholder="Select department"
+            />
           </div>
 
           <div className="grid gap-2">
             <Label>Position</Label>
-            <Select
+            <CreatableComboboxField
+              label="Position"
               value={form.position}
-              onValueChange={(v) => setForm({ ...form, position: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select position" />
-              </SelectTrigger>
-              <SelectContent>
-                {POSITIONS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setForm({ ...form, position: v })}
+              options={POSITIONS}
+              placeholder="Select position"
+            />
           </div>
 
           <div className="grid gap-2">
@@ -641,9 +671,7 @@ function EditEmployeeDialog({
             <Label>Status</Label>
             <Select
               value={form.status}
-              onValueChange={(v) =>
-                setForm({ ...form, status: v as EmployeeStatus })
-              }
+              onValueChange={(v) => setForm({ ...form, status: v as EmployeeStatus })}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -664,9 +692,7 @@ function EditEmployeeDialog({
               id="edit-exit"
               type="date"
               value={form.exitDate ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, exitDate: e.target.value || undefined })
-              }
+              onChange={(e) => setForm({ ...form, exitDate: e.target.value || undefined })}
             />
           </div>
         </div>
