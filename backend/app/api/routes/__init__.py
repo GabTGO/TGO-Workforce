@@ -9,6 +9,7 @@ from app.api.routes import (
     employees,
     feedback,
     health,
+    list_options,
     new_hires,
     notifications,
     permissions,
@@ -25,6 +26,7 @@ api_router.include_router(accounts.router)
 api_router.include_router(app_settings.router)
 api_router.include_router(activity_logs.router)
 api_router.include_router(employees.router)
+api_router.include_router(list_options.router)
 api_router.include_router(awards.router)
 api_router.include_router(feedback.router)
 api_router.include_router(new_hires.router)

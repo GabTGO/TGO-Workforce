@@ -8,6 +8,7 @@ from app.models.app_settings import AppSettings
 from app.models.award import Award
 from app.models.employee import Employee, EmployeeStatus
 from app.models.feedback import Feedback, FeedbackComment, FeedbackPriority, FeedbackStatus, FeedbackType
+from app.models.list_options import ListOptions
 from app.models.new_hire import NewHire
 from app.models.notification import Notification
 from app.models.pending_invite import PendingInvite
@@ -39,6 +40,7 @@ __all__ = [
     "FeedbackStatus",
     "FeedbackType",
     "ImportBatch",
+    "ListOptions",
     "NewHire",
     "Notification",
     "Office",
