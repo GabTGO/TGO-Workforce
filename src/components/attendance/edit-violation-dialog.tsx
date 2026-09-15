@@ -2,7 +2,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,10 +53,13 @@ type FormState = {
   reason: string;
   ccAddresses: string;
   fromAddress: string;
-  // null = keep auto-detecting from the logs (record.previousViolations is
-  // shown read-only in that state); an array = the exact override to save —
-  // see PreviousViolationsEditor below. Seeded from the record's own stored
-  // override if it already has one, otherwise null.
+  // The Add/Edit/Delete list is shown (and editable) as soon as the dialog
+  // opens — seeded below from record.previousViolations, whether that came
+  // from auto-detection or an existing override, so there's no extra click
+  // needed to see or change it. `null` only ever happens after the user
+  // clicks "Reset to auto-detected" (see PreviousViolationsEditor below) —
+  // it's the signal to PATCH sends meaning "go back to auto-detecting from
+  // the logs," not a state this form starts in.
   previousViolationsOverride: PreviousViolationEntry[] | null;
 };
 
@@ -72,9 +74,7 @@ function toForm(record: ViolationRecordDetail): FormState {
     reason: record.reason ?? "",
     ccAddresses: record.ccAddresses ?? "",
     fromAddress: record.fromAddress ?? "",
-    previousViolationsOverride: record.previousViolationsIsOverride
-      ? record.previousViolations
-      : null,
+    previousViolationsOverride: record.previousViolations.map((e) => ({ ...e })),
   };
 }
 
@@ -82,27 +82,11 @@ export function canEditViolation(status: string): boolean {
   return EDITABLE_STATUSES.has(status);
 }
 
-/** "9/8" from a "YYYY-MM-DD" string — plain string slicing rather than
- * `new Date(...)`, since these are calendar dates with no time-of-day/
- * timezone of their own (same class of bug @/data/employees' parseCalendarDate
- * exists to avoid, just done here with a one-line split instead of pulling
- * that Employee-domain helper into the Attendance domain). */
-function monthDay(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${Number(m)}/${Number(d)}`;
-}
-
-function previousEntryLabel(e: PreviousViolationEntry): string {
-  const type =
-    e.violationType === "Other" && e.violationTypeOther ? e.violationTypeOther : e.violationType;
-  return `${type} ${monthDay(e.violationDate)}`;
-}
-
 /** The Add/Edit/Delete controls for a record's "Previous attendance
- * violation for this month" list, once switched into override mode (see the
- * "Edit" button next to the read-only auto-detected view below). Each row is
- * directly editable in place — no separate add/edit sub-dialog — since an
- * entry is just a violation type plus a date. */
+ * violation for this month" list — shown as soon as the dialog opens (see
+ * toForm above), no extra click needed to reach it. Each row is directly
+ * editable in place — no separate add/edit sub-dialog — since an entry is
+ * just a violation type plus a date. */
 function PreviousViolationsEditor({
   entries,
   onChange,
@@ -135,7 +119,10 @@ function PreviousViolationsEditor({
         </p>
       )}
       {entries.map((entry, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-1.5 rounded-md border p-1.5">
+        <div
+          key={i}
+          className="flex flex-col gap-1.5 rounded-md border p-1.5 sm:flex-row sm:items-center sm:flex-wrap"
+        >
           <Select
             value={entry.violationType}
             onValueChange={(v) =>
@@ -145,7 +132,7 @@ function PreviousViolationsEditor({
               })
             }
           >
-            <SelectTrigger className="h-8 w-[130px] text-xs">
+            <SelectTrigger className="h-8 w-full min-w-0 text-xs sm:w-auto sm:flex-1 sm:basis-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -158,28 +145,30 @@ function PreviousViolationsEditor({
           </Select>
           {entry.violationType === "Other" && (
             <Input
-              className="h-8 w-[110px] text-xs"
+              className="h-8 w-full min-w-0 text-xs sm:w-auto sm:flex-1 sm:basis-28"
               placeholder="Specify"
               value={entry.violationTypeOther ?? ""}
               onChange={(e) => updateEntry(i, { violationTypeOther: e.target.value })}
             />
           )}
-          <Input
-            type="date"
-            className="h-8 w-[140px] text-xs"
-            value={entry.violationDate}
-            onChange={(e) => updateEntry(i, { violationDate: e.target.value })}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            onClick={() => removeEntry(i)}
-            aria-label="Remove entry"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="date"
+              className="h-8 w-full min-w-0 text-xs sm:w-auto sm:flex-1 sm:basis-36"
+              value={entry.violationDate}
+              onChange={(e) => updateEntry(i, { violationDate: e.target.value })}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+              onClick={() => removeEntry(i)}
+              aria-label="Remove entry"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" className="w-fit" onClick={addEntry}>
@@ -258,7 +247,7 @@ function EditViolationForm({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Office</label>
           <Select
@@ -296,7 +285,7 @@ function EditViolationForm({
           </Select>
         </div>
         {form.violationType === "Other" && (
-          <div className="col-span-2 flex flex-col gap-1">
+          <div className="sm:col-span-2 flex flex-col gap-1">
             <label className="text-xs text-muted-foreground">
               Please specify the violation type
             </label>
@@ -306,14 +295,14 @@ function EditViolationForm({
             />
           </div>
         )}
-        <div className="col-span-2 flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Employee name</label>
           <Input
             value={form.employeeName}
             onChange={(e) => setForm((f) => ({ ...f, employeeName: e.target.value }))}
           />
         </div>
-        <div className="col-span-2 flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Employee email</label>
           <Input
             type="email"
@@ -329,7 +318,7 @@ function EditViolationForm({
             onChange={(e) => setForm((f) => ({ ...f, violationDate: e.target.value }))}
           />
         </div>
-        <div className="col-span-2 flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Reason</label>
           <Textarea
             rows={3}
@@ -339,27 +328,12 @@ function EditViolationForm({
           />
         </div>
 
-        <div className="col-span-2 border-t pt-3">
-          <div className="mb-1.5 flex items-center justify-between">
+        <div className="sm:col-span-2 border-t pt-3">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">
               Previous attendance violation for this month
             </p>
-            {form.previousViolationsOverride === null ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    previousViolationsOverride: record.previousViolations.map((e) => ({ ...e })),
-                  }))
-                }
-              >
-                <Pencil className="size-3" /> Edit
-              </Button>
-            ) : (
+            {form.previousViolationsOverride !== null && (
               <Button
                 type="button"
                 variant="ghost"
@@ -372,47 +346,30 @@ function EditViolationForm({
             )}
           </div>
           {form.previousViolationsOverride === null ? (
-            <>
-              {record.previousViolations.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  None detected from the attendance logs.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {record.previousViolations.map((entry, i) => (
-                    <Badge key={i} variant="secondary" className="font-normal">
-                      {previousEntryLabel(entry)}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Auto-detected from this employee's other Sent records this month. Click Edit to add,
-                change, or remove an entry — for example if the system missed one or got it wrong.
-              </p>
-            </>
+            <p className="text-xs text-muted-foreground">
+              Will auto-detect from this employee's other Sent records this month once saved.
+            </p>
           ) : (
-            <>
-              <PreviousViolationsEditor
-                entries={form.previousViolationsOverride}
-                onChange={(next) => setForm((f) => ({ ...f, previousViolationsOverride: next }))}
-                defaultDate={record.violationDate}
-                defaultType={record.violationType}
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Manually set — shown exactly as listed here in the notice email, instead of
-                auto-detecting.
-              </p>
-            </>
+            <PreviousViolationsEditor
+              entries={form.previousViolationsOverride}
+              onChange={(next) => setForm((f) => ({ ...f, previousViolationsOverride: next }))}
+              defaultDate={record.violationDate}
+              defaultType={record.violationType}
+            />
           )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {record.previousViolationsIsOverride
+              ? "Manually set — shown exactly as listed here in the notice email, instead of auto-detecting."
+              : "Auto-detected from this employee's other Sent records this month — add, change, or remove an entry below if the system missed one or got it wrong."}
+          </p>
         </div>
 
-        <div className="col-span-2 border-t pt-3">
+        <div className="sm:col-span-2 border-t pt-3">
           <p className="text-xs font-medium text-muted-foreground">
             Sender &amp; Cc for this notice
           </p>
         </div>
-        <div className="col-span-2 flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">From address override</label>
           <Select
             value={form.fromAddress || "__default__"}
@@ -437,7 +394,7 @@ function EditViolationForm({
             hand-typed address that isn't validated would just fail at send time.
           </p>
         </div>
-        <div className="col-span-2 flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Additional Cc addresses</label>
           <EmailChipInput
             value={form.ccAddresses}
@@ -497,7 +454,7 @@ export function EditViolationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         {record ? (
           // key={record.id} remounts EditViolationForm (resetting its form
           // state from scratch) if this dialog is ever reused for a

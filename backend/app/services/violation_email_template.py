@@ -67,14 +67,33 @@ async def build_body(db: AsyncSession, record: ViolationRecord) -> str:
     previous, _is_override = await resolve_previous_violations(db, record)
     previous_html = html.escape(format_previous_violations(previous))
 
-    return f"""<p>Hi,</p>
-<p>You are receiving this email as a written notification of a violation of our attendance policy. Please take a moment to review the details below and reply to this email to <strong>acknowledge</strong> receipt.</p>
-<p>
-<strong>What:</strong> {html.escape(record.violation_type_label)}<br>
-<strong>When:</strong> {record.violation_date.strftime('%Y-%m-%d')}<br>
-<strong>Reason:</strong> {html.escape(reason)}<br>
-<strong>Previous attendance violation for this month:</strong> {previous_html}
-</p>
-<p>For any questions and/or concerns please reach out to: <a href="mailto:{html.escape(settings.zoho_mail_from_address)}">{html.escape(settings.zoho_mail_from_address)}</a></p>
-<p>Regards,<br>
-<strong>TGO Attendance Team</strong></p>"""
+    contact = html.escape(settings.zoho_mail_from_address)
+
+    # Built as adjacent string literals (Python concatenates these with no
+    # separator at all — not even a space) rather than one multi-line
+    # f-string. A multi-line f-string looks the same in an HTML email (a
+    # browser collapses whitespace/newlines outside <pre> anyway), but
+    # @/lib/mailto.ts's htmlToPlainText — used for the mailto: "send via your
+    # own mail app" alternate path — turns each <br> into "\n" and each </p>
+    # into "\n\n" by literal string substitution. A stray real newline left
+    # over from Python's own line breaks, sitting right next to one of those
+    # tags, silently doubles up into an extra blank line once converted to
+    # plain text, even though the HTML rendering (and this file's own source)
+    # never revealed it. Keeping every literal here on the same line as its
+    # neighbors avoids that trap entirely — see the "For any questions" line
+    # above the extra-blank-line bug this exact pattern caused.
+    return (
+        "<p>Hi,</p>"
+        "<p>You are receiving this email as a written notification of a violation of our attendance "
+        "policy. Please take a moment to review the details below and reply to this email to "
+        "<strong>acknowledge</strong> receipt.</p>"
+        "<p>"
+        f"<strong>What:</strong> {html.escape(record.violation_type_label)}<br>"
+        f"<strong>When:</strong> {record.violation_date.strftime('%Y-%m-%d')}<br>"
+        f"<strong>Reason:</strong> {html.escape(reason)}<br>"
+        f"<strong>Previous attendance violation for this month:</strong> {previous_html}<br>"
+        f'For any questions and/or concerns please reach out to: <a href="mailto:{contact}">{contact}</a>'
+        "</p>"
+        "<p>Regards,<br>"
+        "<strong>TGO Attendance Team</strong></p>"
+    )
