@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Loader2, Send, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, Send, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import { EmailChipInput } from "@/components/attendance/email-chip-input";
 import { useAppSettingsQuery } from "@/data/app-settings-store";
 import {
   useEmailSenderConfigQuery,
+  useMarkSentViaOutlook,
   useSendViaOutlook,
   useViolationQuery,
 } from "@/data/violation-store";
@@ -58,10 +59,14 @@ const ACTION_COPY: Record<
 // "Mail To Handlers" setting) and this is specifically the "send-now"
 // action, this dialog switches to a different flow entirely: instead of
 // delegating to the parent's onConfirm (which fires the normal Zoho Mail
-// send), it lets the sender adjust From/Cc right here, marks the record
-// Sent via the alternate path itself, and opens the composed email in the
-// sender's own mail app. Approve and Re-approve are untouched by the toggle
-// either way — neither of those ever sends an email directly (see
+// send), it's a deliberate two-step manual process — "Open in mail app"
+// lets the sender adjust From/Cc and opens the composed email in their own
+// mail app, WITHOUT marking anything Sent; only "Mark as Sent" (a separate
+// click, once they've actually sent it from there) does that. Never
+// automatic — opening the compose window is not the same as having sent the
+// email, so the record only ever moves to Sent when the sender explicitly
+// says so. Approve and Re-approve are untouched by the toggle either way —
+// neither of those ever sends an email directly (see
 // backend/app/api/routes/violations.py).
 export function SendConfirmDialog({
   recordId,
@@ -94,17 +99,25 @@ export function SendConfirmDialog({
   const outlookMode = action === "send-now" && !!appSettings?.useOutlookForViolations;
   const waitingOnSettings = action === "send-now" && settingsLoading;
   const sendViaOutlook = useSendViaOutlook();
+  const markSentViaOutlook = useMarkSentViaOutlook();
 
   const [fromOverride, setFromOverride] = useState("");
   const [ccOverride, setCcOverride] = useState("");
+  // Whether "Open in mail app" has actually been clicked yet this time the
+  // dialog is open — gates "Mark as Sent" below, so the two stay a genuine
+  // sequence (open first, then confirm) rather than either one just being
+  // available from the start regardless of what's actually happened.
+  const [hasOpened, setHasOpened] = useState(false);
 
-  // Re-seed the override fields from the record's own stored values every
-  // time the dialog opens — same reasoning as EditViolationDialog: a
-  // previous cancelled edit shouldn't linger into the next open.
+  // Re-seed the override fields (and the "has this been opened yet" flag)
+  // from the record's own stored values every time the dialog opens — same
+  // reasoning as EditViolationDialog: a previous cancelled edit shouldn't
+  // linger into the next open.
   useEffect(() => {
     if (open && record) {
       setFromOverride(record.fromAddress ?? "");
       setCcOverride(record.ccAddresses ?? "");
+      setHasOpened(false);
     }
   }, [open, record]);
 
@@ -112,7 +125,7 @@ export function SendConfirmDialog({
   const fromAddress = record?.fromPreview ?? config?.fromAddress ?? "…";
   const ccAddress = record?.ccPreview ?? config?.fromAddress ?? "…";
 
-  async function handleOutlookConfirm() {
+  async function handleOpenMailApp() {
     if (!record) return;
     try {
       const updated = await sendViaOutlook.mutateAsync({
@@ -126,14 +139,25 @@ export function SendConfirmDialog({
         body: htmlToPlainText(updated.bodyPreview ?? ""),
       });
       openMailto(url);
-      toast.success("Marked as sent — finish it from the mail app window that just opened.");
+      setHasOpened(true);
+      toast.success("Opened in your mail app — click Mark as Sent once you've actually sent it.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't open that");
+    }
+  }
+
+  async function handleMarkSent() {
+    if (!record) return;
+    try {
+      await markSentViaOutlook.mutateAsync(record.id);
+      toast.success("Marked as sent");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't mark this as sent");
     }
   }
 
-  const outlookBusy = sendViaOutlook.isPending;
+  const outlookBusy = sendViaOutlook.isPending || markSentViaOutlook.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && !outlookBusy && onOpenChange(next)}>
@@ -144,7 +168,7 @@ export function SendConfirmDialog({
           </DialogTitle>
           <DialogDescription>
             {outlookMode
-              ? "This marks the record Sent and opens it in your default mail app (Outlook, Zoho Mail, or whatever's registered) to actually send — nothing goes through Zoho Mail's API."
+              ? "Opens it in your default mail app (Outlook, Zoho Mail, or whatever's registered) to actually send — nothing goes through Zoho Mail's API. This alone doesn't mark it Sent; once you've actually sent it from there, come back and click Mark as Sent."
               : copy.note}
           </DialogDescription>
         </DialogHeader>
@@ -185,9 +209,9 @@ export function SendConfirmDialog({
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
               <span>
-                Please make sure your mail app is already open (or that you're signed in, if it's a
-                web app like Zoho Mail) before continuing — this marks the record Sent right away,
-                so it's easiest to have the compose window land somewhere you'll actually see it.
+                {hasOpened
+                  ? "Opened in your mail app. Only click Mark as Sent once you've actually sent it from there — this doesn't happen automatically."
+                  : "Opening this doesn't mark it Sent by itself — you'll need to click Mark as Sent afterward, once you've actually sent it from your mail app."}
               </span>
             </div>
             <p className="text-xs font-medium text-muted-foreground">
@@ -230,17 +254,31 @@ export function SendConfirmDialog({
             Cancel
           </Button>
           {outlookMode ? (
-            <Button
-              disabled={outlookBusy || !record || waitingOnSettings}
-              onClick={handleOutlookConfirm}
-            >
-              {outlookBusy ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ExternalLink className="size-4" />
-              )}
-              Open in mail app
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                disabled={outlookBusy || !record || waitingOnSettings}
+                onClick={handleOpenMailApp}
+              >
+                {sendViaOutlook.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="size-4" />
+                )}
+                Open in mail app
+              </Button>
+              <Button
+                disabled={outlookBusy || !record || waitingOnSettings || !hasOpened}
+                onClick={handleMarkSent}
+              >
+                {markSentViaOutlook.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-4" />
+                )}
+                Mark as Sent
+              </Button>
+            </>
           ) : (
             <Button disabled={busy || !record || waitingOnSettings} onClick={onConfirm}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

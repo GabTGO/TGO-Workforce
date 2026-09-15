@@ -177,14 +177,16 @@ class BulkSendResult(BaseModel):
 
 # ---------- MS Outlook alternate send path ----------
 # See app/models/app_settings.py's use_outlook_for_violations and
-# POST /violations/{id}/send-via-outlook, /violations/bulk-send-via-outlook.
+# POST /violations/{id}/send-via-outlook, /violations/{id}/mark-sent-via-outlook,
+# /violations/bulk-mark-sent-via-outlook.
 
 
 class SendViaOutlookRequest(BaseModel):
-    """Optional From/Cc overrides to apply to the record before marking it
-    Sent — lets whoever's actually sending via their own Outlook change these
-    right before opening the compose window, not just earlier in the Draft/
-    Ready-to-Prepare/Needs-Correction edit stage. Same semantics as
+    """Optional From/Cc overrides to apply to the record right before opening
+    the compose window — lets whoever's actually sending via their own mail
+    app change these right then, not just earlier in the Draft/Ready-to-
+    Prepare/Needs-Correction edit stage. Does NOT mark the record Sent; that's
+    the separate, explicit mark-sent-via-outlook route. Same semantics as
     ViolationRecordUpdate's fields: omit to leave unchanged, empty string to
     clear back to the default."""
 

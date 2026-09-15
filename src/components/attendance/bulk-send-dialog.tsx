@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Loader2, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,9 +14,9 @@ import {
 import type { ViolationRecord } from "@/data/violation-api";
 import { useAppSettingsQuery } from "@/data/app-settings-store";
 import {
+  useBulkMarkSentViaOutlook,
   useBulkPreviewViolationsQuery,
   useBulkSendNowViolations,
-  useBulkSendViaOutlook,
   useEmailSenderConfigQuery,
 } from "@/data/violation-store";
 import { buildMailtoUrl, htmlToPlainText, openMailto } from "@/lib/mailto";
@@ -31,10 +31,14 @@ import { buildMailtoUrl, htmlToPlainText, openMailto } from "@/lib/mailto";
 // When a Super Admin has turned on the mail-app alternate path (see
 // backend/app/models/app_settings.py's use_outlook_for_violations — a plain
 // mailto: link under the hood, so it opens whatever's registered as the
-// sender's default mail app, not necessarily Outlook), confirming here marks
-// every eligible record Sent via that alternate path (no Zoho Mail call) and
-// opens one compose window per record in sequence, staggered slightly so
-// the OS/browser has time to hand each one off before the next fires.
+// sender's default mail app, not necessarily Outlook), this is a deliberate
+// two-step manual process, same as SendConfirmDialog's single-record
+// version: "Open in mail app" opens one compose window per eligible record
+// (straight from the already-fetched bulk-preview data — no backend call,
+// since opening a window never marks anything Sent), staggered slightly so
+// the OS/browser has time to hand each one off before the next fires; "Mark
+// N as Sent" is the separate, explicit confirmation that they were actually
+// sent, and is the only thing that ever changes email_status.
 type Checks = { recipients: boolean; content: boolean; approved: boolean; irreversible: boolean };
 const EMPTY_CHECKS: Checks = {
   recipients: false,
@@ -62,6 +66,10 @@ export function BulkSendDialog({
 }) {
   const [checks, setChecks] = useState<Checks>(EMPTY_CHECKS);
   const [openingMailApp, setOpeningMailApp] = useState(false);
+  // Whether "Open in mail app" has actually been clicked yet this time the
+  // dialog is open — gates "Mark N as Sent" below, mirroring
+  // SendConfirmDialog's single-record hasOpened flag.
+  const [hasOpenedMailApps, setHasOpenedMailApps] = useState(false);
 
   const eligible = records.filter(
     (r) => r.emailStatus === "Approved" || r.emailStatus === "Resend Approved",
@@ -81,19 +89,16 @@ export function BulkSendDialog({
   const { data: appSettings, isLoading: settingsLoading } = useAppSettingsQuery(open);
   const outlookMode = !!appSettings?.useOutlookForViolations;
   const sendMutation = useBulkSendNowViolations();
-  const outlookMutation = useBulkSendViaOutlook();
-  const busy = sendMutation.isPending || outlookMutation.isPending || openingMailApp;
+  const markSentMutation = useBulkMarkSentViaOutlook();
+  const busy = sendMutation.isPending || markSentMutation.isPending || openingMailApp;
 
   const resetAndClose = () => {
     setChecks(EMPTY_CHECKS);
+    setHasOpenedMailApps(false);
     onOpenChange(false);
   };
 
   function handleConfirm() {
-    if (outlookMode) {
-      handleOutlookConfirm();
-      return;
-    }
     sendMutation.mutate(ids, {
       onSuccess: (result) => {
         const parts: string[] = [];
@@ -110,37 +115,44 @@ export function BulkSendDialog({
     });
   }
 
-  async function handleOutlookConfirm() {
-    try {
-      const result = await outlookMutation.mutateAsync(ids);
-      resetAndClose();
-      onDone();
-      if (result.sent.length === 0) {
-        toast.error("Nothing was marked as sent.");
-        return;
-      }
-      toast.success(
-        `Marked ${result.sent.length} as sent — opening ${result.sent.length} mail app window${
-          result.sent.length === 1 ? "" : "s"
-        } one at a time.`,
+  /** Opens one compose window per eligible record straight from the
+   * already-fetched bulk-preview data — no backend call, since opening a
+   * window never marks anything Sent (see the module comment above). */
+  async function handleOpenMailApps() {
+    if (!previews) return;
+    setOpeningMailApp(true);
+    for (const record of previews) {
+      openMailto(
+        buildMailtoUrl({
+          to: record.employeeEmail,
+          cc: record.ccPreview,
+          subject: record.subjectPreview ?? "",
+          body: htmlToPlainText(record.bodyPreview ?? ""),
+        }),
       );
-      setOpeningMailApp(true);
-      for (const record of result.sent) {
-        openMailto(
-          buildMailtoUrl({
-            to: record.employeeEmail,
-            cc: record.ccPreview,
-            subject: record.subjectPreview ?? "",
-            body: htmlToPlainText(record.bodyPreview ?? ""),
-          }),
-        );
-        await delay(MAIL_APP_OPEN_STAGGER_MS);
-      }
-      setOpeningMailApp(false);
-    } catch (err) {
-      setOpeningMailApp(false);
-      toast.error(err instanceof Error ? err.message : "Couldn't mark these as sent");
+      await delay(MAIL_APP_OPEN_STAGGER_MS);
     }
+    setOpeningMailApp(false);
+    setHasOpenedMailApps(true);
+    toast.success(
+      `Opened ${previews.length} mail app window${previews.length === 1 ? "" : "s"} — click "Mark as Sent" once you've actually sent them.`,
+    );
+  }
+
+  function handleMarkAllSent() {
+    markSentMutation.mutate(ids, {
+      onSuccess: (result) => {
+        resetAndClose();
+        onDone();
+        if (result.sent.length === 0) {
+          toast.error("Nothing was marked as sent.");
+          return;
+        }
+        toast.success(`Marked ${result.sent.length} as sent.`);
+      },
+      onError: (err) =>
+        toast.error(err instanceof Error ? err.message : "Couldn't mark these as sent"),
+    });
   }
 
   const allChecked = Object.values(checks).every(Boolean);
@@ -158,15 +170,15 @@ export function BulkSendDialog({
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {outlookMode ? "Mark " : "Send "}
-            {eligible.length} email{eligible.length === 1 ? "" : "s"}{" "}
-            {outlookMode ? "as sent" : "now"}?
+            {outlookMode ? "Open " : "Send "}
+            {eligible.length} email{eligible.length === 1 ? "" : "s"}
+            {outlookMode ? " in your mail app?" : " now?"}
           </DialogTitle>
           <DialogDescription>
             Only Approved / Resend Approved records can be sent this way. Work through the checklist
             below —
             {outlookMode
-              ? " confirming marks every record below Sent and opens each one in your default mail app to actually send, one window at a time."
+              ? " opening builds one compose window per record in your default mail app, one at a time, without marking anything Sent yet; you'll mark them Sent afterward once they've actually gone out."
               : " confirming sends real emails immediately via Zoho Mail and can't be undone."}
           </DialogDescription>
         </DialogHeader>
@@ -175,9 +187,9 @@ export function BulkSendDialog({
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              Please make sure your mail app is already open (or that you're signed in, if it's a
-              web app like Zoho Mail) before continuing — confirming marks every record below Sent
-              right away and opens one window per record in sequence.
+              {hasOpenedMailApps
+                ? "Opened. Only click \"Mark as Sent\" once you've actually sent every one of these from your mail app — this doesn't happen automatically."
+                : "Please make sure your mail app is already open (or that you're signed in, if it's a web app like Zoho Mail) before continuing — this opens one window per record in sequence. Nothing is marked Sent until you confirm that separately afterward."}
             </span>
           </div>
         )}
@@ -256,7 +268,7 @@ export function BulkSendDialog({
               onChange={(v) => setChecks((c) => ({ ...c, irreversible: v }))}
               label={
                 outlookMode
-                  ? `I understand this marks ${eligible.length} record${eligible.length === 1 ? "" : "s"} Sent and opens ${eligible.length} mail app window${eligible.length === 1 ? "" : "s"} for me to actually send, and cannot be undone.`
+                  ? `I understand this opens ${eligible.length} mail app window${eligible.length === 1 ? "" : "s"} for me to actually send, and that I still need to come back and mark ${eligible.length === 1 ? "it" : "them"} Sent afterward.`
                   : `I understand this sends ${eligible.length} real email${eligible.length === 1 ? "" : "s"} immediately (from the sender shown for each record above) and cannot be undone.`
               }
             />
@@ -267,13 +279,47 @@ export function BulkSendDialog({
           <Button variant="outline" disabled={busy} onClick={resetAndClose}>
             Cancel
           </Button>
-          <Button
-            disabled={eligible.length === 0 || !allChecked || busy || settingsLoading}
-            onClick={handleConfirm}
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {outlookMode ? `Mark sent & open mail app` : `Confirm — send ${eligible.length}`}
-          </Button>
+          {outlookMode ? (
+            <>
+              <Button
+                variant="outline"
+                disabled={eligible.length === 0 || !allChecked || busy || settingsLoading}
+                onClick={handleOpenMailApps}
+              >
+                {openingMailApp ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="size-4" />
+                )}
+                Open {eligible.length} in mail app
+              </Button>
+              <Button
+                disabled={
+                  eligible.length === 0 ||
+                  !allChecked ||
+                  !hasOpenedMailApps ||
+                  busy ||
+                  settingsLoading
+                }
+                onClick={handleMarkAllSent}
+              >
+                {markSentMutation.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-4" />
+                )}
+                Mark {eligible.length} as Sent
+              </Button>
+            </>
+          ) : (
+            <Button
+              disabled={eligible.length === 0 || !allChecked || busy || settingsLoading}
+              onClick={handleConfirm}
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {`Confirm — send ${eligible.length}`}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

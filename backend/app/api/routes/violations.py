@@ -547,13 +547,18 @@ async def send_now(record_id: int, db: DbSession, account: ApproverAccount) -> V
 # ---------- MS Outlook alternate send path (see app/models/app_settings.py's
 # use_outlook_for_violations) ----------
 #
-# Neither route calls send_email()/Zoho at all — the record is simply marked
-# Sent (automation_result="manual_outlook" instead of "success"), and the
-# frontend opens the composed email in the approver's own MS Outlook via a
-# mailto: link built from this response's subject/body/from/cc previews.
-# There is no way for the backend to confirm what happens in Outlook after
-# that — this is a "mark as sent" action, not a real delivery confirmation,
-# which is exactly why it's gated behind an explicit Super Admin toggle and
+# None of these four routes ever call send_email()/Zoho — the frontend opens
+# the composed email in the approver's own mail app via a mailto: link built
+# from send_via_outlook's subject/body/from/cc previews, and the record is
+# only ever marked Sent (automation_result="manual_outlook" instead of
+# "success") by the separate, explicit mark_sent_via_outlook /
+# bulk_mark_sent_via_outlook routes below — never as a side effect of opening
+# that compose window. There is no way for the backend to confirm what
+# actually happens in the mail app after it opens, so requiring a deliberate
+# second click for "mark as sent" (rather than assuming it happened the
+# moment the window opened) is the whole point, not an oversight — this is a
+# "the approver says it went out" action, not a real delivery confirmation,
+# which is also why it's gated behind an explicit Super Admin toggle and
 # recorded distinctly in automation_result/the activity log.
 
 
@@ -584,6 +589,12 @@ def _mark_sent_via_outlook(record: ViolationRecord) -> bool:
 async def send_via_outlook(
     record_id: int, payload: SendViaOutlookRequest, db: DbSession, account: ApproverAccount
 ) -> ViolationRecordDetail:
+    """Applies optional From/Cc overrides right before the frontend opens the
+    approver's own mail app (see @/lib/mailto) — this alone does NOT mark the
+    record Sent. Opening a compose window isn't the same as actually sending
+    it, so this is deliberately a no-op on email_status; see
+    mark_sent_via_outlook below for the separate, explicit "I actually sent
+    this" confirmation the approver has to come back and click themselves."""
     app_settings = await get_app_settings(db)
     if not app_settings.use_outlook_for_violations:
         raise HTTPException(400, "Outlook sending isn't enabled. Ask a Super Admin to turn it on.")
@@ -593,6 +604,29 @@ async def send_via_outlook(
         raise HTTPException(400, "Record must be Approved or Resend Approved to send")
 
     _apply_outlook_overrides(record, payload)
+    await db.commit()
+    await db.refresh(record)
+    return await _to_detail(db, record)
+
+
+@router.post("/{record_id}/mark-sent-via-outlook", response_model=ViolationRecordDetail)
+async def mark_sent_via_outlook(
+    record_id: int, db: DbSession, account: ApproverAccount
+) -> ViolationRecordDetail:
+    """The explicit, manual "I actually sent this" step for the mail-app
+    alternate path — separate from send_via_outlook above (which only preps
+    From/Cc for the compose window) precisely so a record is never marked
+    Sent just because that window was opened. The approver has to actually
+    send it from their own mail app, then come back and click this
+    themselves."""
+    app_settings = await get_app_settings(db)
+    if not app_settings.use_outlook_for_violations:
+        raise HTTPException(400, "Outlook sending isn't enabled. Ask a Super Admin to turn it on.")
+
+    record = await _get_or_404(db, record_id)
+    if record.email_status not in (EmailStatus.APPROVED, EmailStatus.RESEND_APPROVED):
+        raise HTTPException(400, "Record must be Approved or Resend Approved to mark as sent")
+
     is_resend = _mark_sent_via_outlook(record)
     await db.flush()
     await record_activity(
@@ -609,12 +643,19 @@ async def send_via_outlook(
     return await _to_detail(db, record)
 
 
-@router.post("/bulk-send-via-outlook", response_model=BulkSendViaOutlookResult)
-async def bulk_send_via_outlook(payload: BulkIdsRequest, db: DbSession, account: ApproverAccount) -> BulkSendViaOutlookResult:
-    """Same eligibility rule as bulk-send-now — only fires from Approved/
-    Resend Approved, anything else is reported back as skipped. No per-record
-    From/Cc overrides here (unlike the single-record route above); bulk keeps
-    whatever each record already has."""
+@router.post("/bulk-mark-sent-via-outlook", response_model=BulkSendViaOutlookResult)
+async def bulk_mark_sent_via_outlook(
+    payload: BulkIdsRequest, db: DbSession, account: ApproverAccount
+) -> BulkSendViaOutlookResult:
+    """The bulk equivalent of mark_sent_via_outlook above — the explicit,
+    manual confirmation that every one of these was actually sent from the
+    approver's own mail app, called only after they've already opened each
+    compose window themselves (the frontend builds those windows straight
+    from bulk-preview's data, with no backend call, since opening one isn't
+    what marks anything Sent). Same eligibility rule as bulk-send-now — only
+    fires from Approved/Resend Approved, anything else is reported back as
+    skipped. No per-record From/Cc overrides here (unlike the single-record
+    route above); bulk keeps whatever each record already has."""
     app_settings = await get_app_settings(db)
     if not app_settings.use_outlook_for_violations:
         raise HTTPException(400, "Outlook sending isn't enabled. Ask a Super Admin to turn it on.")

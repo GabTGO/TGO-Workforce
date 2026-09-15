@@ -34,10 +34,12 @@ class AppSettings(Base):
     # /bulk-send-now are replaced in the UI by a "send via your mail app"
     # flow: the approver opens the record's email in whatever's registered as
     # their default mail app (pre-filled via a mailto: link) and sends it
-    # there themselves — see /violations/{id}/send-via-outlook, which marks
-    # the record Sent (automation_result="manual_outlook") without ever
-    # calling the Zoho Mail API, since the app has no way to confirm what
-    # actually happened in that mail app. Named/routed for MS Outlook (who
+    # there themselves — see /violations/{id}/send-via-outlook (preps the
+    # compose window, doesn't touch email_status) and the separate, explicit
+    # /violations/{id}/mark-sent-via-outlook the approver clicks afterward to
+    # actually mark it Sent (automation_result="manual_outlook") once they've
+    # really sent it, since the app has no way to confirm what actually
+    # happened in that mail app on its own. Named/routed for MS Outlook (who
     # this was originally built for), but a mailto: link isn't Outlook-
     # specific — it opens whichever app is the registered default handler,
     # which can just as easily be Zoho Mail itself (Zoho Mail has its own

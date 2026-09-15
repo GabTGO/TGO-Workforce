@@ -479,9 +479,11 @@ export async function bulkSendNowViolations(ids: number[]): Promise<BulkSendResu
 }
 
 // --- MS Outlook alternate send path (see backend/app/models/app_settings.py's
-// use_outlook_for_violations) — marks a record Sent without calling Zoho Mail
-// at all; the caller is responsible for opening the actual mailto: compose
-// window from the returned preview fields (see @/lib/mailto). ---
+// use_outlook_for_violations). Two deliberately separate steps, not one:
+// sendViaOutlook only preps From/Cc for the compose window the caller then
+// opens itself (see @/lib/mailto) — it never marks anything Sent. Only
+// markSentViaOutlook/bulkMarkSentViaOutlook do that, and only when the
+// approver explicitly clicks to confirm they actually sent it. ---
 
 export async function sendViaOutlook(
   id: number,
@@ -497,13 +499,21 @@ export async function sendViaOutlook(
   return detailFromBackend(row);
 }
 
+export async function markSentViaOutlook(id: number): Promise<ViolationRecordDetail> {
+  const row = await request<BackendViolationRecordDetail>(
+    `/violations/${id}/mark-sent-via-outlook`,
+    { method: "POST" },
+  );
+  return detailFromBackend(row);
+}
+
 export type BulkSendViaOutlookResult = { sent: ViolationRecordDetail[]; skipped: BulkSkip[] };
 
-export async function bulkSendViaOutlook(ids: number[]): Promise<BulkSendViaOutlookResult> {
+export async function bulkMarkSentViaOutlook(ids: number[]): Promise<BulkSendViaOutlookResult> {
   const result = await request<{
     sent: BackendViolationRecordDetail[];
     skipped: { id: number; violation_record_id: string | null; reason: string }[];
-  }>("/violations/bulk-send-via-outlook", { method: "POST", body: JSON.stringify({ ids }) });
+  }>("/violations/bulk-mark-sent-via-outlook", { method: "POST", body: JSON.stringify({ ids }) });
   return { sent: result.sent.map(detailFromBackend), skipped: result.skipped.map(skipFromBackend) };
 }
 

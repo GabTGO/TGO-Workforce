@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveViolation,
   bulkDeleteViolations,
+  bulkMarkSentViaOutlook,
   bulkPreviewViolations,
   bulkSendNowViolations,
-  bulkSendViaOutlook,
   commitImport,
   createViolation,
   deleteViolation,
@@ -16,6 +16,7 @@ import {
   fetchViolations,
   holdViolation,
   markReadyViolation,
+  markSentViaOutlook,
   needsCorrectionViolation,
   prepareViolation,
   previewImport,
@@ -174,11 +175,12 @@ export function useBulkSendNowViolations() {
   });
 }
 
-/** Marks one record Sent via the MS Outlook alternate path (see
- * backend/app/models/app_settings.py's use_outlook_for_violations) instead of
- * calling Zoho Mail — the caller still has to actually open the mailto: link
- * themselves (see @/lib/mailto) using the ViolationRecordDetail this
- * resolves with. */
+/** Applies From/Cc overrides for the MS Outlook alternate path (see
+ * backend/app/models/app_settings.py's use_outlook_for_violations) right
+ * before the caller opens the mailto: link themselves (see @/lib/mailto)
+ * using the ViolationRecordDetail this resolves with. Does NOT mark the
+ * record Sent — see useMarkSentViaOutlook below for that separate, explicit
+ * step. */
 export function useSendViaOutlook() {
   const invalidate = useInvalidateViolations();
   return useMutation({
@@ -193,10 +195,22 @@ export function useSendViaOutlook() {
   });
 }
 
-export function useBulkSendViaOutlook() {
+/** The explicit, manual "I actually sent this" confirmation for the mail-app
+ * alternate path — only this (and its bulk counterpart below) ever marks a
+ * record Sent via that path; opening the compose window via
+ * useSendViaOutlook above never does. */
+export function useMarkSentViaOutlook() {
   const invalidate = useInvalidateViolations();
   return useMutation({
-    mutationFn: (ids: number[]) => bulkSendViaOutlook(ids),
+    mutationFn: (id: number) => markSentViaOutlook(id),
+    onSuccess: invalidate,
+  });
+}
+
+export function useBulkMarkSentViaOutlook() {
+  const invalidate = useInvalidateViolations();
+  return useMutation({
+    mutationFn: (ids: number[]) => bulkMarkSentViaOutlook(ids),
     onSuccess: invalidate,
   });
 }
