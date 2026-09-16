@@ -28,6 +28,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Award } from "@/data/award-api";
 import { useCreateAward, useUpdateAward } from "@/data/award-store";
@@ -36,6 +43,14 @@ import { cn } from "@/lib/utils";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Sentinel Select value for "no filter" — Radix Select can't take an empty
+// string as an item value (same pattern as Settings' default-office picker).
+const ALL = "all";
+
+function distinctSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 
 export function AwardFormDialog({
@@ -57,6 +72,18 @@ export function AwardFormDialog({
   const [employeeId, setEmployeeId] = useState("");
   const selectedEmployee = activeEmployees.find((e) => e.id === employeeId);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
+  const [officeFilter, setOfficeFilter] = useState(ALL);
+  const [departmentFilter, setDepartmentFilter] = useState(ALL);
+  const [positionFilter, setPositionFilter] = useState(ALL);
+  const officeOptions = distinctSorted(activeEmployees.map((e) => e.office));
+  const departmentOptions = distinctSorted(activeEmployees.map((e) => e.department));
+  const positionOptions = distinctSorted(activeEmployees.map((e) => e.position));
+  const filteredEmployees = activeEmployees.filter(
+    (e) =>
+      (officeFilter === ALL || e.office === officeFilter) &&
+      (departmentFilter === ALL || e.department === departmentFilter) &&
+      (positionFilter === ALL || e.position === positionFilter),
+  );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [awardedDate, setAwardedDate] = useState(today());
@@ -74,6 +101,9 @@ export function AwardFormDialog({
     setTitle(award?.title ?? "");
     setDescription(award?.description ?? "");
     setAwardedDate(award?.awardedDate ?? today());
+    setOfficeFilter(ALL);
+    setDepartmentFilter(ALL);
+    setPositionFilter(ALL);
   }, [open, award]);
 
   async function handleSubmit() {
@@ -141,22 +171,63 @@ export function AwardFormDialog({
                   >
                     <span className="truncate">
                       {selectedEmployee
-                        ? `${selectedEmployee.name} · ${selectedEmployee.office}`
+                        ? `${selectedEmployee.name} · ${selectedEmployee.office} · ${selectedEmployee.department} · ${selectedEmployee.position}`
                         : "Search for an active employee..."}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[420px] max-w-[90vw] p-0" align="start">
+                <PopoverContent className="w-[460px] max-w-[90vw] p-0" align="start">
+                  <div className="flex flex-wrap gap-1.5 border-b p-2">
+                    <Select value={officeFilter} onValueChange={setOfficeFilter}>
+                      <SelectTrigger className="h-7 flex-1 text-xs">
+                        <SelectValue placeholder="Office" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>All offices</SelectItem>
+                        {officeOptions.map((o) => (
+                          <SelectItem key={o} value={o}>
+                            {o}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                      <SelectTrigger className="h-7 flex-1 text-xs">
+                        <SelectValue placeholder="Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>All departments</SelectItem>
+                        {departmentOptions.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={positionFilter} onValueChange={setPositionFilter}>
+                      <SelectTrigger className="h-7 flex-1 text-xs">
+                        <SelectValue placeholder="Position" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>All positions</SelectItem>
+                        {positionOptions.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Command>
-                    <CommandInput placeholder="Search by name or office..." />
+                    <CommandInput placeholder="Search by name, office, department, or position..." />
                     <CommandList>
-                      <CommandEmpty>No active employees found.</CommandEmpty>
+                      <CommandEmpty>No active employees match.</CommandEmpty>
                       <CommandGroup>
-                        {activeEmployees.map((e) => (
+                        {filteredEmployees.map((e) => (
                           <CommandItem
                             key={e.id}
-                            value={`${e.name} ${e.office} ${e.id}`}
+                            value={`${e.name} ${e.office} ${e.department} ${e.position} ${e.id}`}
                             onSelect={() => {
                               setEmployeeId(e.id);
                               setEmployeePickerOpen(false);
@@ -164,13 +235,16 @@ export function AwardFormDialog({
                           >
                             <Check
                               className={cn(
-                                "h-4 w-4",
+                                "mt-0.5 h-4 w-4 shrink-0",
                                 employeeId === e.id ? "opacity-100" : "opacity-0",
                               )}
                             />
-                            <span className="truncate">
-                              {e.name} <span className="text-muted-foreground">· {e.office}</span>
-                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate">{e.name}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {e.office} · {e.department} · {e.position}
+                              </p>
+                            </div>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -179,8 +253,8 @@ export function AwardFormDialog({
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-muted-foreground">
-                Only Active employees are searchable — resigned or terminated employees
-                can't be given a new award.
+                Only Active employees are searchable — resigned or terminated employees can't be
+                given a new award.
               </p>
             </div>
           )}
