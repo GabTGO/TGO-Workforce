@@ -16,13 +16,30 @@
 //    browser is simpler than plumbing that through).
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Lock, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
+import {
+  Activity,
+  ArrowLeft,
+  CalendarDays,
+  LogIn,
+  Lock,
+  ShieldAlert,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { MetricCard } from "@/components/metric-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -31,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccountsQuery } from "@/data/account-store";
 import {
@@ -90,6 +108,60 @@ function initials(name: string) {
 // tab tells those rows apart from everything else in Activity Logs.
 function isSignInEvent(action: string) {
   return action.toLowerCase().startsWith("sign");
+}
+
+// Same SSR/hydration guard as workforce-charts.tsx's charts — recharts needs
+// real layout dimensions to measure against, which don't exist yet on the
+// server-rendered pass, so the first client render shows a skeleton instead
+// of a zero-size chart that would otherwise flash before resizing.
+function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted;
+}
+
+const activityTrendConfig = {
+  count: { label: "Events", color: "var(--chart-2)" },
+} satisfies ChartConfig;
+
+const ACTIVITY_TREND_DAYS = 14;
+
+function activityByDay(logs: ActivityLogEntry[]): { date: string; count: number }[] {
+  const now = new Date();
+  const buckets = new Map<string, number>();
+  for (let i = ACTIVITY_TREND_DAYS - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    buckets.set(d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), 0);
+  }
+  for (const log of logs) {
+    const occurred = new Date(log.occurredAt);
+    if (Number.isNaN(occurred.getTime())) continue;
+    const daysAgo = Math.floor((now.getTime() - occurred.getTime()) / 86_400_000);
+    if (daysAgo < 0 || daysAgo >= ACTIVITY_TREND_DAYS) continue;
+    const key = occurred.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+}
+
+const categoryChartConfig = {
+  count: { label: "Events" },
+  Employee: { label: "Employee", color: "var(--chart-1)" },
+  Access: { label: "Access", color: "var(--chart-2)" },
+  Data: { label: "Data", color: "var(--chart-3)" },
+  System: { label: "System", color: "var(--chart-4)" },
+  Onboarding: { label: "Onboarding", color: "var(--chart-5)" },
+  Attendance: { label: "Attendance", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+function activityByCategory(
+  logs: ActivityLogEntry[],
+): { category: ActivityCategory; count: number }[] {
+  return ALL_CATEGORIES.map((category) => ({
+    category,
+    count: logs.filter((log) => log.category === category).length,
+  }));
 }
 
 const PAGE_SIZE = 8;
@@ -238,6 +310,7 @@ function UserProfilePage() {
   const effectiveRole = getEffectiveRole(currentAccount);
   const isAdmin = isFullAccessRole(effectiveRole);
   const isSuperAdmin = effectiveRole === "super_admin";
+  const mounted = useMounted();
 
   const accountsQuery = useAccountsQuery(isAdmin);
   const account = accountsQuery.data?.find((a) => a.id === accountId);
@@ -248,6 +321,13 @@ function UserProfilePage() {
   const activity = activityQuery.data ?? [];
   const loginHistory = activity.filter((log) => isSignInEvent(log.action));
   const generalActivity = activity.filter((log) => !isSignInEvent(log.action));
+  const successfulLogins = loginHistory.filter((log) => log.severity === "info").length;
+  const failedLogins = loginHistory.filter((log) => log.severity !== "info").length;
+  const accountAgeDays = account
+    ? Math.max(0, Math.floor((Date.now() - new Date(account.createdAt).getTime()) / 86_400_000))
+    : 0;
+  const trendData = activityByDay(activity);
+  const categoryData = activityByCategory(activity);
 
   const fullAccess = !!account && isFullAccessRole(account.role);
   const roleEntry = matrixQuery.data?.roles.find((r) => r.role === account?.role);
@@ -263,7 +343,7 @@ function UserProfilePage() {
 
   if (currentLoading) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-6">
         {backLink}
         <p className="text-sm text-muted-foreground">Checking access…</p>
       </div>
@@ -272,7 +352,7 @@ function UserProfilePage() {
 
   if (!isAdmin) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-6">
         {backLink}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
@@ -286,7 +366,7 @@ function UserProfilePage() {
 
   if (accountsQuery.isLoading) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-6">
         {backLink}
         <p className="text-sm text-muted-foreground">Loading account…</p>
       </div>
@@ -295,7 +375,7 @@ function UserProfilePage() {
 
   if (!account) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-6">
         {backLink}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
@@ -316,7 +396,7 @@ function UserProfilePage() {
     account.email;
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
       {backLink}
 
       <PageHeader
@@ -351,6 +431,85 @@ function UserProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Total Activity"
+          value={activity.length}
+          hint="All recorded events"
+          icon={Activity}
+        />
+        <MetricCard
+          title="Successful Logins"
+          value={successfulLogins}
+          hint="Sign-ins that succeeded"
+          icon={LogIn}
+        />
+        <MetricCard
+          title="Failed Logins"
+          value={failedLogins}
+          hint="Rejected or failed attempts"
+          icon={XCircle}
+        />
+        <MetricCard
+          title="Account Age"
+          value={accountAgeDays}
+          hint="Days since first sign-in"
+          icon={CalendarDays}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Activity Over Time</CardTitle>
+            <CardDescription>
+              Events recorded in the last {ACTIVITY_TREND_DAYS} days
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!mounted ? (
+              <Skeleton className="h-[260px] w-full" />
+            ) : (
+              <ChartContainer config={activityTrendConfig} className="h-[260px] w-full">
+                <BarChart data={trendData}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Activity by Category</CardTitle>
+            <CardDescription>Where this account's recorded events fall</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!mounted ? (
+              <Skeleton className="h-[260px] w-full" />
+            ) : (
+              <ChartContainer config={categoryChartConfig} className="h-[260px] w-full">
+                <BarChart data={categoryData}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="category" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {categoryData.map((entry) => (
+                      <Cell key={entry.category} fill={`var(--color-${entry.category})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

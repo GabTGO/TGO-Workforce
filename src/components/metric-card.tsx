@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentAccount } from "@/lib/session";
@@ -56,6 +57,12 @@ export function MetricCard({
 }) {
   const { data: account } = useCurrentAccount();
   const animationsEnabled = account?.animations_enabled ?? true;
+  // Keying on the route forces a fresh AnimatedNumber mount (and so a fresh
+  // 0→value count-up) every time you navigate to a page that renders this
+  // card, independent of whatever the surrounding page tree does or doesn't
+  // remount on its own — this card doesn't rely on a parent remounting
+  // correctly to animate.
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   return (
     <Card>
@@ -66,7 +73,7 @@ export function MetricCard({
       <CardContent>
         <div className="text-3xl font-semibold tracking-tight">
           {typeof value === "number" ? (
-            <AnimatedNumber value={value} enabled={animationsEnabled} />
+            <AnimatedNumber key={pathname} value={value} enabled={animationsEnabled} />
           ) : (
             value
           )}

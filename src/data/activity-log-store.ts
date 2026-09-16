@@ -9,17 +9,16 @@ import { apiUrl } from "@/lib/api";
 // by the Activity Logs page, same as the old hardcoded sample data did.
 
 export type ActivityCategory =
-  | "Employee"
-  | "Access"
-  | "Data"
-  | "System"
-  | "Onboarding"
-  | "Attendance";
+  "Employee" | "Access" | "Data" | "System" | "Onboarding" | "Attendance";
 export type ActivitySeverity = "info" | "warning" | "critical";
 
 export type ActivityLogEntry = {
   id: string;
   timestamp: string;
+  /** Raw ISO timestamp `timestamp` was formatted from — kept alongside it for
+   * anything that needs to bucket/sort by real date (e.g. an activity-over-
+   * time chart) instead of re-parsing the already-localized display string. */
+  occurredAt: string;
   actor: string;
   action: string;
   target: string;
@@ -59,6 +58,7 @@ function fromBackend(row: BackendActivityLog): ActivityLogEntry {
   return {
     id: `LOG-${row.id}`,
     timestamp: formatTimestamp(row.created_at),
+    occurredAt: row.created_at,
     actor: row.actor_label,
     action: row.action,
     target: row.target ?? "—",
@@ -67,7 +67,10 @@ function fromBackend(row: BackendActivityLog): ActivityLogEntry {
   };
 }
 
-async function fetchActivityLogs(opts?: { accountId?: string; limit?: number }): Promise<ActivityLogEntry[]> {
+async function fetchActivityLogs(opts?: {
+  accountId?: string;
+  limit?: number;
+}): Promise<ActivityLogEntry[]> {
   const params = new URLSearchParams({ limit: String(opts?.limit ?? 200) });
   if (opts?.accountId) params.set("account_id", opts.accountId);
   const response = await fetch(apiUrl(`/activity-logs?${params.toString()}`), {
