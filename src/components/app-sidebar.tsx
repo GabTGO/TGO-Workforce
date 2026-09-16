@@ -217,15 +217,16 @@ export function AppSidebar() {
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="gap-1.5">
                   {visibleItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
                         asChild
                         tooltip={item.title}
                         isActive={isNavItemActive(pathname, item.url)}
+                        className="h-10 gap-2.5 px-3"
                       >
-                        <Link to={item.url} className="flex items-center gap-2">
+                        <Link to={item.url} className="flex items-center gap-2.5">
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
                         </Link>

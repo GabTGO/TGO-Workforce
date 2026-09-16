@@ -131,7 +131,7 @@ async def create_feedback(
         if len(image) > MAX_IMAGE_DATA_URL_LENGTH:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="One of those screenshots is too large — try a smaller one or crop it first.",
+                detail="One of those screenshots is too large — try a smaller one or crop it.",
             )
 
     feedback = Feedback(
