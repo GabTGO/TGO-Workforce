@@ -13,6 +13,8 @@ import { NotificationBell } from "@/components/notification-bell";
 import { SandboxBanner } from "@/components/sandbox-banner";
 import { Button } from "@/components/ui/button";
 import { signOut, useCurrentAccount, useEnterSandbox } from "@/lib/session";
+import { useAccountsQuery } from "@/data/account-store";
+import { getEffectiveRole, isFullAccessRole } from "@/lib/permissions";
 import { ROLE_LABELS, SANDBOXABLE_ROLES } from "@/lib/roles";
 import {
   Breadcrumb,
@@ -59,6 +61,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   // nothing until then so a signed-out visitor never sees a dashboard flash.
   const { data: account, isLoading } = useCurrentAccount();
 
+  // A single account's profile page (/user-management/:accountId) gets its
+  // own 3-level breadcrumb (User Management → Accounts → their name) instead
+  // of the usual single crumb — reuses the same cached accounts list the
+  // Accounts table itself fetches (ACCOUNTS_KEY), so this doesn't add an
+  // extra request beyond what navigating here already primed.
+  const isUserProfilePath = pathname.startsWith("/user-management/");
+  const isAdminForBreadcrumb = isFullAccessRole(getEffectiveRole(account));
+  const profileAccountsQuery = useAccountsQuery(isAdminForBreadcrumb && isUserProfilePath);
+
   useEffect(() => {
     if (!isLoading && !account) {
       navigate({ to: "/login" });
@@ -98,6 +109,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       .join("")
       .toUpperCase() || "?";
 
+  const profileAccountId = isUserProfilePath
+    ? pathname.slice("/user-management/".length)
+    : undefined;
+  const profileAccount = profileAccountsQuery.data?.find((a) => a.id === profileAccountId);
+  const profileDisplayName = profileAccount
+    ? profileAccount.displayName ||
+      [profileAccount.firstName, profileAccount.lastName].filter(Boolean).join(" ") ||
+      profileAccount.email
+    : undefined;
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
@@ -112,9 +133,25 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <BreadcrumbLink href="/">Torero Global Outsourcing</BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden sm:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{currentTitle ?? "Overview"}</BreadcrumbPage>
-                </BreadcrumbItem>
+                {isUserProfilePath ? (
+                  <>
+                    <BreadcrumbItem className="hidden sm:block">
+                      <BreadcrumbLink href="/user-management">User Management</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden sm:block" />
+                    <BreadcrumbItem className="hidden sm:block">
+                      <BreadcrumbLink href="/user-management">Accounts</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden sm:block" />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>{profileDisplayName ?? currentTitle}</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                ) : (
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{currentTitle ?? "Overview"}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
 

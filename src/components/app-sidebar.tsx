@@ -77,7 +77,12 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "Employee Directory", url: "/directory", icon: Users, permission: "employees.view" },
       { title: "New Hires", url: "/new-hires", icon: UserPlus, permission: "employees.view" },
-      { title: "Onboarding", url: "/onboarding", icon: ClipboardCheck, permission: "onboarding.view" },
+      {
+        title: "Onboarding",
+        url: "/onboarding",
+        icon: ClipboardCheck,
+        permission: "onboarding.view",
+      },
     ],
   },
   {
@@ -109,8 +114,18 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Attendance",
     items: [
-      { title: "Violations", url: "/attendance-violations", icon: ShieldAlert, permission: "attendance.view" },
-      { title: "Reports", url: "/attendance-reports", icon: FileBarChart, permission: "attendance.view" },
+      {
+        title: "Violations",
+        url: "/attendance-violations",
+        icon: ShieldAlert,
+        permission: "attendance.view",
+      },
+      {
+        title: "Reports",
+        url: "/attendance-reports",
+        icon: FileBarChart,
+        permission: "attendance.view",
+      },
     ],
   },
   {
@@ -129,6 +144,15 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
+
+// Exact match for "/" (every page would otherwise show Dashboard as active);
+// prefix match for everything else, so a detail page nested under a nav
+// item's own URL (e.g. /user-management/:accountId under /user-management)
+// still highlights that item instead of nothing.
+function isNavItemActive(pathname: string, url: string): boolean {
+  if (url === "/") return pathname === "/";
+  return pathname === url || pathname.startsWith(`${url}/`);
+}
 
 function isNavItemVisible(
   permissions: Permission[] | undefined,
@@ -199,7 +223,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         asChild
                         tooltip={item.title}
-                        isActive={pathname === item.url}
+                        isActive={isNavItemActive(pathname, item.url)}
                       >
                         <Link to={item.url} className="flex items-center gap-2">
                           <item.icon className="h-4 w-4" />

@@ -25,6 +25,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UserManagementRouteImport } from './routes/user-management'
+import { Route as UserManagementIndexRouteImport } from './routes/user-management.index'
 import { Route as UserManagementAccountIdRouteImport } from './routes/user-management.$accountId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -107,6 +108,11 @@ const UserManagementRoute = UserManagementRouteImport.update({
   path: '/user-management',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UserManagementIndexRoute = UserManagementIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => UserManagementRoute,
+} as any)
 const UserManagementAccountIdRoute = UserManagementAccountIdRouteImport.update({
   id: '/$accountId',
   path: '/$accountId',
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRouteWithChildren
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
+  '/user-management/': typeof UserManagementIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -148,8 +155,8 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
-  '/user-management': typeof UserManagementRouteWithChildren
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
+  '/user-management': typeof UserManagementIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -170,6 +177,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRouteWithChildren
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
+  '/user-management/': typeof UserManagementIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,6 +199,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/user-management'
     | '/user-management/$accountId'
+    | '/user-management/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -208,8 +217,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/settings'
-    | '/user-management'
     | '/user-management/$accountId'
+    | '/user-management'
   id:
     | '__root__'
     | '/'
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/user-management'
     | '/user-management/$accountId'
+    | '/user-management/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -364,6 +374,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/user-management/': {
+      id: '/user-management/'
+      path: '/'
+      fullPath: '/user-management/'
+      preLoaderRoute: typeof UserManagementIndexRouteImport
+      parentRoute: typeof UserManagementRoute
+    }
     '/user-management/$accountId': {
       id: '/user-management/$accountId'
       path: '/$accountId'
@@ -376,10 +393,12 @@ declare module '@tanstack/react-router' {
 
 interface UserManagementRouteChildren {
   UserManagementAccountIdRoute: typeof UserManagementAccountIdRoute
+  UserManagementIndexRoute: typeof UserManagementIndexRoute
 }
 
 const UserManagementRouteChildren: UserManagementRouteChildren = {
   UserManagementAccountIdRoute: UserManagementAccountIdRoute,
+  UserManagementIndexRoute: UserManagementIndexRoute,
 }
 
 const UserManagementRouteWithChildren = UserManagementRoute._addFileChildren(
