@@ -86,6 +86,16 @@ class Feedback(Base):
     )
     reported_by_label: Mapped[str] = mapped_column(String(200), nullable=False)
 
+    # Screenshots attached at report time — a list of data: URLs, same
+    # inline-storage tradeoff as FeedbackComment.image_data below (no object
+    # storage wired up in this app), just plural since a bug report often
+    # benefits from more than one screenshot. Capped in count and per-image
+    # size at the route level (MAX_SCREENSHOTS / MAX_IMAGE_DATA_URL_LENGTH in
+    # app/api/routes/feedback.py), not here.
+    screenshot_urls: Mapped[list[str]] = mapped_column(
+        JSONB, default=list, server_default="[]", nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

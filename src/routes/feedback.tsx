@@ -35,6 +35,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -120,6 +121,7 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
   const deleteMutation = useDeleteFeedback();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
+  const [enlargedScreenshot, setEnlargedScreenshot] = useState<string | null>(null);
   // Same rule as the backend's _can_access_thread: the card's own reporter,
   // or Super Admin — everyone else never sees this entry point at all.
   const canOpenThread = canTriage || item.isOwn;
@@ -130,7 +132,9 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
       toast.success(`Moved to ${STATUS_LABELS[status]}`);
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Couldn't move that card. Please try again.");
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't move that card. Please try again.",
+      );
     }
   }
 
@@ -140,7 +144,9 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
       toast.success(`Priority set to ${PRIORITY_LABELS[priority]}`);
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Couldn't update priority. Please try again.");
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't update priority. Please try again.",
+      );
     }
   }
 
@@ -151,7 +157,9 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
       setConfirmingDelete(false);
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Couldn't delete this. Please try again.");
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't delete this. Please try again.",
+      );
     }
   }
 
@@ -175,7 +183,11 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge
             variant={item.type === "bug" ? "destructive" : "outline"}
-            className={item.type === "improvement" ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400" : undefined}
+            className={
+              item.type === "improvement"
+                ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                : undefined
+            }
           >
             {item.type === "bug" ? (
               <Bug className="mr-1 h-3 w-3" />
@@ -194,6 +206,24 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <p className="text-sm text-muted-foreground">{item.reason}</p>
+        {item.screenshotUrls.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {item.screenshotUrls.map((src, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => setEnlargedScreenshot(src)}
+                className="overflow-hidden rounded-md border transition-opacity hover:opacity-80"
+              >
+                <img
+                  src={src}
+                  alt={`${item.title} — screenshot ${index + 1}`}
+                  className="h-14 w-14 object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>{new Date(item.createdAt).toLocaleDateString()}</span>
           {item.reportedByLabel && (
@@ -214,13 +244,18 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
             onClick={() => setThreadOpen(true)}
           >
             <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
-            {item.commentCount > 0 ? `${item.commentCount} repl${item.commentCount === 1 ? "y" : "ies"}` : "Reply"}
+            {item.commentCount > 0
+              ? `${item.commentCount} repl${item.commentCount === 1 ? "y" : "ies"}`
+              : "Reply"}
           </Button>
         )}
 
         {canTriage && (
           <div className="grid grid-cols-2 gap-2 border-t pt-3">
-            <Select value={item.status} onValueChange={(v) => handleStatusChange(v as FeedbackStatus)}>
+            <Select
+              value={item.status}
+              onValueChange={(v) => handleStatusChange(v as FeedbackStatus)}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -232,7 +267,10 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
                 ))}
               </SelectContent>
             </Select>
-            <Select value={item.priority} onValueChange={(v) => handlePriorityChange(v as FeedbackPriority)}>
+            <Select
+              value={item.priority}
+              onValueChange={(v) => handlePriorityChange(v as FeedbackPriority)}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -278,6 +316,22 @@ function FeedbackCard({ item, canTriage }: { item: Feedback; canTriage: boolean 
       {canOpenThread && (
         <FeedbackThreadDialog item={item} open={threadOpen} onOpenChange={setThreadOpen} />
       )}
+
+      <Dialog
+        open={!!enlargedScreenshot}
+        onOpenChange={(next) => !next && setEnlargedScreenshot(null)}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogTitle className="sr-only">{item.title} — screenshot</DialogTitle>
+          {enlargedScreenshot && (
+            <img
+              src={enlargedScreenshot}
+              alt={`${item.title} — enlarged screenshot`}
+              className="max-h-[75vh] w-full rounded-md object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -316,7 +370,8 @@ function FeedbackPage() {
     });
   }, [items, query, typeFilter, priorityFilter]);
 
-  const hasActiveFilters = query.trim() !== "" || typeFilter.length > 0 || priorityFilter.length > 0;
+  const hasActiveFilters =
+    query.trim() !== "" || typeFilter.length > 0 || priorityFilter.length > 0;
 
   return (
     <div className="space-y-6">
@@ -375,7 +430,9 @@ function FeedbackPage() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading feedback…</p>
       ) : isError ? (
-        <p className="text-sm text-muted-foreground">Couldn't load feedback. Try refreshing the page.</p>
+        <p className="text-sm text-muted-foreground">
+          Couldn't load feedback. Try refreshing the page.
+        </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((column) => {

@@ -15,6 +15,10 @@ export type Feedback = {
   reason: string;
   status: FeedbackStatus;
   priority: FeedbackPriority;
+  /** data: URLs attached at report time — see Feedback.screenshot_urls's
+   * backend comment for why these are stored inline rather than uploaded to
+   * object storage. */
+  screenshotUrls: string[];
   createdAt: string;
   updatedAt: string;
   // Non-null only when the signed-in account is Super Admin — every other
@@ -34,6 +38,7 @@ type BackendFeedback = {
   reason: string;
   status: FeedbackStatus;
   priority: FeedbackPriority;
+  screenshot_urls: string[];
   created_at: string;
   updated_at: string;
   reported_by_label: string | null;
@@ -49,6 +54,7 @@ function fromBackend(row: BackendFeedback): Feedback {
     reason: row.reason,
     status: row.status,
     priority: row.priority,
+    screenshotUrls: row.screenshot_urls,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     reportedByLabel: row.reported_by_label,
@@ -79,7 +85,9 @@ async function readErrorMessage(response: Response, path: string): Promise<strin
     if (typeof parsed.detail === "string") return parsed.detail;
     if (Array.isArray(parsed.detail)) {
       const messages = parsed.detail
-        .map((item) => (item && typeof item === "object" && "msg" in item ? String(item.msg) : null))
+        .map((item) =>
+          item && typeof item === "object" && "msg" in item ? String(item.msg) : null,
+        )
         .filter((msg): msg is string => Boolean(msg));
       if (messages.length > 0) return messages.join("; ");
     }
@@ -99,12 +107,19 @@ export type FeedbackInput = {
   title: string;
   reason: string;
   priority: FeedbackPriority;
+  screenshotUrls: string[];
 };
 
 export async function createFeedback(input: FeedbackInput): Promise<Feedback> {
   const row = await request<BackendFeedback>("/feedback", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      type: input.type,
+      title: input.title,
+      reason: input.reason,
+      priority: input.priority,
+      screenshot_urls: input.screenshotUrls,
+    }),
   });
   return fromBackend(row);
 }

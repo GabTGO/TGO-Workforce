@@ -17,6 +17,10 @@ class FeedbackCreate(BaseModel):
     title: str
     reason: str
     priority: FeedbackPriority = FeedbackPriority.MEDIUM
+    # data: URLs — same inline-storage tradeoff as FeedbackCommentCreate.
+    # image_data below, just plural. Count and per-image size are both capped
+    # at the route level (MAX_SCREENSHOTS / MAX_IMAGE_DATA_URL_LENGTH).
+    screenshot_urls: list[str] = []
 
 
 class FeedbackAdminUpdate(BaseModel):
@@ -37,6 +41,7 @@ class FeedbackRead(BaseModel):
     reason: str
     status: FeedbackStatus
     priority: FeedbackPriority
+    screenshot_urls: list[str] = []
     created_at: datetime
     updated_at: datetime
     # Populated only when the requesting account is Super Admin — every other

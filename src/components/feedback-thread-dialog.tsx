@@ -26,17 +26,12 @@ import {
   useFeedbackCommentsQuery,
   useToggleFeedbackCommentReaction,
 } from "@/data/feedback-store";
+import { downscaleImage } from "@/lib/image-attachments";
 import { ROLE_LABELS } from "@/lib/roles";
 
 // A small fixed palette rather than a full emoji picker — this is a
 // lightweight "react to proof/report" gesture, not general chat.
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "🎉", "👀"];
-
-// Screenshots from Snipping Tool / a full-res monitor easily exceed a couple
-// MB — downsize client-side before base64-encoding so the thread stays snappy
-// and comfortably under the backend's MAX_IMAGE_DATA_URL_LENGTH backstop.
-const MAX_IMAGE_DIMENSION = 1600;
-const IMAGE_JPEG_QUALITY = 0.85;
 
 function initials(name: string) {
   return name
@@ -52,41 +47,9 @@ function formatTimestamp(iso: string): string {
   const date = new Date(iso);
   const sameDay = date.toDateString() === new Date().toDateString();
   const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return sameDay ? time : `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
-}
-
-async function downscaleImage(file: File): Promise<string> {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-
-  // Non-raster formats (e.g. an SVG someone pasted) — pass through as-is
-  // rather than fighting the canvas over something it can't usefully resize.
-  if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
-    return dataUrl;
-  }
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Couldn't read that image."));
-    img.src = dataUrl;
-  });
-
-  const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height));
-  const width = Math.round(image.width * scale);
-  const height = Math.round(image.height * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return dataUrl;
-  ctx.drawImage(image, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", IMAGE_JPEG_QUALITY);
+  return sameDay
+    ? time
+    : `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 
 function ReactionBar({
@@ -237,9 +200,7 @@ export function FeedbackThreadDialog({
             <MessageCircle className="h-4 w-4 text-muted-foreground" />
             {item.title}
           </DialogTitle>
-          <DialogDescription>
-            Only you and Super Admin can see this thread.
-          </DialogDescription>
+          <DialogDescription>Only you and Super Admin can see this thread.</DialogDescription>
         </DialogHeader>
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-1 py-2">
@@ -261,7 +222,9 @@ export function FeedbackThreadDialog({
                   className="flex animate-in gap-2.5 fade-in slide-in-from-bottom-2 duration-300"
                 >
                   <Avatar className="mt-0.5 size-8 shrink-0">
-                    <AvatarFallback className="text-xs">{initials(comment.authorLabel)}</AvatarFallback>
+                    <AvatarFallback className="text-xs">
+                      {initials(comment.authorLabel)}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-baseline gap-1.5">
@@ -300,7 +263,11 @@ export function FeedbackThreadDialog({
         <div className="space-y-2 border-t pt-3">
           {pendingImage && (
             <div className="relative inline-block">
-              <img src={pendingImage} alt="Attachment preview" className="h-20 rounded-md border object-cover" />
+              <img
+                src={pendingImage}
+                alt="Attachment preview"
+                className="h-20 rounded-md border object-cover"
+              />
               <button
                 type="button"
                 onClick={() => setPendingImage(null)}

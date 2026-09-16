@@ -38,6 +38,10 @@ SuperAdminAccount = Annotated[Account, Depends(require_super_admin)]
 # trigger — it's the backstop, not the primary control.
 MAX_IMAGE_DATA_URL_LENGTH = 6_000_000
 
+# How many screenshots a single report can carry — generous for "here's proof
+# of the bug from a few angles" without letting one report's row balloon.
+MAX_SCREENSHOTS = 6
+
 
 def _actor_label(account: Account) -> str:
     return account.display_name or account.email
@@ -118,12 +122,24 @@ async def create_feedback(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required")
     if not reason:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reason is required")
+    if len(payload.screenshot_urls) > MAX_SCREENSHOTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You can attach up to {MAX_SCREENSHOTS} screenshots.",
+        )
+    for image in payload.screenshot_urls:
+        if len(image) > MAX_IMAGE_DATA_URL_LENGTH:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One of those screenshots is too large — try a smaller one or crop it first.",
+            )
 
     feedback = Feedback(
         type=payload.type,
         title=title,
         reason=reason,
         priority=payload.priority,
+        screenshot_urls=payload.screenshot_urls,
         reported_by_id=account.id,
         reported_by_label=_actor_label(account),
     )
