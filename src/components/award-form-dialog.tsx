@@ -169,9 +169,9 @@ export function AwardFormDialog({
                     aria-expanded={employeePickerOpen}
                     className="w-full justify-between font-normal"
                   >
-                    <span className="truncate">
+                    <span className="min-w-0 truncate">
                       {selectedEmployee
-                        ? `${selectedEmployee.name} · ${selectedEmployee.office} · ${selectedEmployee.department} · ${selectedEmployee.position}`
+                        ? `${selectedEmployee.name} · ${selectedEmployee.office}`
                         : "Search for an active employee..."}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
