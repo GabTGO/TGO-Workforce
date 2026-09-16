@@ -123,39 +123,25 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Button variant="ghost" className="h-9 gap-2 px-2">
                     <Avatar className="size-7">
                       {account.photo_url && (
-                        <AvatarImage
-                          src={account.photo_url}
-                          alt={displayName}
-                        />
+                        <AvatarImage src={account.photo_url} alt={displayName} />
                       )}
-                      <AvatarFallback className="text-xs">
-                        {initials}
-                      </AvatarFallback>
+                      <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                     </Avatar>
-                    <span className="hidden text-sm sm:inline">
-                      {displayName}
-                    </span>
+                    <span className="hidden text-sm sm:inline">{displayName}</span>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                     <p className="text-sm font-medium">{displayName}</p>
-                    <p className="text-xs font-normal text-muted-foreground">
-                      {account.email}
-                    </p>
-                    <Badge
-                      variant="secondary"
-                      className="mt-1.5 gap-1 font-normal"
-                    >
+                    <p className="text-xs font-normal text-muted-foreground">{account.email}</p>
+                    <Badge variant="secondary" className="mt-1.5 gap-1 font-normal">
                       <ShieldCheck className="h-3 w-3" />
                       {ROLE_LABELS[account.role]}
                     </Badge>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => navigate({ to: "/profile" })}
-                  >
+                  <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>
                     <User className="mr-2 h-4 w-4" /> Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem>
@@ -192,7 +178,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
           <SandboxBanner account={account} />
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main
+            key={account.animations_enabled ? pathname : undefined}
+            className={
+              account.animations_enabled
+                ? "flex-1 p-4 animate-in fade-in slide-in-from-bottom-2 duration-300 md:p-6"
+                : "flex-1 p-4 md:p-6"
+            }
+          >
+            {children}
+          </main>
         </div>
       </div>
     </SidebarProvider>

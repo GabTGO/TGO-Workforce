@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserProfileDialog } from "@/components/user-profile-dialog";
 import {
   useAccountsQuery,
   usePendingInvitesQuery,
@@ -277,25 +278,30 @@ function UserManagementPage() {
                       return (
                         <TableRow key={account.id}>
                           <TableCell className="py-3 pl-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="size-9">
-                                {account.photoUrl && (
-                                  <AvatarImage src={account.photoUrl} alt={displayName} />
-                                )}
-                                <AvatarFallback className="text-xs">
-                                  {initials(displayName)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">
-                                  {displayName}{" "}
-                                  {isSelf && <span className="text-muted-foreground">(you)</span>}
-                                </p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {account.email}
-                                </p>
-                              </div>
-                            </div>
+                            <UserProfileDialog account={account} canViewMatrix={isSuperAdmin}>
+                              <button
+                                type="button"
+                                className="-m-1.5 flex items-center gap-3 rounded-md p-1.5 text-left transition-colors hover:bg-muted/60"
+                              >
+                                <Avatar className="size-9">
+                                  {account.photoUrl && (
+                                    <AvatarImage src={account.photoUrl} alt={displayName} />
+                                  )}
+                                  <AvatarFallback className="text-xs">
+                                    {initials(displayName)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium">
+                                    {displayName}{" "}
+                                    {isSelf && <span className="text-muted-foreground">(you)</span>}
+                                  </p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {account.email}
+                                  </p>
+                                </div>
+                              </button>
+                            </UserProfileDialog>
                           </TableCell>
                           <TableCell className="py-3">
                             <Select

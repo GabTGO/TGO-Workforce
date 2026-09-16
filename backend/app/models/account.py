@@ -149,6 +149,12 @@ class Account(Base):
     notify_on_new_hire_added: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Client-side page-enter transitions and dashboard count-up effects —
+    # purely cosmetic, so it's a self-service preference like the rest of this
+    # block rather than an admin-managed setting.
+    animations_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

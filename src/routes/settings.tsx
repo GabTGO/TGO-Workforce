@@ -4,13 +4,7 @@ import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -22,11 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OFFICES } from "@/data/employees";
-import {
-  useCurrentAccount,
-  useUpdateMyPreferences,
-  type PreferencesPatch,
-} from "@/lib/session";
+import { useCurrentAccount, useUpdateMyPreferences, type PreferencesPatch } from "@/lib/session";
 import { canApproveAttendance, canManageOnboarding } from "@/lib/permissions";
 
 export const Route = createFileRoute("/settings")({
@@ -35,14 +25,12 @@ export const Route = createFileRoute("/settings")({
       { title: "Settings — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
-        content:
-          "Configure workspace defaults and notification preferences for HR Operations.",
+        content: "Configure workspace defaults and notification preferences for HR Operations.",
       },
       { property: "og:title", content: "Settings — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
-        content:
-          "Workspace preferences for the Torero Global Outsourcing HR Operations portal.",
+        content: "Workspace preferences for the Torero Global Outsourcing HR Operations portal.",
       },
     ],
   }),
@@ -73,6 +61,7 @@ function SettingsPage() {
   const [notifyNewHires, setNotifyNewHires] = useState(true);
   const [notifyOnViolationReview, setNotifyOnViolationReview] = useState(true);
   const [notifyOnNewHireAdded, setNotifyOnNewHireAdded] = useState(true);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
   // Seed local form state from the account exactly once — after that, this
   // page's own edits are the source of truth, so a background refetch of
   // /auth/me (the 60s staleTime query other pages also share) can't quietly
@@ -88,6 +77,7 @@ function SettingsPage() {
     setNotifyNewHires(account.notify_new_hires);
     setNotifyOnViolationReview(account.notify_on_violation_review);
     setNotifyOnNewHireAdded(account.notify_on_new_hire_added);
+    setAnimationsEnabled(account.animations_enabled);
   }, [account]);
 
   const showViolationReviewToggle = canApproveAttendance(account?.permissions);
@@ -100,7 +90,8 @@ function SettingsPage() {
       notifyBirthdays !== account.notify_birthdays ||
       notifyNewHires !== account.notify_new_hires ||
       notifyOnViolationReview !== account.notify_on_violation_review ||
-      notifyOnNewHireAdded !== account.notify_on_new_hire_added);
+      notifyOnNewHireAdded !== account.notify_on_new_hire_added ||
+      animationsEnabled !== account.animations_enabled);
 
   function handleSave() {
     const patch: PreferencesPatch = {
@@ -110,6 +101,7 @@ function SettingsPage() {
       notify_new_hires: notifyNewHires,
       notify_on_violation_review: notifyOnViolationReview,
       notify_on_new_hire_added: notifyOnNewHireAdded,
+      animations_enabled: animationsEnabled,
     };
     updatePreferences.mutate(patch, {
       onSuccess: () => toast.success("Settings saved"),
@@ -135,11 +127,7 @@ function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="grid gap-2">
             <Label>Default office</Label>
-            <Select
-              value={defaultOffice}
-              onValueChange={setDefaultOffice}
-              disabled={isLoading}
-            >
+            <Select value={defaultOffice} onValueChange={setDefaultOffice} disabled={isLoading}>
               <SelectTrigger className="max-w-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -161,8 +149,8 @@ function SettingsPage() {
           <CardHeader>
             <CardTitle>Notification Inbox</CardTitle>
             <CardDescription>
-              What lands in your bell icon at the top of the page. Shown only for the modules
-              your role can act on.
+              What lands in your bell icon at the top of the page. Shown only for the modules your
+              role can act on.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -171,8 +159,8 @@ function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium">Violation ready for review</p>
                   <p className="text-xs text-muted-foreground">
-                    Notify me when a violation email is prepared and waiting on HR approval, or
-                    when a send fails.
+                    Notify me when a violation email is prepared and waiting on HR approval, or when
+                    a send fails.
                   </p>
                 </div>
                 <Switch
@@ -204,10 +192,35 @@ function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>
+            Visual effects shown across the app — only affects your own view.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Interface animations</p>
+              <p className="text-xs text-muted-foreground">
+                Page transitions and animated counters on dashboard numbers. Turn off for a
+                snappier, static interface.
+              </p>
+            </div>
+            <Switch
+              checked={animationsEnabled}
+              onCheckedChange={setAnimationsEnabled}
+              disabled={isLoading}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Dashboard Cards</CardTitle>
           <CardDescription>
-            What your Dashboard surfaces. Turning one off hides the matching
-            card there — it only affects your own view, not anyone else's.
+            What your Dashboard surfaces. Turning one off hides the matching card there — it only
+            affects your own view, not anyone else's.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -245,21 +258,14 @@ function SettingsPage() {
                   <p className="text-sm font-medium">{row.title}</p>
                   <p className="text-xs text-muted-foreground">{row.desc}</p>
                 </div>
-                <Switch
-                  checked={row.checked}
-                  onCheckedChange={row.onChange}
-                  disabled={isLoading}
-                />
+                <Switch checked={row.checked} onCheckedChange={row.onChange} disabled={isLoading} />
               </div>
             </div>
           ))}
         </CardContent>
       </Card>
 
-      <Button
-        onClick={handleSave}
-        disabled={!dirty || updatePreferences.isPending}
-      >
+      <Button onClick={handleSave} disabled={!dirty || updatePreferences.isPending}>
         {updatePreferences.isPending ? "Saving..." : "Save changes"}
       </Button>
     </div>

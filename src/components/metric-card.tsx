@@ -1,5 +1,52 @@
+import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCurrentAccount } from "@/lib/session";
+
+const COUNT_UP_MS = 700;
+
+/** Animates from the previous numeric value up (or down) to the new one over
+ * COUNT_UP_MS — skipped entirely (renders the target immediately) when the
+ * account has turned animations off, or on the very first mount, so a page
+ * load doesn't count up from zero. */
+function AnimatedNumber({ value, enabled }: { value: number; enabled: boolean }) {
+  const [displayed, setDisplayed] = useState(value);
+  const previous = useRef(value);
+  const mounted = useRef(false);
+  const frame = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      previous.current = value;
+      return;
+    }
+    const from = previous.current;
+    const to = value;
+    previous.current = value;
+    if (!enabled || from === to) {
+      setDisplayed(to);
+      return;
+    }
+
+    const start = performance.now();
+    function tick(now: number) {
+      const progress = Math.min(1, (now - start) / COUNT_UP_MS);
+      // Ease-out cubic — fast start, settles gently into the final value.
+      const eased = 1 - (1 - progress) ** 3;
+      setDisplayed(Math.round(from + (to - from) * eased));
+      if (progress < 1) {
+        frame.current = requestAnimationFrame(tick);
+      }
+    }
+    frame.current = requestAnimationFrame(tick);
+    return () => {
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+    };
+  }, [value, enabled]);
+
+  return <>{displayed.toLocaleString()}</>;
+}
 
 export function MetricCard({
   title,
@@ -12,6 +59,9 @@ export function MetricCard({
   hint: string;
   icon: LucideIcon;
 }) {
+  const { data: account } = useCurrentAccount();
+  const animationsEnabled = account?.animations_enabled ?? true;
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -19,7 +69,13 @@ export function MetricCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-semibold tracking-tight">{value}</div>
+        <div className="text-3xl font-semibold tracking-tight">
+          {typeof value === "number" ? (
+            <AnimatedNumber value={value} enabled={animationsEnabled} />
+          ) : (
+            value
+          )}
+        </div>
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
