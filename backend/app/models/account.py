@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, String
+from sqlalchemy import Boolean, DateTime, Enum, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -81,9 +81,14 @@ class Account(Base):
     first_name: Mapped[str | None] = mapped_column(String(100))
     last_name: Mapped[str | None] = mapped_column(String(100))
     display_name: Mapped[str | None] = mapped_column(String(200))
-    # Profile photo — a URL (Zoho's avatar endpoint, or later an uploaded image
-    # in object storage), not a binary blob in Postgres.
-    photo_url: Mapped[str | None] = mapped_column(String(500))
+    # Profile photo — either a URL (Zoho's avatar endpoint, or any other
+    # hosted image) or, since there's no object storage wired up in this app,
+    # a data: URI holding an uploaded image directly (see the frontend's
+    # profile photo upload, which downsizes the image client-side before
+    # sending it, so this stays a small string rather than an actual BLOB
+    # column). Text, not a bounded varchar, because a data: URI is much
+    # longer than any real image URL.
+    photo_url: Mapped[str | None] = mapped_column(Text)
 
     role: Mapped[AccountRole] = mapped_column(
         # values_callable: persist the lowercase .value ("admin", not "ADMIN")

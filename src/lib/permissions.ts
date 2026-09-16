@@ -29,6 +29,54 @@ export function isFullAccessRole(role: AccountRole | undefined): boolean {
   return !!role && FULL_ACCESS_ROLES.has(role);
 }
 
+// Mirrors PERMISSION_LABELS in backend/app/services/permissions.py — kept as
+// a frontend copy rather than fetched, since the only endpoint that returns
+// these (GET /permissions/matrix) is Super-Admin-only and the Profile page's
+// "My Permissions" section has to work for every role, reading nothing but
+// the already-fetched account.permissions from GET /auth/me.
+export const PERMISSION_LABELS: Record<Permission, { title: string; description: string }> = {
+  "employees.view": {
+    title: "View Employees",
+    description: "See the Employee Directory.",
+  },
+  "employees.manage": {
+    title: "Manage Employees",
+    description: "Create, edit, delete and import employee records.",
+  },
+  "milestones.view": {
+    title: "View Milestones",
+    description: "See the Anniversaries and Birthdays pages.",
+  },
+  "onboarding.view": {
+    title: "View Onboarding",
+    description: "See the onboarding checklist tracker.",
+  },
+  "onboarding.manage": {
+    title: "Manage Onboarding",
+    description: "Add, edit and delete new-hire rows.",
+  },
+  "attendance.view": {
+    title: "View Attendance Violations",
+    description: "See the attendance violation tracker.",
+  },
+  "attendance.manage": {
+    title: "Manage Attendance Violations",
+    description: "Create, edit, prepare and import violation records.",
+  },
+  "attendance.approve": {
+    title: "Approve Attendance Violations",
+    description: "Approve, hold, and send violation emails.",
+  },
+  "awards.view": {
+    title: "View Recognition & Awards",
+    description: "See the awards given to employees.",
+  },
+  "awards.manage": {
+    title: "Manage Recognition & Awards",
+    description: "Give a new award, and edit or delete existing awards.",
+  },
+};
+
 // Narrower than isFullAccessRole above — a few things (editing the
 // permission matrix, triaging the Feedback board's status/priority/reporter
 // identity) are Super Admin-only, deliberately excluding a plain Admin. Feed

@@ -6,21 +6,16 @@ import { useCurrentAccount } from "@/lib/session";
 const COUNT_UP_MS = 700;
 
 /** Animates from the previous numeric value up (or down) to the new one over
- * COUNT_UP_MS — skipped entirely (renders the target immediately) when the
- * account has turned animations off, or on the very first mount, so a page
- * load doesn't count up from zero. */
+ * COUNT_UP_MS, including the very first mount (starts from 0) — that's what
+ * makes it visible on every page, not just when a value happens to change
+ * while already mounted. Skipped entirely (renders the target immediately)
+ * only when the account has turned animations off. */
 function AnimatedNumber({ value, enabled }: { value: number; enabled: boolean }) {
-  const [displayed, setDisplayed] = useState(value);
-  const previous = useRef(value);
-  const mounted = useRef(false);
+  const [displayed, setDisplayed] = useState(enabled ? 0 : value);
+  const previous = useRef(enabled ? 0 : value);
   const frame = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      previous.current = value;
-      return;
-    }
     const from = previous.current;
     const to = value;
     previous.current = value;

@@ -70,8 +70,10 @@ class AccountPreferencesUpdate(BaseModel):
     the login callback in app/api/routes/auth.py, which only *seeds* these
     two from Zoho's profile on first-ever sign-in and never overwrites them
     again afterward, so a self-edit here sticks across future logins.
-    photo_url is a pasted image URL, not a file upload — there's no object
-    storage wired up in this app (see the comment on Account.photo_url)."""
+    photo_url is either a pasted image URL or a data: URI from the Profile
+    page's file upload (downsized client-side first) — there's no object
+    storage wired up in this app, so an uploaded file is stored inline
+    instead of in a bucket (see the comment on Account.photo_url)."""
 
     display_name: str | None = None
     photo_url: str | None = None
