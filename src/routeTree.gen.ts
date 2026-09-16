@@ -25,6 +25,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UserManagementRouteImport } from './routes/user-management'
+import { Route as UserManagementAccountIdRouteImport } from './routes/user-management.$accountId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -106,6 +107,11 @@ const UserManagementRoute = UserManagementRouteImport.update({
   path: '/user-management',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UserManagementAccountIdRoute = UserManagementAccountIdRouteImport.update({
+  id: '/$accountId',
+  path: '/$accountId',
+  getParentRoute: () => UserManagementRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -123,7 +129,8 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
-  '/user-management': typeof UserManagementRoute
+  '/user-management': typeof UserManagementRouteWithChildren
+  '/user-management/$accountId': typeof UserManagementAccountIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,7 +148,8 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
-  '/user-management': typeof UserManagementRoute
+  '/user-management': typeof UserManagementRouteWithChildren
+  '/user-management/$accountId': typeof UserManagementAccountIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,7 +168,8 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
-  '/user-management': typeof UserManagementRoute
+  '/user-management': typeof UserManagementRouteWithChildren
+  '/user-management/$accountId': typeof UserManagementAccountIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/user-management'
+    | '/user-management/$accountId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/user-management'
+    | '/user-management/$accountId'
   id:
     | '__root__'
     | '/'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/user-management'
+    | '/user-management/$accountId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -235,7 +247,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
-  UserManagementRoute: typeof UserManagementRoute
+  UserManagementRoute: typeof UserManagementRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -352,8 +364,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/user-management/$accountId': {
+      id: '/user-management/$accountId'
+      path: '/$accountId'
+      fullPath: '/user-management/$accountId'
+      preLoaderRoute: typeof UserManagementAccountIdRouteImport
+      parentRoute: typeof UserManagementRoute
+    }
   }
 }
+
+interface UserManagementRouteChildren {
+  UserManagementAccountIdRoute: typeof UserManagementAccountIdRoute
+}
+
+const UserManagementRouteChildren: UserManagementRouteChildren = {
+  UserManagementAccountIdRoute: UserManagementAccountIdRoute,
+}
+
+const UserManagementRouteWithChildren = UserManagementRoute._addFileChildren(
+  UserManagementRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -371,7 +402,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
-  UserManagementRoute: UserManagementRoute,
+  UserManagementRoute: UserManagementRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

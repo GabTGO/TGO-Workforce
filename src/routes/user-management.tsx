@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Lock, Mail, Send, ShieldAlert, ShieldCheck, UserCheck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserProfileDialog } from "@/components/user-profile-dialog";
+import { UserHoverCard } from "@/components/user-hover-card";
 import {
   useAccountsQuery,
   usePendingInvitesQuery,
@@ -278,9 +278,10 @@ function UserManagementPage() {
                       return (
                         <TableRow key={account.id}>
                           <TableCell className="py-3 pl-4">
-                            <UserProfileDialog account={account} canViewMatrix={isSuperAdmin}>
-                              <button
-                                type="button"
+                            <UserHoverCard account={account}>
+                              <Link
+                                to="/user-management/$accountId"
+                                params={{ accountId: account.id }}
                                 className="-m-1.5 flex items-center gap-3 rounded-md p-1.5 text-left transition-colors hover:bg-muted/60"
                               >
                                 <Avatar className="size-9">
@@ -300,8 +301,8 @@ function UserManagementPage() {
                                     {account.email}
                                   </p>
                                 </div>
-                              </button>
-                            </UserProfileDialog>
+                              </Link>
+                            </UserHoverCard>
                           </TableCell>
                           <TableCell className="py-3">
                             <Select

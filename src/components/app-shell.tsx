@@ -43,7 +43,10 @@ const EXTRA_PAGE_TITLES: Record<string, string> = {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const current = NAV_ITEMS.find((i) => i.url === pathname);
-  const currentTitle = current?.title ?? EXTRA_PAGE_TITLES[pathname];
+  const currentTitle =
+    current?.title ??
+    EXTRA_PAGE_TITLES[pathname] ??
+    (pathname.startsWith("/user-management/") ? "User Profile" : undefined);
   const navigate = useNavigate();
 
   // Auth guard — runs client-side only (TanStack Start's beforeLoad executes
