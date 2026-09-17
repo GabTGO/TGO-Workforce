@@ -171,8 +171,13 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="shadow-[2px_0_20px_-4px_rgba(0,0,0,0.35)]">
-      <SidebarHeader className="gap-3 px-3 py-4">
-        <div className="flex items-center gap-3">
+      <SidebarHeader className={cn("gap-3 py-4", collapsed ? "px-2" : "px-4")}>
+        <div
+          className={cn(
+            "flex min-h-11 items-center",
+            collapsed ? "justify-center" : "gap-3",
+          )}
+        >
           {/* Always the light-on-dark logo variant — the sidebar is a
               constant brand green regardless of the app's light/dark theme,
               so the logo no longer needs to switch with it. */}
@@ -181,16 +186,23 @@ export function AppSidebar() {
             alt="Torero Global Outsourcing logo"
             width={1000}
             height={521}
-            className="h-10 w-auto shrink-0 object-contain drop-shadow-sm"
+            className={cn(
+              "shrink-0 object-contain drop-shadow-sm",
+              collapsed ? "h-8 max-w-8" : "h-10 w-auto",
+            )}
           />
 
           {!collapsed && (
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/80">
-                Workforce 
-                <br />
+            <div
+              className="flex min-w-0 flex-col justify-center leading-none"
+              aria-label="Workforce Portal"
+            >
+              <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/85">
+                Workforce
+              </span>
+              <span className="mt-1 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/65">
                 Portal
-              </p>
+              </span>
             </div>
           )}
         </div>
@@ -200,7 +212,7 @@ export function AppSidebar() {
         <div className="h-px w-full bg-gradient-to-r from-[#72b360] via-[#72b360]/40 to-transparent" />
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="pb-3">
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(
             (item) =>
@@ -215,8 +227,8 @@ export function AppSidebar() {
           if (visibleItems.length === 0) return null;
 
           return (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/60">
+            <SidebarGroup key={group.label} className="px-2 py-1.5">
+              <SidebarGroupLabel className="mb-1 h-7 px-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/60">
                 {group.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>
