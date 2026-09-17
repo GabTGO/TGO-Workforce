@@ -17,7 +17,6 @@ import {
   Trophy,
 } from "lucide-react";
 
-import logoLight from "@/assets/tgo-logo-light.png";
 import logoDark from "@/assets/tgo-logo-dark.png";
 
 import {
@@ -170,28 +169,23 @@ export function AppSidebar() {
   const isAdmin = isFullAccessRole(getEffectiveRole(account));
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="shadow-[2px_0_20px_-4px_rgba(0,0,0,0.35)]">
       <SidebarHeader className="gap-3 border-b border-sidebar-border px-3 py-4">
         <div className="flex items-center gap-3">
+          {/* Always the light-on-dark logo variant — the sidebar is a
+              constant brand green regardless of the app's light/dark theme,
+              so the logo no longer needs to switch with it. */}
           <img
-            src={logoLight}
+            src={logoDark}
             alt="Torero Global Outsourcing logo"
             width={1000}
             height={521}
-            className="h-10 w-auto shrink-0 object-contain dark:hidden"
-          />
-          <img
-            src={logoDark}
-            alt=""
-            aria-hidden
-            width={1000}
-            height={521}
-            className="hidden h-10 w-auto shrink-0 object-contain dark:block"
+            className="h-10 w-auto shrink-0 object-contain drop-shadow-sm"
           />
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-xs uppercase tracking-wide text-muted-foreground">
+              <p className="truncate text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/80">
                 HR Operations
               </p>
             </div>
@@ -215,7 +209,9 @@ export function AppSidebar() {
 
           return (
             <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/60">
+                {group.label}
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {visibleItems.map((item) => (

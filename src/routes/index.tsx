@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -542,7 +543,22 @@ function Dashboard() {
                             <p className="font-medium">{a.employeeName}</p>
                             <p className="text-xs text-muted-foreground">{a.employeeOffice}</p>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{a.title}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {a.description ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-default underline decoration-dotted underline-offset-4">
+                                    {a.title}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-64">
+                                  {a.description}
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              a.title
+                            )}
+                          </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             {formatDate(a.awardedDate)}
                             <span className="ml-1.5 text-xs">
