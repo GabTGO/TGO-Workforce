@@ -35,6 +35,7 @@ import {
 import { useCurrentAccount } from "@/lib/session";
 import type { Permission } from "@/lib/session";
 import { getEffectiveRole, isFullAccessRole, hasPermission } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 type NavItem = {
   title: string;
@@ -170,7 +171,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="shadow-[2px_0_20px_-4px_rgba(0,0,0,0.35)]">
-      <SidebarHeader className="gap-3 border-b border-sidebar-border px-3 py-4">
+      <SidebarHeader className="gap-3 px-3 py-4">
         <div className="flex items-center gap-3">
           {/* Always the light-on-dark logo variant — the sidebar is a
               constant brand green regardless of the app's light/dark theme,
@@ -191,6 +192,10 @@ export function AppSidebar() {
             </div>
           )}
         </div>
+        {/* A thin brand-green underline beneath the header — the one
+            deliberate accent stroke that ties the whole navy sidebar back
+            to the green used everywhere else in the app. */}
+        <div className="h-px w-full bg-gradient-to-r from-[#72b360] via-[#72b360]/40 to-transparent" />
       </SidebarHeader>
 
       <SidebarContent>
@@ -220,7 +225,21 @@ export function AppSidebar() {
                         asChild
                         tooltip={item.title}
                         isActive={isNavItemActive(pathname, item.url)}
-                        className="px-4"
+                        className={cn(
+                          "relative px-4 transition-[width,height,padding,transform] duration-200",
+                          "hover:translate-x-0.5",
+                          // The green accent bar/icon only ever marks the
+                          // active item — hover stays a neutral lightening
+                          // (bg-sidebar-accent, from the shared component),
+                          // so green reads as "you are here", not "you're
+                          // pointing at me".
+                          "before:absolute before:inset-y-1.5 before:left-0 before:w-[3px]",
+                          "before:rounded-r-full before:bg-[#72b360] before:opacity-0",
+                          "before:transition-opacity before:duration-200",
+                          "data-[active=true]:before:opacity-100",
+                          "[&>svg]:transition-colors [&>svg]:duration-200",
+                          "data-[active=true]:[&>svg]:text-[#72b360]",
+                        )}
                       >
                         <Link to={item.url} className="flex items-center gap-2">
                           <item.icon className="h-4 w-4" />

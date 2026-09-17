@@ -29,18 +29,23 @@
   --chart-3: oklch(0.414 0.0547 248.3609);
   --chart-4: oklch(0.7959 0.0766 139.6826);
   --chart-5: oklch(0.5137 0.0556 243.6587);
-  /* A signature branded sidebar (#72b360, the same green already used for
-     --primary/--accent/--chart-1 everywhere else) — same across light and
-     dark mode on purpose, so the sidebar reads as this app's identity
-     rather than flipping between white and near-black with the theme. */
-  --sidebar: oklch(0.7094 0.1067 137.1778);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(1 0 0);
-  --sidebar-primary-foreground: oklch(0.7094 0.1067 137.1778);
-  --sidebar-accent: oklch(0.58 0.1067 137.1778);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(1 0 0 / 0.18);
-  --sidebar-ring: oklch(1 0 0);
+  /* A signature branded sidebar — deep corporate navy (#183445) with the
+     brand green (#72b360) reserved for the active-item accent, same across
+     light and dark mode on purpose, so the sidebar reads as this app's
+     identity rather than flipping between white and near-black with the
+     theme. --sidebar-accent stays a neutral translucent overlay (hover AND
+     the shared active-state background from ui/sidebar.tsx both route
+     through it) — the green itself is layered on top only for the active
+     item's accent bar/icon, in app-sidebar.tsx, so it stays a deliberate
+     "you are here" marker rather than a color splashed on every hover. */
+  --sidebar: #183445;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #72b360;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #72b360;
   --font-sans: "Inter", sans-serif;
   --font-serif: "Merriweather", serif;
   --font-mono: "Fira Code", monospace;
@@ -89,15 +94,15 @@
   --chart-3: oklch(0.7959 0.0766 139.6826);
   --chart-4: oklch(0.5137 0.0556 243.6587);
   --chart-5: oklch(0.6154 0.1064 138.6253);
-  /* Same signature green sidebar as light mode — see the :root comment. */
-  --sidebar: oklch(0.7094 0.1067 137.1778);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(1 0 0);
-  --sidebar-primary-foreground: oklch(0.7094 0.1067 137.1778);
-  --sidebar-accent: oklch(0.58 0.1067 137.1778);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(1 0 0 / 0.18);
-  --sidebar-ring: oklch(1 0 0);
+  /* Same signature navy/green sidebar as light mode — see the :root comment. */
+  --sidebar: #183445;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #72b360;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #72b360;
   --font-sans: "Inter", sans-serif;
   --font-serif: "Merriweather", serif;
   --font-mono: "Fira Code", monospace;
@@ -190,4 +195,17 @@
     font-family: var(--font-sans);
     letter-spacing: var(--tracking-normal);
   }
+}
+
+/* A faint top-to-bottom lightening on the sidebar's actual panel — targeted
+   by attribute selector since ui/sidebar.tsx's `data-sidebar="sidebar"` div
+   doesn't take a className, this is the only hook available without editing
+   that shared primitive. Subtle on purpose: it reads as depth, not a
+   visible gradient. */
+[data-sidebar="sidebar"] {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0) 45%
+  );
 }
