@@ -187,7 +187,9 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/80">
-                Workforce Portal
+                Workforce 
+                <br />
+                Portal
               </p>
             </div>
           )}
