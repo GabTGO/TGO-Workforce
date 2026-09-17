@@ -237,8 +237,12 @@ export function AppSidebar() {
                           "before:rounded-r-full before:bg-[#72b360] before:opacity-0",
                           "before:transition-opacity before:duration-200",
                           "data-[active=true]:before:opacity-100",
-                          "[&>svg]:transition-colors [&>svg]:duration-200",
-                          "data-[active=true]:[&>svg]:text-[#72b360]",
+                          // Icons come alive on hover (a little lift + tilt)
+                          // and settle into a slightly larger, green-tinted
+                          // state once their page is the active one.
+                          "[&>svg]:transition-[color,transform] [&>svg]:duration-200 [&>svg]:ease-out",
+                          "hover:[&>svg]:scale-110 hover:[&>svg]:-rotate-6",
+                          "data-[active=true]:[&>svg]:scale-110 data-[active=true]:[&>svg]:text-[#72b360]",
                         )}
                       >
                         <Link to={item.url} className="flex items-center gap-2">
