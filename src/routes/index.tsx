@@ -39,6 +39,13 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -51,7 +58,9 @@ import { useEmployees } from "@/data/employee-store";
 import {
   anniversaries,
   daysSinceLastOccurrence,
+  daysUntilNextOccurrence,
   formatDate,
+  MILESTONE_TIME_FILTER_LABELS,
   metrics,
   officeDistribution,
   parseCalendarDate,
@@ -80,6 +89,8 @@ import {
 
 const RECENT_MILESTONE_DAYS = 30;
 const RECENT_HIRE_DAYS = 14;
+type DashboardMilestoneWindow = "next-30" | "last-30";
+const DASHBOARD_MILESTONE_WINDOWS: DashboardMilestoneWindow[] = ["next-30", "last-30"];
 // Rows within this many days get a highlighted background in the detailed
 // tables below — "just happened", worth the eye going there first.
 const SOON_THRESHOLD_DAYS = 3;
@@ -128,19 +139,32 @@ function Dashboard() {
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
   const resignedCount = employees.filter((e) => e.status === "Resigned").length;
   const terminatedCount = employees.filter((e) => e.status === "Terminated").length;
+  const [milestoneWindow, setMilestoneWindow] = useState<DashboardMilestoneWindow>("next-30");
+  const isUpcomingMilestoneWindow = milestoneWindow === "next-30";
+  const milestoneWindowLabel = MILESTONE_TIME_FILTER_LABELS[milestoneWindow];
+  const milestoneWindowDirection = isUpcomingMilestoneWindow ? "next" : "last";
 
-  // Dashboard "recent activity" windows: milestones (birthdays,
-  // anniversaries) that occurred in the last 30 days, and new hires who
-  // started in the last 14 — recently-happened events worth a recap, not an
-  // indefinite backlog. Sorted most-recent-first (ascending days-ago).
+  // Dashboard milestone window: Anniversaries and Birthdays can look ahead
+  // or back 30 days, so HR can plan upcoming celebrations by default while
+  // still keeping the previous recap one click away.
   const recentAnniversaries = anniversaries(employees)
-    .map((e) => ({ ...e, daysAgo: daysSinceLastOccurrence(e.monthIndex, e.day) }))
-    .filter((e) => e.daysAgo <= RECENT_MILESTONE_DAYS)
-    .sort((a, b) => a.daysAgo - b.daysAgo);
+    .map((e) => {
+      const daysAway = isUpcomingMilestoneWindow
+        ? daysUntilNextOccurrence(e.monthIndex, e.day)
+        : daysSinceLastOccurrence(e.monthIndex, e.day);
+      return { ...e, daysAway };
+    })
+    .filter((e) => e.daysAway <= RECENT_MILESTONE_DAYS)
+    .sort((a, b) => a.daysAway - b.daysAway);
   const recentBirthdays = upcomingBirthdays(employees)
-    .map((e) => ({ ...e, daysAgo: daysSinceLastOccurrence(e.monthIndex, e.day) }))
-    .filter((e) => e.daysAgo <= RECENT_MILESTONE_DAYS)
-    .sort((a, b) => a.daysAgo - b.daysAgo);
+    .map((e) => {
+      const daysAway = isUpcomingMilestoneWindow
+        ? daysUntilNextOccurrence(e.monthIndex, e.day)
+        : daysSinceLastOccurrence(e.monthIndex, e.day);
+      return { ...e, daysAway };
+    })
+    .filter((e) => e.daysAway <= RECENT_MILESTONE_DAYS)
+    .sort((a, b) => a.daysAway - b.daysAway);
   const recentNewHires = employees
     .filter((e) => e.status === "Active" && tenureDays(e.startDate) <= RECENT_HIRE_DAYS)
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
@@ -307,6 +331,11 @@ function Dashboard() {
     }
   }
 
+  function formatMilestoneRelativeDays(daysAway: number): string {
+    if (daysAway === 0) return "today";
+    return isUpcomingMilestoneWindow ? `in ${daysAway}d` : `${daysAway}d ago`;
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -349,230 +378,254 @@ function Dashboard() {
       />
 
       {(showNewHires || showAnniversaries || showBirthdaysCard || showAwardsCard) && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {showNewHires && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  New Hires ({RECENT_HIRE_DAYS} days)
-                </CardTitle>
-                <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentNewHires.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No new hires in the last {RECENT_HIRE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Office</TableHead>
-                        <TableHead className="text-right">Started</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentNewHires.map((e) => {
-                        const daysAgo = tenureDays(e.startDate);
-                        return (
+        <div className="space-y-3">
+          {(showAnniversaries || showBirthdaysCard) && (
+            <div className="flex justify-end">
+              <Select
+                value={milestoneWindow}
+                onValueChange={(value) => setMilestoneWindow(value as DashboardMilestoneWindow)}
+              >
+                <SelectTrigger className="w-[160px]" aria-label="Milestone time window">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DASHBOARD_MILESTONE_WINDOWS.map((window) => (
+                    <SelectItem key={window} value={window}>
+                      {MILESTONE_TIME_FILTER_LABELS[window]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {showNewHires && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-muted-foreground" />
+                    New Hires ({RECENT_HIRE_DAYS} days)
+                  </CardTitle>
+                  <CardDescription>Started in the last {RECENT_HIRE_DAYS} days</CardDescription>
+                </CardHeader>
+                <CardContent className="max-h-80 overflow-y-auto p-0">
+                  {recentNewHires.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      No new hires in the last {RECENT_HIRE_DAYS} days.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Office</TableHead>
+                          <TableHead className="text-right">Started</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentNewHires.map((e) => {
+                          const daysAgo = tenureDays(e.startDate);
+                          return (
+                            <TableRow
+                              key={e.id}
+                              className={
+                                daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                              }
+                            >
+                              <TableCell className="font-medium">{e.name}</TableCell>
+                              <TableCell className="text-muted-foreground">{e.office}</TableCell>
+                              <TableCell className="text-right text-muted-foreground">
+                                {formatDate(e.startDate)}
+                                <span className="ml-1.5 text-xs">
+                                  ({daysAgo === 0 ? "today" : `${daysAgo}d ago`})
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {showAnniversaries && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Award className="h-4 w-4 text-muted-foreground" />
+                    Anniversaries ({milestoneWindowLabel})
+                  </CardTitle>
+                  <CardDescription>
+                    Work anniversaries in the {milestoneWindowDirection} {RECENT_MILESTONE_DAYS}{" "}
+                    days
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="max-h-80 overflow-y-auto p-0">
+                  {recentAnniversaries.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      No anniversaries in the {milestoneWindowDirection} {RECENT_MILESTONE_DAYS}{" "}
+                      days.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Years</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentAnniversaries.map((e) => (
                           <TableRow
                             key={e.id}
                             className={
-                              daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                              e.daysAway <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                            }
+                          >
+                            <TableCell>
+                              <p className="font-medium">{e.name}</p>
+                              <p className="text-xs text-muted-foreground">{e.department}</p>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {e.monthName} {e.day}
+                              <span className="ml-1.5 text-xs">
+                                ({formatMilestoneRelativeDays(e.daysAway)})
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{e.years} yrs</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {showBirthdaysCard && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Cake className="h-4 w-4 text-muted-foreground" />
+                    Birthdays ({milestoneWindowLabel})
+                  </CardTitle>
+                  <CardDescription>
+                    Celebrations in the {milestoneWindowDirection} {RECENT_MILESTONE_DAYS} days
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="max-h-80 overflow-y-auto p-0">
+                  {recentBirthdays.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      No birthdays in the {milestoneWindowDirection} {RECENT_MILESTONE_DAYS} days.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Office</TableHead>
+                          <TableHead className="text-right">Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentBirthdays.map((e) => (
+                          <TableRow
+                            key={e.id}
+                            className={
+                              e.daysAway <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
                             }
                           >
                             <TableCell className="font-medium">{e.name}</TableCell>
                             <TableCell className="text-muted-foreground">{e.office}</TableCell>
                             <TableCell className="text-right text-muted-foreground">
-                              {formatDate(e.startDate)}
+                              {e.monthName.slice(0, 3)} {e.day}
                               <span className="ml-1.5 text-xs">
-                                ({daysAgo === 0 ? "today" : `${daysAgo}d ago`})
+                                ({formatMilestoneRelativeDays(e.daysAway)})
                               </span>
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
-          {showAnniversaries && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-4 w-4 text-muted-foreground" />
-                  Anniversaries ({RECENT_MILESTONE_DAYS} days)
-                </CardTitle>
-                <CardDescription>
-                  Work anniversaries in the last {RECENT_MILESTONE_DAYS} days
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentAnniversaries.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No anniversaries in the last {RECENT_MILESTONE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Years</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentAnniversaries.map((e) => (
-                        <TableRow
-                          key={e.id}
-                          className={
-                            e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
-                          }
-                        >
-                          <TableCell>
-                            <p className="font-medium">{e.name}</p>
-                            <p className="text-xs text-muted-foreground">{e.department}</p>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {e.monthName} {e.day}
-                            <span className="ml-1.5 text-xs">
-                              ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="secondary">{e.years} yrs</Badge>
-                          </TableCell>
+            {showAwardsCard && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-muted-foreground" />
+                    Awards ({RECENT_MILESTONE_DAYS} days)
+                  </CardTitle>
+                  <CardDescription>
+                    Recognition given in the last {RECENT_MILESTONE_DAYS} days
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="max-h-80 overflow-y-auto p-0">
+                  {recentAwards.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      No awards given in the last {RECENT_MILESTONE_DAYS} days.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Award</TableHead>
+                          <TableHead className="text-right">Date</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {showBirthdaysCard && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Cake className="h-4 w-4 text-muted-foreground" />
-                  Birthdays ({RECENT_MILESTONE_DAYS} days)
-                </CardTitle>
-                <CardDescription>
-                  Celebrations in the last {RECENT_MILESTONE_DAYS} days
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentBirthdays.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No birthdays in the last {RECENT_MILESTONE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Office</TableHead>
-                        <TableHead className="text-right">Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentBirthdays.map((e) => (
-                        <TableRow
-                          key={e.id}
-                          className={
-                            e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
-                          }
-                        >
-                          <TableCell className="font-medium">{e.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{e.office}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {e.monthName.slice(0, 3)} {e.day}
-                            <span className="ml-1.5 text-xs">
-                              ({e.daysAgo === 0 ? "today" : `${e.daysAgo}d ago`})
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {showAwardsCard && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-muted-foreground" />
-                  Awards ({RECENT_MILESTONE_DAYS} days)
-                </CardTitle>
-                <CardDescription>
-                  Recognition given in the last {RECENT_MILESTONE_DAYS} days
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-80 overflow-y-auto p-0">
-                {recentAwards.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No awards given in the last {RECENT_MILESTONE_DAYS} days.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Award</TableHead>
-                        <TableHead className="text-right">Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentAwards.map((a) => (
-                        <TableRow
-                          key={a.id}
-                          className={
-                            a.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
-                          }
-                        >
-                          <TableCell>
-                            <p className="font-medium">{a.employeeName}</p>
-                            <p className="text-xs text-muted-foreground">{a.employeeOffice}</p>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {a.description ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="cursor-default underline decoration-dotted underline-offset-4">
-                                    {a.title}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-64">
-                                  {a.description}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              a.title
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {formatDate(a.awardedDate)}
-                            <span className="ml-1.5 text-xs">
-                              ({a.daysAgo === 0 ? "today" : `${a.daysAgo}d ago`})
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                      </TableHeader>
+                      <TableBody>
+                        {recentAwards.map((a) => (
+                          <TableRow
+                            key={a.id}
+                            className={
+                              a.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
+                            }
+                          >
+                            <TableCell>
+                              <p className="font-medium">{a.employeeName}</p>
+                              <p className="text-xs text-muted-foreground">{a.employeeOffice}</p>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {a.description ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-default underline decoration-dotted underline-offset-4">
+                                      {a.title}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-64">
+                                    {a.description}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                a.title
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {formatDate(a.awardedDate)}
+                              <span className="ml-1.5 text-xs">
+                                ({a.daysAgo === 0 ? "today" : `${a.daysAgo}d ago`})
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       )}
 
