@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -110,164 +109,177 @@ function SettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-7xl space-y-6">
       <PageHeader
         title="Settings"
         description="Workspace defaults and notification preferences for your account."
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Workspace</CardTitle>
-          <CardDescription>
-            Torero Global Outsourcing HR Operations — internal operations portal. Your default
-            office pre-fills the New Hire form's office picker.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label>Default office</Label>
-            <Select value={defaultOffice} onValueChange={setDefaultOffice} disabled={isLoading}>
-              <SelectTrigger className="max-w-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_DEFAULT}>No default</SelectItem>
-                {OFFICES.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {(showViolationReviewToggle || showNewHireToggle) && (
-        <Card>
+      <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <Card className="h-full">
           <CardHeader>
-            <CardTitle>Notification Inbox</CardTitle>
+            <CardTitle>Workspace</CardTitle>
             <CardDescription>
-              What lands in your bell icon at the top of the page. Shown only for the modules your
-              role can act on.
+              Torero Global Outsourcing HR Operations — internal operations portal. Your default
+              office pre-fills the New Hire form's office picker.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {showViolationReviewToggle && (
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">Violation ready for review</p>
-                  <p className="text-xs text-muted-foreground">
-                    Notify me when a violation email is prepared and waiting on HR approval, or when
-                    a send fails.
-                  </p>
-                </div>
-                <Switch
-                  checked={notifyOnViolationReview}
-                  onCheckedChange={setNotifyOnViolationReview}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
-            {showViolationReviewToggle && showNewHireToggle && <Separator />}
-            {showNewHireToggle && (
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">New hire added</p>
-                  <p className="text-xs text-muted-foreground">
-                    Notify me when someone adds a new hire to the onboarding tracker.
-                  </p>
-                </div>
-                <Switch
-                  checked={notifyOnNewHireAdded}
-                  onCheckedChange={setNotifyOnNewHireAdded}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
+          <CardContent>
+            <div className="grid gap-2 sm:max-w-xs">
+              <Label>Default office</Label>
+              <Select value={defaultOffice} onValueChange={setDefaultOffice} disabled={isLoading}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_DEFAULT}>No default</SelectItem>
+                  {OFFICES.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>
-            Visual effects shown across the app — only affects your own view.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">Interface animations</p>
-              <p className="text-xs text-muted-foreground">
-                Page transitions and animated counters on dashboard numbers. Turn off for a
-                snappier, static interface.
-              </p>
-            </div>
-            <Switch
-              checked={animationsEnabled}
-              onCheckedChange={setAnimationsEnabled}
-              disabled={isLoading}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Dashboard Cards</CardTitle>
-          <CardDescription>
-            What your Dashboard surfaces. Turning one off hides the matching card there — it only
-            affects your own view, not anyone else's.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {(
-            [
-              {
-                title: "Anniversary reminders",
-                desc: "Show upcoming work anniversaries on your Dashboard.",
-                checked: notifyAnniversaries,
-                onChange: setNotifyAnniversaries,
-              },
-              {
-                title: "Birthday reminders",
-                desc: "Show a heads-up on your Dashboard when a birthday falls this week.",
-                checked: notifyBirthdays,
-                onChange: setNotifyBirthdays,
-              },
-              {
-                title: "New hire alerts",
-                desc: "Show recently added employees on your Dashboard.",
-                checked: notifyNewHires,
-                onChange: setNotifyNewHires,
-              },
-            ] satisfies {
-              title: string;
-              desc: string;
-              checked: boolean;
-              onChange: (v: boolean) => void;
-            }[]
-          ).map((row, i) => (
-            <div key={row.title}>
-              {i > 0 && <Separator className="mb-4" />}
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">{row.title}</p>
-                  <p className="text-xs text-muted-foreground">{row.desc}</p>
+        {(showViolationReviewToggle || showNewHireToggle) && (
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Notification Inbox</CardTitle>
+              <CardDescription>
+                What lands in your bell icon at the top of the page. Shown only for the modules your
+                role can act on.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {showViolationReviewToggle && (
+                <div className="flex min-h-28 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4">
+                  <div>
+                    <p className="text-sm font-medium">Violation ready for review</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Notify me when a violation email is prepared and waiting on HR approval, or
+                      when a send fails.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notifyOnViolationReview}
+                    onCheckedChange={setNotifyOnViolationReview}
+                    disabled={isLoading}
+                    className="shrink-0"
+                  />
                 </div>
-                <Switch checked={row.checked} onCheckedChange={row.onChange} disabled={isLoading} />
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+              )}
+              {showNewHireToggle && (
+                <div className="flex min-h-28 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4">
+                  <div>
+                    <p className="text-sm font-medium">New hire added</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Notify me when someone adds a new hire to the onboarding tracker.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notifyOnNewHireAdded}
+                    onCheckedChange={setNotifyOnNewHireAdded}
+                    disabled={isLoading}
+                    className="shrink-0"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      <Button onClick={handleSave} disabled={!dirty || updatePreferences.isPending}>
-        {updatePreferences.isPending ? "Saving..." : "Save changes"}
-      </Button>
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              Visual effects shown across the app — only affects your own view.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex min-h-28 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4">
+              <div>
+                <p className="text-sm font-medium">Interface animations</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Page transitions and animated counters on dashboard numbers. Turn off for a
+                  snappier, static interface.
+                </p>
+              </div>
+              <Switch
+                checked={animationsEnabled}
+                onCheckedChange={setAnimationsEnabled}
+                disabled={isLoading}
+                className="shrink-0"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 2xl:col-span-3">
+          <CardHeader>
+            <CardTitle>Dashboard Cards</CardTitle>
+            <CardDescription>
+              What your Dashboard surfaces. Turning one off hides the matching card there — it only
+              affects your own view, not anyone else's.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-3">
+              {(
+                [
+                  {
+                    title: "Anniversary reminders",
+                    desc: "Show upcoming work anniversaries on your Dashboard.",
+                    checked: notifyAnniversaries,
+                    onChange: setNotifyAnniversaries,
+                  },
+                  {
+                    title: "Birthday reminders",
+                    desc: "Show a heads-up on your Dashboard when a birthday falls this week.",
+                    checked: notifyBirthdays,
+                    onChange: setNotifyBirthdays,
+                  },
+                  {
+                    title: "New hire alerts",
+                    desc: "Show recently added employees on your Dashboard.",
+                    checked: notifyNewHires,
+                    onChange: setNotifyNewHires,
+                  },
+                ] satisfies {
+                  title: string;
+                  desc: string;
+                  checked: boolean;
+                  onChange: (v: boolean) => void;
+                }[]
+              ).map((row) => (
+                <div
+                  key={row.title}
+                  className="flex min-h-32 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{row.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{row.desc}</p>
+                  </div>
+                  <Switch
+                    checked={row.checked}
+                    onCheckedChange={row.onChange}
+                    disabled={isLoading}
+                    className="shrink-0"
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex justify-end border-t pt-4">
+        <Button onClick={handleSave} disabled={!dirty || updatePreferences.isPending}>
+          {updatePreferences.isPending ? "Saving..." : "Save changes"}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,18 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, KeyRound, Moon, Pencil, ScrollText, ShieldCheck, Sun, Upload } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  KeyRound,
+  Moon,
+  Pencil,
+  Search,
+  ScrollText,
+  ShieldCheck,
+  Sun,
+  Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
@@ -20,7 +32,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMyActivityLogs, type ActivitySeverity } from "@/data/activity-log-store";
+import type { ActivityCategory, ActivityLogEntry } from "@/data/activity-log-store";
 import { formatDate } from "@/data/employees";
 import { useCurrentAccount, useUpdateMyPreferences, type Theme } from "@/lib/session";
 import { applyTheme } from "@/lib/theme";
@@ -88,6 +108,27 @@ const SEVERITY_VARIANT: Record<ActivitySeverity, "secondary" | "outline" | "dest
   warning: "outline",
   critical: "destructive",
 };
+
+const CATEGORY_LABELS: Record<ActivityCategory, string> = {
+  Employee: "Employee Directory",
+  Onboarding: "Onboarding",
+  Attendance: "Attendance",
+  Access: "Access & Security",
+  Data: "Data",
+  System: "System",
+};
+
+const ACTIVITY_CATEGORIES = Object.keys(CATEGORY_LABELS) as ActivityCategory[];
+const ACTIVITY_PAGE_SIZE = 8;
+type ActivityTimeFilter = "all" | "7" | "30" | "90";
+
+function matchesTimeFilter(occurredAt: string, filter: ActivityTimeFilter): boolean {
+  if (filter === "all") return true;
+  const occurred = new Date(occurredAt);
+  if (Number.isNaN(occurred.getTime())) return false;
+  const days = Number(filter);
+  return Date.now() - occurred.getTime() <= days * 86_400_000;
+}
 
 function initials(name: string) {
   return (
@@ -244,10 +285,193 @@ function EditProfileDialog({ displayName, photoUrl }: { displayName: string; pho
   );
 }
 
+function ProfileActivityList({ logs, loading }: { logs: ActivityLogEntry[]; loading: boolean }) {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<ActivityCategory | "all">("all");
+  const [severity, setSeverity] = useState<ActivitySeverity | "all">("all");
+  const [timeFilter, setTimeFilter] = useState<ActivityTimeFilter>("all");
+  const [page, setPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return logs.filter((log) => {
+      const matchesSearch =
+        !term ||
+        [log.id, log.action, log.target, log.category, log.severity].some((value) =>
+          value.toLowerCase().includes(term),
+        );
+      const matchesCategory = category === "all" || log.category === category;
+      const matchesSeverity = severity === "all" || log.severity === severity;
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesSeverity &&
+        matchesTimeFilter(log.occurredAt, timeFilter)
+      );
+    });
+  }, [logs, search, category, severity, timeFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / ACTIVITY_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const rows = filtered.slice(
+    (currentPage - 1) * ACTIVITY_PAGE_SIZE,
+    currentPage * ACTIVITY_PAGE_SIZE,
+  );
+  const hasFilters =
+    !!search.trim() || category !== "all" || severity !== "all" || timeFilter !== "all";
+
+  function resetPage() {
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setCategory("all");
+    setSeverity("all");
+    setTimeFilter("all");
+    setPage(1);
+  }
+
+  if (loading) {
+    return <p className="py-6 text-sm text-muted-foreground">Loading…</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_160px_150px_150px_auto]">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              resetPage();
+            }}
+            placeholder="Search action, target or module…"
+            className="pl-8"
+          />
+        </div>
+        <Select
+          value={category}
+          onValueChange={(value) => {
+            setCategory(value as ActivityCategory | "all");
+            resetPage();
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All modules</SelectItem>
+            {ACTIVITY_CATEGORIES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {CATEGORY_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={severity}
+          onValueChange={(value) => {
+            setSeverity(value as ActivitySeverity | "all");
+            resetPage();
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All severities</SelectItem>
+            <SelectItem value="info">Info</SelectItem>
+            <SelectItem value="warning">Warning</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={timeFilter}
+          onValueChange={(value) => {
+            setTimeFilter(value as ActivityTimeFilter);
+            resetPage();
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All time</SelectItem>
+            <SelectItem value="7">Last 7 days</SelectItem>
+            <SelectItem value="30">Last 30 days</SelectItem>
+            <SelectItem value="90">Last 90 days</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={clearFilters} disabled={!hasFilters}>
+          Clear
+        </Button>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="py-6 text-sm text-muted-foreground">
+          {logs.length === 0
+            ? "Nothing recorded yet — actions you take (creating a record, changing a status, etc.) will show up here."
+            : "No activity matches your filters."}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((log) => (
+            <div
+              key={log.id}
+              className="flex flex-col gap-2 rounded-md border p-3 text-sm sm:flex-row sm:items-start sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="font-medium">{log.action}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {log.target} · {log.timestamp}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                <Badge variant="outline">{CATEGORY_LABELS[log.category]}</Badge>
+                <Badge variant={SEVERITY_VARIANT[log.severity]} className="capitalize">
+                  {log.severity}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Showing {rows.length} of {filtered.length} entries · Page {currentPage} of {pageCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" /> Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === pageCount}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfilePage() {
   const { data: account, isLoading } = useCurrentAccount();
   const updatePreferences = useUpdateMyPreferences();
-  const { data: myActivity, isLoading: activityLoading } = useMyActivityLogs(account?.id);
+  const { data: myActivity, isLoading: activityLoading } = useMyActivityLogs(account?.id, 200);
 
   const displayName =
     account?.display_name ||
@@ -396,29 +620,12 @@ function ProfilePage() {
             <ScrollText className="h-4 w-4 text-muted-foreground" />
             My Activity
           </CardTitle>
-          <CardDescription>The last things you did across HR Operations.</CardDescription>
+          <CardDescription>
+            Filter and page through your recent activity across HR Operations.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {activityLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {!activityLoading && (myActivity?.length ?? 0) === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Nothing recorded yet — actions you take (creating a record, changing a status, etc.)
-              will show up here.
-            </p>
-          )}
-          {myActivity?.map((log) => (
-            <div key={log.id} className="flex items-start justify-between gap-3 text-sm">
-              <div className="min-w-0">
-                <p className="font-medium">{log.action}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {log.target} · {log.timestamp}
-                </p>
-              </div>
-              <Badge variant={SEVERITY_VARIANT[log.severity]} className="shrink-0 capitalize">
-                {log.category}
-              </Badge>
-            </div>
-          ))}
+        <CardContent className="space-y-4">
+          <ProfileActivityList logs={myActivity ?? []} loading={activityLoading} />
           {(myActivity?.length ?? 0) > 0 && (
             <>
               <Separator className="my-1" />

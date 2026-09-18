@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, AlertTriangle, ChevronLeft, ChevronRight, Info, Search, ScrollText } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Search,
+  ScrollText,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { MetricCard } from "@/components/metric-card";
@@ -23,7 +31,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useActivityLogs, type ActivityCategory, type ActivitySeverity } from "@/data/activity-log-store";
+import {
+  useActivityLogs,
+  type ActivityCategory,
+  type ActivitySeverity,
+} from "@/data/activity-log-store";
 
 const SEVERITY_VARIANT: Record<ActivitySeverity, "secondary" | "outline" | "destructive"> = {
   info: "secondary",
@@ -68,6 +80,15 @@ export const Route = createFileRoute("/activity-logs")({
 });
 
 const PAGE_SIZE = 15;
+type ActivityTimeFilter = "all" | "7" | "30" | "90";
+
+function matchesTimeFilter(occurredAt: string, filter: ActivityTimeFilter): boolean {
+  if (filter === "all") return true;
+  const occurred = new Date(occurredAt);
+  if (Number.isNaN(occurred.getTime())) return false;
+  const days = Number(filter);
+  return Date.now() - occurred.getTime() <= days * 86_400_000;
+}
 
 function ActivityLogsPage() {
   const { data, isLoading, isError } = useActivityLogs();
@@ -76,27 +97,42 @@ function ActivityLogsPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [severity, setSeverity] = useState<string>("all");
+  const [timeFilter, setTimeFilter] = useState<ActivityTimeFilter>("all");
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return logs.filter((log) => {
       const matchesQuery =
-        !q ||
-        [log.id, log.actor, log.action, log.target].some((v) => v.toLowerCase().includes(q));
+        !q || [log.id, log.actor, log.action, log.target].some((v) => v.toLowerCase().includes(q));
       const matchesCategory = category === "all" || log.category === category;
       const matchesSeverity = severity === "all" || log.severity === severity;
-      return matchesQuery && matchesCategory && matchesSeverity;
+      return (
+        matchesQuery &&
+        matchesCategory &&
+        matchesSeverity &&
+        matchesTimeFilter(log.occurredAt, timeFilter)
+      );
     });
-  }, [logs, query, category, severity]);
+  }, [logs, query, category, severity, timeFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const hasFilters =
+    !!query.trim() || category !== "all" || severity !== "all" || timeFilter !== "all";
 
   const critical = logs.filter((l) => l.severity === "critical").length;
   const warning = logs.filter((l) => l.severity === "warning").length;
   const info = logs.filter((l) => l.severity === "info").length;
+
+  function clearFilters() {
+    setQuery("");
+    setCategory("all");
+    setSeverity("all");
+    setTimeFilter("all");
+    setPage(1);
+  }
 
   return (
     <div className="space-y-6">
@@ -112,8 +148,18 @@ function ActivityLogsPage() {
           hint="All recorded events"
           icon={ScrollText}
         />
-        <MetricCard title="Critical" value={critical} hint="Needs immediate review" icon={AlertCircle} />
-        <MetricCard title="Warning" value={warning} hint="Worth a second look" icon={AlertTriangle} />
+        <MetricCard
+          title="Critical"
+          value={critical}
+          hint="Needs immediate review"
+          icon={AlertCircle}
+        />
+        <MetricCard
+          title="Warning"
+          value={warning}
+          hint="Worth a second look"
+          icon={AlertTriangle}
+        />
         <MetricCard title="Info" value={info} hint="Routine activity" icon={Info} />
       </div>
 
@@ -172,6 +218,26 @@ function ActivityLogsPage() {
                 <SelectItem value="critical">Critical</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={timeFilter}
+              onValueChange={(v) => {
+                setTimeFilter(v as ActivityTimeFilter);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Time" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All time</SelectItem>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={clearFilters} disabled={!hasFilters}>
+              Clear
+            </Button>
           </div>
 
           <div className="rounded-md border">
