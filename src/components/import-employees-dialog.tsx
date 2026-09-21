@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Employee, EmployeeLevel, EmployeeStatus } from "@/data/employees";
-import { LEVELS, STATUSES } from "@/data/employees";
+import type { Employee, EmployeeStatus } from "@/data/employees";
+import { STATUSES } from "@/data/employees";
 import { useEmployeesQuery, useImportEmployees, useUpdateEmployee } from "@/data/employee-store";
 
 // Recognized column headers, matched case-insensitively with spaces/underscores stripped —
@@ -132,25 +132,6 @@ function normalizeStatus(value: unknown): EmployeeStatus | undefined {
   return STATUS_ALIASES[raw];
 }
 
-// Level is a real backend enum too (see normalizeStatus's reasoning above) —
-// recognizes either the full "L1 - Associate" label or the bare "L1" code,
-// so a spreadsheet that only has short codes still imports correctly.
-const LEVEL_ALIASES: Record<string, EmployeeLevel> = Object.fromEntries(
-  LEVELS.flatMap((level) => {
-    const code = level.split(" - ")[0]!.toLowerCase();
-    return [
-      [level.toLowerCase(), level],
-      [code, level],
-    ];
-  }),
-);
-
-function normalizeLevel(value: unknown): EmployeeLevel | undefined {
-  if (value == null || value === "") return undefined;
-  const raw = String(value).trim().toLowerCase();
-  return LEVEL_ALIASES[raw];
-}
-
 // One parsed row, plus a stable key for React and for the review table's selection state —
 // independent of the (possibly blank, possibly edited) Employee ID so a row stays
 // addressable even before it has one.
@@ -238,9 +219,6 @@ async function parseWorkbook(file: File): Promise<ReviewRow[]> {
       } else if (field === "status") {
         const status = normalizeStatus(value);
         if (status) employee.status = status;
-      } else if (field === "level") {
-        const level = normalizeLevel(value);
-        if (level) employee.level = level;
       } else {
         employee[field] = String(value).trim();
       }

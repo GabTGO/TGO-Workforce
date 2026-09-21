@@ -49,6 +49,15 @@ _DEFAULT_POSITIONS = [
     "Head of HR",
     "Head of Projects & Payroll",
 ]
+_DEFAULT_LEVELS = [
+    "L1 - Associate",
+    "L2 - Senior Associate",
+    "L3 - Coordinator",
+    "L4 - Senior Coordinator",
+    "L5 - Specialist",
+    "L6 - Captain",
+    "L7 - Manager",
+]
 
 
 async def get_list_options(db: AsyncSession) -> ListOptions:
@@ -60,6 +69,7 @@ async def get_list_options(db: AsyncSession) -> ListOptions:
         id=LIST_OPTIONS_ID,
         departments=list(_DEFAULT_DEPARTMENTS),
         positions=list(_DEFAULT_POSITIONS),
+        levels=list(_DEFAULT_LEVELS),
     )
     db.add(options)
     try:

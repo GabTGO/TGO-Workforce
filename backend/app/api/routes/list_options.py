@@ -1,11 +1,10 @@
-"""Manages the shared Department/Position suggestion lists shown in the Edit
-Employee dialog's combobox (see
-src/components/manage-employees-dialog.tsx's CreatableComboboxField).
-Employee.department/position stay plain free-text on the employee record
-itself (app/models/employee.py) — these are only the presets offered when
-picking a value, so renaming or removing one here never touches any
-employee already using that value; it only changes what's suggested going
-forward.
+"""Manages the shared Department/Position/Level suggestion lists shown in
+the Edit Employee and New Hire dialogs' combobox (see
+@/components/creatable-combobox-field.tsx). Employee.department/position/
+level stay plain free-text on the employee record itself
+(app/models/employee.py) — these are only the presets offered when picking
+a value, so renaming or removing one here never touches any employee
+already using that value; it only changes what's suggested going forward.
 
 Read is gated on Permission.EMPLOYEES_VIEW (same as the Employee Directory
 itself); every mutation requires Permission.EMPLOYEES_MANAGE, same as
@@ -43,7 +42,7 @@ router = APIRouter(
 WriterAccount = Annotated[Account, Depends(require_employee_writer)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-ListKey = Literal["departments", "positions"]
+ListKey = Literal["departments", "positions", "levels"]
 
 
 @router.get("", response_model=ListOptionsRead)

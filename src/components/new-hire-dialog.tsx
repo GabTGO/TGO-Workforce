@@ -3,12 +3,8 @@ import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { CreatableComboboxField } from "@/components/creatable-combobox-field";
+import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,14 +16,10 @@ import {
 } from "@/components/ui/select";
 import { OFFICES, type Employee } from "@/data/employees";
 import { useCreateEmployee } from "@/data/employee-store";
+import { useListOptionsQuery } from "@/data/list-options-store";
 import { useCurrentAccount } from "@/lib/session";
 
-const SOURCE_TYPES = [
-  "Direct Applicant",
-  "Referral",
-  "Rehire",
-  "Internal Transfer",
-] as const;
+const SOURCE_TYPES = ["Direct Applicant", "Referral", "Rehire", "Internal Transfer"] as const;
 
 export function NewHireDialog({
   onCreated,
@@ -45,8 +37,10 @@ export function NewHireDialog({
   const [startDate, setStartDate] = useState("");
   const [office, setOffice] = useState("");
   const [sourceType, setSourceType] = useState("");
+  const [level, setLevel] = useState("");
   const createMutation = useCreateEmployee();
   const { data: account } = useCurrentAccount();
+  const { data: listOptions } = useListOptionsQuery();
 
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
 
@@ -57,6 +51,7 @@ export function NewHireDialog({
     setStartDate("");
     setOffice("");
     setSourceType("");
+    setLevel("");
   }
 
   async function handleSubmit() {
@@ -75,6 +70,7 @@ export function NewHireDialog({
         startDate,
         office: office || undefined,
         sourceType: sourceType || undefined,
+        level: level || undefined,
       });
       setOpen(false);
       toast.success(`New hire submitted: ${fullName}`);
@@ -108,20 +104,15 @@ export function NewHireDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-2xl">
         <div className="pb-2">
-          <h2 className="text-lg font-semibold">
-            New Hire Employee Information Form
-          </h2>
+          <h2 className="text-lg font-semibold">New Hire Employee Information Form</h2>
           <p className="text-sm text-muted-foreground">
-            Submit onboarding details. Records sync to the directory on
-            approval.
+            Submit onboarding details. Records sync to the directory on approval.
           </p>
         </div>
 
         <div className="space-y-6 py-2">
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">
-              Basic Information
-            </h3>
+            <h3 className="text-sm font-semibold text-primary">Basic Information</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="nh-first-name">First Name</Label>
@@ -161,9 +152,7 @@ export function NewHireDialog({
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-primary">
-              Employment Information
-            </h3>
+            <h3 className="text-sm font-semibold text-primary">Employment Information</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Office</Label>
@@ -195,12 +184,22 @@ export function NewHireDialog({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label>Level (optional)</Label>
+                <CreatableComboboxField
+                  label="Level"
+                  listKey="levels"
+                  options={listOptions?.levels ?? []}
+                  value={level}
+                  onChange={setLevel}
+                  placeholder="Select level"
+                />
+              </div>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Department and position assignment are handled internally after
-            onboarding.
+            Department and position assignment are handled internally after onboarding.
           </p>
         </div>
 
@@ -209,9 +208,7 @@ export function NewHireDialog({
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={createMutation.isPending}>
-            {createMutation.isPending
-              ? "Submitting..."
-              : "Submit New Hire Form"}
+            {createMutation.isPending ? "Submitting..." : "Submit New Hire Form"}
           </Button>
         </DialogFooter>
       </DialogContent>

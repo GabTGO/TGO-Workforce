@@ -6,6 +6,7 @@ class ListOptionsRead(BaseModel):
 
     departments: list[str]
     positions: list[str]
+    levels: list[str]
 
 
 class AddOptionRequest(BaseModel):

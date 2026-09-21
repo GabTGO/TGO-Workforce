@@ -1,12 +1,11 @@
-"""A single-row table storing the editable Department/Position suggestion
-lists shown in the Edit Employee dialog's combobox (see
-src/components/manage-employees-dialog.tsx's CreatableComboboxField).
-Employee.department/position (app/models/employee.py) stay plain free-text
-on the employee record itself — this table is only the *suggestions*
-offered when picking a value, shared org-wide for every admin. Renaming or
-removing an entry here never touches any employee already using that value;
-it only changes what's offered going forward (see
-app/api/routes/list_options.py).
+"""A single-row table storing the editable Department/Position/Level
+suggestion lists shown in the Edit Employee and New Hire dialogs' combobox
+(see @/components/creatable-combobox-field.tsx). Employee.department/
+position/level (app/models/employee.py) stay plain free-text on the employee
+record itself — this table is only the *suggestions* offered when picking a
+value, shared org-wide for every admin. Renaming or removing an entry here
+never touches any employee already using that value; it only changes what's
+offered going forward (see app/api/routes/list_options.py).
 
 Always exactly one row (id=1); see app/services/list_options.py for the
 get-or-create accessor every reader and writer goes through, same pattern as
@@ -31,6 +30,7 @@ class ListOptions(Base):
 
     departments: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     positions: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    levels: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

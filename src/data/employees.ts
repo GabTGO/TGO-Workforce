@@ -1,24 +1,16 @@
 export type EmployeeStatus = "Active" | "Resigned" | "Terminated";
 
-// The org's fixed 7-rung career ladder — a closed set (unlike
-// office/department/position, which are free text and editable via
-// list-options-store), so this is a real union type, not a plain string.
-export type EmployeeLevel =
-  | "L1 - Associate"
-  | "L2 - Senior Associate"
-  | "L3 - Coordinator"
-  | "L4 - Senior Coordinator"
-  | "L5 - Specialist"
-  | "L6 - Captain"
-  | "L7 - Manager";
-
 export interface Employee {
   id: string;
   name: string;
   office: string;
   department: string;
   position: string;
-  level: EmployeeLevel;
+  // Free text and admin-editable via list-options-store (@/data/list-options-api's
+  // "levels" list), same as department/position — not a fixed enum. Empty
+  // string until someone sets it; the Directory renders that as "—" rather
+  // than defaulting to a level nobody actually assigned.
+  level: string;
   jobOfferDate?: string; // ISO
   startDate: string; // ISO
   status: EmployeeStatus;
@@ -67,16 +59,6 @@ export const POSITIONS = [
 ] as const;
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
-
-export const LEVELS: EmployeeLevel[] = [
-  "L1 - Associate",
-  "L2 - Senior Associate",
-  "L3 - Coordinator",
-  "L4 - Senior Coordinator",
-  "L5 - Specialist",
-  "L6 - Captain",
-  "L7 - Manager",
-];
 
 /** Parses a plain "YYYY-MM-DD" calendar date (birthday, start date, exit
  * date, job offer date) as LOCAL midnight instead of UTC midnight.

@@ -49,11 +49,11 @@ import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { ManageEmployeesDialog } from "@/components/manage-employees-dialog";
 import { NewHireDialog } from "@/components/new-hire-dialog";
 import { useBulkDeleteEmployees, useEmployees } from "@/data/employee-store";
+import { useListOptionsQuery } from "@/data/list-options-store";
 import { useCurrentAccount } from "@/lib/session";
 import { canManageEmployees } from "@/lib/permissions";
 import {
   DEPARTMENTS,
-  LEVELS,
   OFFICES,
   STATUSES,
   formatDate,
@@ -86,6 +86,11 @@ export function EmployeeTable() {
   const employees = useEmployees();
   const bulkDeleteMutation = useBulkDeleteEmployees();
   const { data: account } = useCurrentAccount();
+  // Level has no fixed preset list (unlike office/status) — it's a plain
+  // free-text field admins manage via /list-options, same as department and
+  // position, so the filter's option set has to come from there live rather
+  // than a hardcoded array.
+  const { data: listOptions } = useListOptionsQuery();
   // A viewer can search/filter/sort/paginate/export like everyone else, but
   // every button that creates/edits/deletes/imports employee records — and
   // the row-selection checkboxes that only exist to feed bulk-delete — are
@@ -362,7 +367,7 @@ export function EmployeeTable() {
             setLevel(v);
             setPage(1);
           }}
-          options={[...LEVELS]}
+          options={listOptions?.levels ?? []}
         />
       </div>
 
@@ -499,7 +504,7 @@ export function EmployeeTable() {
                     <TableCell className="whitespace-nowrap">{e.department}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div>{e.position}</div>
-                      <div className="text-xs text-muted-foreground">{e.level}</div>
+                      <div className="text-xs text-muted-foreground">{e.level || "—"}</div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(e.startDate)}</TableCell>
                     <TableCell className="whitespace-nowrap">

@@ -1,16 +1,17 @@
 // HTTP client for the /list-options endpoints
-// (backend/app/api/routes/list_options.py) — the shared Department/Position
-// suggestion lists shown in the Edit Employee dialog's combobox (see
-// manage-employees-dialog.tsx's CreatableComboboxField). Mirrors
+// (backend/app/api/routes/list_options.py) — the shared Department/Position/
+// Level suggestion lists shown in the Edit Employee and New Hire dialogs'
+// combobox (see @/components/creatable-combobox-field.tsx). Mirrors
 // @/data/employee-api.ts's thin-wrapper shape.
 
 import { apiUrl } from "@/lib/api";
 
-export type ListKey = "departments" | "positions";
+export type ListKey = "departments" | "positions" | "levels";
 
 export type ListOptions = {
   departments: string[];
   positions: string[];
+  levels: string[];
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

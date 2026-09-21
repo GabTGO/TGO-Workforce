@@ -6,7 +6,7 @@
 // Query hooks; components should use that, not this file, directly.
 
 import { apiUrl } from "@/lib/api";
-import type { Employee, EmployeeLevel, EmployeeStatus } from "@/data/employees";
+import type { Employee, EmployeeStatus } from "@/data/employees";
 
 type BackendEmployee = {
   id: string;
@@ -14,7 +14,7 @@ type BackendEmployee = {
   office: string;
   department: string;
   position: string;
-  level: EmployeeLevel;
+  level: string;
   job_offer_date: string | null;
   start_date: string;
   status: EmployeeStatus;
@@ -92,7 +92,7 @@ export type NewEmployeeInput = {
   office?: string;
   department?: string;
   position?: string;
-  level?: EmployeeLevel;
+  level?: string;
   jobOfferDate?: string;
   startDate: string;
   status?: EmployeeStatus;

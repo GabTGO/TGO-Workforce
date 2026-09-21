@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.employee import EmployeeLevel, EmployeeStatus
+from app.models.employee import EmployeeStatus
 
 
 class EmployeeBase(BaseModel):
@@ -10,7 +10,7 @@ class EmployeeBase(BaseModel):
     office: str = "PH Eastwood"
     department: str = ""
     position: str = ""
-    level: EmployeeLevel = EmployeeLevel.L1
+    level: str = ""
     job_offer_date: date | None = None
     start_date: date
     status: EmployeeStatus = EmployeeStatus.ACTIVE
@@ -37,7 +37,7 @@ class EmployeeUpdate(BaseModel):
     office: str | None = None
     department: str | None = None
     position: str | None = None
-    level: EmployeeLevel | None = None
+    level: str | None = None
     job_offer_date: date | None = None
     start_date: date | None = None
     status: EmployeeStatus | None = None
@@ -56,7 +56,7 @@ class EmployeeImportRow(BaseModel):
     office: str | None = None
     department: str | None = None
     position: str | None = None
-    level: EmployeeLevel | None = None
+    level: str | None = None
     job_offer_date: date | None = None
     start_date: date | None = None
     status: EmployeeStatus | None = None

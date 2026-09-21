@@ -24,22 +24,6 @@ class EmployeeStatus(enum.StrEnum):
     TERMINATED = "Terminated"
 
 
-class EmployeeLevel(enum.StrEnum):
-    """The org's fixed 7-rung career ladder — a closed set (unlike
-    office/department/position, which are free text), so it gets a real
-    Postgres enum, same reasoning as EmployeeStatus above. Values double as
-    the display label (no separate title lookup), matching the "L1 - X"
-    style already used for some entries in POSITIONS on the frontend."""
-
-    L1 = "L1 - Associate"
-    L2 = "L2 - Senior Associate"
-    L3 = "L3 - Coordinator"
-    L4 = "L4 - Senior Coordinator"
-    L5 = "L5 - Specialist"
-    L6 = "L6 - Captain"
-    L7 = "L7 - Manager"
-
-
 class Employee(Base):
     __tablename__ = "employees"
 
@@ -61,19 +45,12 @@ class Employee(Base):
     )
     department: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     position: Mapped[str] = mapped_column(String(150), nullable=False, default="")
-
-    # Like status (below), level IS a strict union on the frontend — a real
-    # Postgres enum rather than free text.
-    level: Mapped[EmployeeLevel] = mapped_column(
-        Enum(
-            EmployeeLevel,
-            name="employee_level",
-            values_callable=lambda enum_cls: [e.value for e in enum_cls],
-        ),
-        default=EmployeeLevel.L1,
-        nullable=False,
-        index=True,
-    )
+    # Free text and admin-editable (add/rename/delete presets) via the same
+    # /list-options mechanism as department/position — not a fixed enum, so
+    # an org can redefine its career ladder without a migration. Defaults to
+    # empty rather than any particular rung: nobody's level should read as
+    # "L1 - Associate" just because no one has set it yet.
+    level: Mapped[str] = mapped_column(String(100), nullable=False, default="")
 
     job_offer_date: Mapped[date | None] = mapped_column(Date)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
