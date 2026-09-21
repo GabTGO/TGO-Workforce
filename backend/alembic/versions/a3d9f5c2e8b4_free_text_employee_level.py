@@ -41,12 +41,10 @@ EMPLOYEE_LEVEL_VALUES = [
 
 
 def upgrade() -> None:
-    # Nobody actually chose "L1 - Associate" — that was the old enum's
-    # NOT NULL default, written into every row that existed when
-    # f4a2c7e9b1d5 ran. Blank it out so the Directory shows "—" instead of a
-    # value that looks manually set but wasn't.
-    op.execute("UPDATE employees SET level = '' WHERE level = 'L1 - Associate'")
-
+    # Convert the column to plain text *before* touching its values below —
+    # while it's still the employee_level enum type, Postgres rejects '' as
+    # an invalid enum label (enums only accept their defined members), so
+    # the blank-out UPDATE has to run after this, not before.
     op.alter_column(
         "employees",
         "level",
@@ -57,6 +55,12 @@ def upgrade() -> None:
     )
     op.drop_index(op.f("ix_employees_level"), table_name="employees")
     postgresql.ENUM(name="employee_level").drop(op.get_bind())
+
+    # Nobody actually chose "L1 - Associate" — that was the old enum's
+    # NOT NULL default, written into every row that existed when
+    # f4a2c7e9b1d5 ran. Blank it out so the Directory shows "—" instead of a
+    # value that looks manually set but wasn't.
+    op.execute("UPDATE employees SET level = '' WHERE level = 'L1 - Associate'")
 
     # New admin-editable "levels" preset list — seeded with the same 7
     # values the old fixed enum had, so nothing already using them changes;
