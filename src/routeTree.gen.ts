@@ -17,6 +17,7 @@ import { Route as AttendanceReportsRouteImport } from './routes/attendance-repor
 import { Route as AttendanceViolationsRouteImport } from './routes/attendance-violations'
 import { Route as AwardsRouteImport } from './routes/awards'
 import { Route as BirthdaysRouteImport } from './routes/birthdays'
+import { Route as DatabaseBackupsRouteImport } from './routes/database-backups'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as LoginRouteImport } from './routes/login'
@@ -66,6 +67,11 @@ const AwardsRoute = AwardsRouteImport.update({
 const BirthdaysRoute = BirthdaysRouteImport.update({
   id: '/birthdays',
   path: '/birthdays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DatabaseBackupsRoute = DatabaseBackupsRouteImport.update({
+  id: '/database-backups',
+  path: '/database-backups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DirectoryRoute = DirectoryRouteImport.update({
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/attendance-violations': typeof AttendanceViolationsRoute
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
+  '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
   '/login': typeof LoginRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/attendance-violations': typeof AttendanceViolationsRoute
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
+  '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
   '/login': typeof LoginRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/attendance-violations': typeof AttendanceViolationsRoute
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
+  '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
   '/login': typeof LoginRoute
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/attendance-violations'
     | '/awards'
     | '/birthdays'
+    | '/database-backups'
     | '/directory'
     | '/feedback'
     | '/login'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/attendance-violations'
     | '/awards'
     | '/birthdays'
+    | '/database-backups'
     | '/directory'
     | '/feedback'
     | '/login'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/attendance-violations'
     | '/awards'
     | '/birthdays'
+    | '/database-backups'
     | '/directory'
     | '/feedback'
     | '/login'
@@ -250,6 +262,7 @@ export interface RootRouteChildren {
   AttendanceViolationsRoute: typeof AttendanceViolationsRoute
   AwardsRoute: typeof AwardsRoute
   BirthdaysRoute: typeof BirthdaysRoute
+  DatabaseBackupsRoute: typeof DatabaseBackupsRoute
   DirectoryRoute: typeof DirectoryRoute
   FeedbackRoute: typeof FeedbackRoute
   LoginRoute: typeof LoginRoute
@@ -316,6 +329,13 @@ declare module '@tanstack/react-router' {
       path: '/birthdays'
       fullPath: '/birthdays'
       preLoaderRoute: typeof BirthdaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/database-backups': {
+      id: '/database-backups'
+      path: '/database-backups'
+      fullPath: '/database-backups'
+      preLoaderRoute: typeof DatabaseBackupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/directory': {
@@ -414,6 +434,7 @@ const rootRouteChildren: RootRouteChildren = {
   AttendanceViolationsRoute: AttendanceViolationsRoute,
   AwardsRoute: AwardsRoute,
   BirthdaysRoute: BirthdaysRoute,
+  DatabaseBackupsRoute: DatabaseBackupsRoute,
   DirectoryRoute: DirectoryRoute,
   FeedbackRoute: FeedbackRoute,
   LoginRoute: LoginRoute,

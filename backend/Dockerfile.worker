@@ -1,11 +1,22 @@
-# The attendance-violation send worker, deployed as its own Railway service —
-# same pattern as the standalone attendance app's backend/Dockerfile.worker.
-# Polls for Approved/Resend Approved violation records and sends them via
-# Zoho Mail; see app/workers/violation_email_worker.py. Runs against the same
-# Postgres as the main backend service (set DATABASE_URL to the same
-# reference), which is the one that runs migrations — this service only ever
-# reads/writes rows, it never runs alembic itself.
+# The background worker, deployed as its own Railway service — same pattern
+# as the standalone attendance app's backend/Dockerfile.worker. Runs
+# app/workers/main.py, which combines two independent polling loops in one
+# process: the attendance-violation send loop (polls for Approved/Resend
+# Approved records and sends them via Zoho Mail — see
+# app/workers/violation_email_worker.py) and the scheduled database backup
+# loop (see app/workers/backup_worker.py). Runs against the same Postgres as
+# the main backend service (set DATABASE_URL to the same reference), which is
+# the one that runs migrations — this service only ever reads/writes rows,
+# it never runs alembic itself.
 FROM python:3.12-slim
+
+# pg_dump, for the scheduled database backup loop (app/services/backup.py).
+# Unlike the API's own Dockerfile, THIS one really is what Railway builds
+# from in production (confirmed via the live service config: builder
+# "DOCKERFILE", dockerfilePath "/backend/Dockerfile.worker") — so this apt-get
+# is what actually puts pg_dump on PATH there, not just for local dev.
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -14,4 +25,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "-m", "app.workers.violation_email_worker"]
+CMD ["python", "-m", "app.workers.main"]

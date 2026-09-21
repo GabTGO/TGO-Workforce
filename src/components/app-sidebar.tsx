@@ -7,6 +7,7 @@ import {
   UserPlus,
   Award,
   Cake,
+  DatabaseBackup,
   MessageSquare,
   ScrollText,
   Settings,
@@ -34,7 +35,12 @@ import {
 } from "@/components/ui/sidebar";
 import { useCurrentAccount } from "@/lib/session";
 import type { Permission } from "@/lib/session";
-import { getEffectiveRole, isFullAccessRole, hasPermission } from "@/lib/permissions";
+import {
+  getEffectiveRole,
+  isFullAccessRole,
+  isSuperAdminRole,
+  hasPermission,
+} from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -45,6 +51,10 @@ type NavItem = {
    * route itself also checks this (and the backend 403s regardless), this
    * just keeps everyone else from seeing a link to a page they can't use. */
   adminOnly?: boolean;
+  /** Stricter than adminOnly — hidden from a plain Admin too, only visible to
+   * "super_admin" (see isSuperAdminRole). The route itself enforces the same
+   * check regardless of what the nav shows. */
+  superAdminOnly?: boolean;
   /** Hidden unless the signed-in account's permission matrix grants this (or
    * — if an array — every permission in it). See @/lib/permissions'
    * hasPermission. Module-level view gating, driven by the Super-Admin-
@@ -138,6 +148,12 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         icon: UserCog,
         adminOnly: true,
       },
+      {
+        title: "Database Backups",
+        url: "/database-backups",
+        icon: DatabaseBackup,
+        superAdminOnly: true,
+      },
       { title: "Settings", url: "/settings", icon: Settings },
     ],
   },
@@ -167,17 +183,14 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { data: account } = useCurrentAccount();
-  const isAdmin = isFullAccessRole(getEffectiveRole(account));
+  const effectiveRole = getEffectiveRole(account);
+  const isAdmin = isFullAccessRole(effectiveRole);
+  const isSuperAdmin = isSuperAdminRole(effectiveRole);
 
   return (
     <Sidebar collapsible="icon" className="shadow-[2px_0_20px_-4px_rgba(0,0,0,0.35)]">
       <SidebarHeader className={cn("gap-3 py-4", collapsed ? "px-2" : "px-4")}>
-        <div
-          className={cn(
-            "flex min-h-11 items-center",
-            collapsed ? "justify-center" : "gap-3",
-          )}
-        >
+        <div className={cn("flex min-h-11 items-center", collapsed ? "justify-center" : "gap-3")}>
           {/* Always the light-on-dark logo variant — the sidebar is a
               constant brand green regardless of the app's light/dark theme,
               so the logo no longer needs to switch with it. */}
@@ -217,6 +230,7 @@ export function AppSidebar() {
           const visibleItems = group.items.filter(
             (item) =>
               (!item.adminOnly || isAdmin) &&
+              (!item.superAdminOnly || isSuperAdmin) &&
               (!item.permission || isNavItemVisible(account?.permissions, item.permission)),
           );
           // Skip the whole group (label included) once nothing under it is

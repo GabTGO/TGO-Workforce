@@ -28,7 +28,6 @@ import {
   ChevronLeft,
   FileSpreadsheet,
   Info,
-  Loader2,
   Sparkles,
   Upload,
   Wrench,
@@ -53,6 +52,7 @@ import { CreatableComboboxField } from "@/components/creatable-combobox-field";
 import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingPulse } from "@/components/loading-pulse";
 import {
   Table,
   TableBody,
@@ -209,7 +209,19 @@ export function BulkFixDialog() {
 
   // --- Mode 1: scan the directory itself for blank fields ---------------
   const [gapScanned, setGapScanned] = useState(false);
+  const [gapScanning, setGapScanning] = useState(false);
   const [gapEdits, setGapEdits] = useState<Record<string, Partial<Record<FixField, string>>>>({});
+
+  // The scan itself just filters data that's already loaded — near
+  // instant — but a brief, deliberate "scanning" beat here (same animation
+  // as the Excel scan below) makes clear a real pass over the directory
+  // happened, rather than the results panel just appearing.
+  async function handleScanGaps() {
+    setGapScanning(true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    setGapScanning(false);
+    setGapScanned(true);
+  }
 
   const gapEmployees = useMemo(
     () => employees.filter((e) => FIX_FIELDS.some((f) => isBlank(e[f.key]))),
@@ -453,7 +465,15 @@ export function BulkFixDialog() {
 
             {/* --- Mode 1: Scan Directory --- */}
             <TabsContent value="gaps" className="flex flex-1 flex-col overflow-hidden px-6 pb-4">
-              {!gapScanned ? (
+              {gapScanning ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <LoadingPulse
+                    icon={Sparkles}
+                    title="Scanning the directory..."
+                    subtitle="Checking every employee for a blank field"
+                  />
+                </div>
+              ) : !gapScanned ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
                   <Sparkles className="h-8 w-8 text-muted-foreground" />
                   <div>
@@ -463,11 +483,7 @@ export function BulkFixDialog() {
                       Position, Level or Birthday.
                     </p>
                   </div>
-                  <Button
-                    onClick={() => setGapScanned(true)}
-                    disabled={employeesLoading}
-                    className="mt-2"
-                  >
+                  <Button onClick={handleScanGaps} disabled={employeesLoading} className="mt-2">
                     Scan Directory
                   </Button>
                 </div>
@@ -551,9 +567,12 @@ export function BulkFixDialog() {
             {/* --- Mode 2: Fill from Excel --- */}
             <TabsContent value="excel" className="flex flex-1 flex-col overflow-hidden px-6 pb-4">
               {excelScanning ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm font-medium">Scanning file...</p>
+                <div className="flex flex-1 items-center justify-center">
+                  <LoadingPulse
+                    icon={FileSpreadsheet}
+                    title="Scanning file..."
+                    subtitle={file ? `Reading ${file.name}` : undefined}
+                  />
                 </div>
               ) : !excelScanned ? (
                 <div className="space-y-3 py-2">
