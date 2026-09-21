@@ -238,6 +238,11 @@ function DatabaseBackupsPage() {
   const completed = backups.filter((b) => b.status === "completed");
   const failed = backups.filter((b) => b.status === "failed");
   const lastCompleted = completed[0] ?? null;
+  // The manual route only *queues* a backup now — the worker executes it
+  // within ~60s (see backend/app/services/backup.py) — so "is it running"
+  // has to come from the polled list, not just the POST request's own
+  // (now near-instant) pending state.
+  const backupRunning = runBackupMutation.isPending || backups.some((b) => b.status === "running");
 
   return (
     <div className="space-y-6">
@@ -277,11 +282,11 @@ function DatabaseBackupsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {runBackupMutation.isPending ? (
+            {backupRunning ? (
               <LoadingPulse
                 icon={DatabaseBackupIcon}
                 title="Backing up your database..."
-                subtitle="Running pg_dump — this usually takes a few seconds"
+                subtitle="Queued for the worker — usually done within a minute"
               />
             ) : (
               <>

@@ -10,12 +10,25 @@
 # it never runs alembic itself.
 FROM python:3.12-slim
 
-# pg_dump, for the scheduled database backup loop (app/services/backup.py).
-# Unlike the API's own Dockerfile, THIS one really is what Railway builds
-# from in production (confirmed via the live service config: builder
-# "DOCKERFILE", dockerfilePath "/backend/Dockerfile.worker") — so this apt-get
-# is what actually puts pg_dump on PATH there, not just for local dev.
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+# pg_dump 18, matching this project's Postgres server
+# (ghcr.io/railwayapp-templates/postgres-ssl:18) — Debian bookworm's own
+# "postgresql-client" package is v15, and pg_dump refuses to dump from a
+# server newer than itself ("aborting because of server version"), so this
+# pulls the real client from the official PGDG apt repo instead of the
+# distro's default one. This is the ONLY place in this app that can do that:
+# unlike the API service (built by Railway with Railpack, whose declarative
+# apt-package list can't add a new repo), THIS Dockerfile really is what
+# Railway builds from in production (confirmed via the live service config:
+# builder "DOCKERFILE", dockerfilePath "/backend/Dockerfile.worker") — see
+# app/services/backup.py's module docstring for why the API therefore only
+# ever *queues* a backup instead of running pg_dump itself.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg lsb-release \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && apt-get purge -y --auto-remove curl gnupg lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -1,7 +1,10 @@
 """Database Backups — Super Admin-only module for on-demand or scheduled
-Postgres dumps, downloadable as .sql files. See app/services/backup.py for
-how a dump is actually produced (a real `pg_dump`, gzip-compressed into a
-DatabaseBackup row) and app/workers/backup_worker.py for the scheduled side.
+Postgres dumps, downloadable as .sql files. This service only ever *queues*
+a backup (POST /backups/run just inserts a RUNNING row) — it never runs
+pg_dump itself, since this database's Postgres 18 server needs a newer
+pg_dump than this service's Railpack build can install. The actual dump runs
+in the worker service within about a minute (app/workers/backup_worker.py);
+see app/services/backup.py's module docstring for the full explanation.
 
 Every route here is Super Admin-only (router-level dependency) — stricter
 than every other admin-ish module in this app, which stop at require_admin.
@@ -32,7 +35,7 @@ from app.schemas.database_backup import (
     BackupScheduleUpdate,
 )
 from app.services.activity_log import record_activity
-from app.services.backup import run_backup
+from app.services.backup import create_pending_backup
 from app.services.backup_schedule import get_backup_schedule
 
 router = APIRouter(prefix="/backups", tags=["backups"], dependencies=[Depends(require_super_admin)])
@@ -67,20 +70,22 @@ async def list_backups(db: DbSession) -> list[DatabaseBackup]:
 async def run_manual_backup(
     payload: BackupRunRequest, db: DbSession, account: SuperAdmin
 ) -> DatabaseBackup:
-    backup = await run_backup(
+    # Only queues the request (status RUNNING, no file yet) — this service
+    # can't run pg_dump itself against this database's Postgres 18 server,
+    # see app/services/backup.py's module docstring for why. The worker
+    # picks this row up within ~60s and logs the actual outcome itself once
+    # the dump finishes.
+    backup = await create_pending_backup(
         db, trigger=BackupTrigger.MANUAL, tables=payload.tables, account=account
     )
-    ok = backup.status == BackupStatus.COMPLETED
     await record_activity(
         db,
-        action="Ran a manual database backup" if ok else "Manual database backup failed",
+        action="Requested a manual database backup",
         category=ActivityCategory.SYSTEM,
         account=account,
-        severity=ActivitySeverity.INFO if ok else ActivitySeverity.CRITICAL,
+        severity=ActivitySeverity.INFO,
         target=backup.file_name or str(backup.id),
-        details={"tables": backup.tables, "error": backup.error_message}
-        if not ok
-        else {"tables": backup.tables},
+        details={"tables": backup.tables},
         commit=True,
     )
     return backup
