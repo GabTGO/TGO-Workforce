@@ -185,7 +185,7 @@ export function NewHireDialog({
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Level (optional)</Label>
+                <Label>Levels (optional)</Label>
                 <CreatableComboboxField
                   label="Level"
                   listKey="levels"

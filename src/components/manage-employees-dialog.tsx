@@ -530,7 +530,7 @@ function EditEmployeeDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label>Level</Label>
+            <Label>Levels</Label>
             <CreatableComboboxField
               label="Level"
               listKey="levels"
