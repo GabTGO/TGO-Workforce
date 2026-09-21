@@ -473,6 +473,7 @@ export function EmployeeTable() {
                   </TableHead>
                   <TableHead>
                     <SortButton label="Position" sortKey="position" />
+                    <div className="text-xs font-normal text-muted-foreground">Levels</div>
                   </TableHead>
                   <TableHead>
                     <SortButton label="Start Date" sortKey="startDate" />

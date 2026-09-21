@@ -281,6 +281,7 @@ export function ManageEmployeesDialog() {
                     </TableHead>
                     <TableHead>
                       <SortHeader label="Position" sortKey="position" />
+                      <div className="text-xs font-normal text-muted-foreground">Levels</div>
                     </TableHead>
                     <TableHead>
                       <SortHeader label="Birthday" sortKey="birthday" />
