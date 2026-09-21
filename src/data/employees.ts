@@ -1,11 +1,24 @@
 export type EmployeeStatus = "Active" | "Resigned" | "Terminated";
 
+// The org's fixed 7-rung career ladder — a closed set (unlike
+// office/department/position, which are free text and editable via
+// list-options-store), so this is a real union type, not a plain string.
+export type EmployeeLevel =
+  | "L1 - Associate"
+  | "L2 - Senior Associate"
+  | "L3 - Coordinator"
+  | "L4 - Senior Coordinator"
+  | "L5 - Specialist"
+  | "L6 - Captain"
+  | "L7 - Manager";
+
 export interface Employee {
   id: string;
   name: string;
   office: string;
   department: string;
   position: string;
+  level: EmployeeLevel;
   jobOfferDate?: string; // ISO
   startDate: string; // ISO
   status: EmployeeStatus;
@@ -55,6 +68,16 @@ export const POSITIONS = [
 
 export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
 
+export const LEVELS: EmployeeLevel[] = [
+  "L1 - Associate",
+  "L2 - Senior Associate",
+  "L3 - Coordinator",
+  "L4 - Senior Coordinator",
+  "L5 - Specialist",
+  "L6 - Captain",
+  "L7 - Manager",
+];
+
 /** Parses a plain "YYYY-MM-DD" calendar date (birthday, start date, exit
  * date, job offer date) as LOCAL midnight instead of UTC midnight.
  *
@@ -73,9 +96,7 @@ export const STATUSES: EmployeeStatus[] = ["Active", "Resigned", "Terminated"];
  * string, so it falls through to a normal parse and keeps converting from
  * UTC to the viewer's local time as it should. */
 export function parseCalendarDate(value: string): Date {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(`${value}T00:00:00`)
-    : new Date(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
 }
 
 /** Raw day count between start and (exit or today) — the source of truth for
@@ -83,10 +104,7 @@ export function parseCalendarDate(value: string): Date {
 export function tenureDays(startDate: string, exitDate?: string) {
   const start = parseCalendarDate(startDate);
   const end = exitDate ? parseCalendarDate(exitDate) : new Date();
-  return Math.max(
-    0,
-    Math.round((end.getTime() - start.getTime()) / 86_400_000),
-  );
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86_400_000));
 }
 
 // "Training" isn't a real employment status — it's a computed label layered
@@ -104,9 +122,7 @@ export function isInTraining(employee: Employee): boolean {
 export function tenure(startDate: string, exitDate?: string) {
   const start = parseCalendarDate(startDate);
   const end = exitDate ? parseCalendarDate(exitDate) : new Date();
-  let months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth());
+  let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
   if (end.getDate() < start.getDate()) months -= 1;
   months = Math.max(months, 0);
   const y = Math.floor(months / 12);
@@ -142,12 +158,8 @@ export function metrics(employees: Employee[]) {
   const inactive = employees.filter((e) => e.status !== "Active");
   const oneYearAgo = new Date(REFERENCE_NOW);
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const newHires = employees.filter(
-    (e) => parseCalendarDate(e.startDate) >= oneYearAgo,
-  );
-  const exits = employees.filter(
-    (e) => e.exitDate && parseCalendarDate(e.exitDate) >= oneYearAgo,
-  );
+  const newHires = employees.filter((e) => parseCalendarDate(e.startDate) >= oneYearAgo);
+  const exits = employees.filter((e) => e.exitDate && parseCalendarDate(e.exitDate) >= oneYearAgo);
   return {
     active: active.length,
     inactive: inactive.length,
@@ -155,21 +167,15 @@ export function metrics(employees: Employee[]) {
     exits: exits.length,
     eastwood: active.filter((e) => e.office === "PH Eastwood").length,
     medellin: active.filter((e) => e.office === "CO Medellin").length,
-    newHireList: newHires.sort((a, b) =>
-      b.startDate.localeCompare(a.startDate),
-    ),
+    newHireList: newHires.sort((a, b) => b.startDate.localeCompare(a.startDate)),
   };
 }
 
 export function officeDistribution(employees: Employee[]) {
   return OFFICES.map((office) => ({
     office,
-    active: employees.filter(
-      (e) => e.office === office && e.status === "Active",
-    ).length,
-    inactive: employees.filter(
-      (e) => e.office === office && e.status !== "Active",
-    ).length,
+    active: employees.filter((e) => e.office === office && e.status === "Active").length,
+    inactive: employees.filter((e) => e.office === office && e.status !== "Active").length,
   }));
 }
 
@@ -264,7 +270,8 @@ export function daysUntilNextOccurrence(monthIndex: number, day: number): number
   return Math.round((occurrence.getTime() - startOfToday.getTime()) / 86_400_000);
 }
 
-export type MilestoneTimeFilter = "all" | "this-month" | "last-7" | "next-7" | "last-30" | "next-30";
+export type MilestoneTimeFilter =
+  "all" | "this-month" | "last-7" | "next-7" | "last-30" | "next-30";
 
 export const MILESTONE_TIME_FILTER_LABELS: Record<MilestoneTimeFilter, string> = {
   all: "All year",
@@ -300,20 +307,14 @@ export function matchesMilestoneTimeFilter(
 export function departmentDistribution(employees: Employee[]) {
   return DEPARTMENTS.map((department) => ({
     department,
-    active: employees.filter(
-      (e) => e.department === department && e.status === "Active",
-    ).length,
-    inactive: employees.filter(
-      (e) => e.department === department && e.status !== "Active",
-    ).length,
+    active: employees.filter((e) => e.department === department && e.status === "Active").length,
+    inactive: employees.filter((e) => e.department === department && e.status !== "Active").length,
   }));
 }
 
 function monthsBetween(startDate: string, end: Date) {
   const start = parseCalendarDate(startDate);
-  let months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth());
+  let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
   if (end.getDate() < start.getDate()) months -= 1;
   return Math.max(months, 0);
 }

@@ -55,10 +55,12 @@ import {
 } from "@/components/ui/table";
 import { useEmployees, useUpdateEmployee, useDeleteEmployee } from "@/data/employee-store";
 import {
+  LEVELS,
   OFFICES,
   STATUSES,
   formatDate,
   type Employee,
+  type EmployeeLevel,
   type EmployeeStatus,
 } from "@/data/employees";
 import type { ListKey } from "@/data/list-options-api";
@@ -325,7 +327,10 @@ export function ManageEmployeesDialog() {
                       <TableCell className="font-medium whitespace-nowrap">{e.name}</TableCell>
                       <TableCell className="whitespace-nowrap">{e.office}</TableCell>
                       <TableCell className="whitespace-nowrap">{e.department}</TableCell>
-                      <TableCell className="whitespace-nowrap">{e.position}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <div>{e.position}</div>
+                        <div className="text-xs text-muted-foreground">{e.level}</div>
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">{formatDate(e.birthday)}</TableCell>
                       <TableCell>
                         <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
@@ -869,6 +874,25 @@ function EditEmployeeDialog({
               onChange={(v) => setForm({ ...form, position: v })}
               placeholder="Select position"
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Level</Label>
+            <Select
+              value={form.level}
+              onValueChange={(v) => setForm({ ...form, level: v as EmployeeLevel })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LEVELS.map((l) => (
+                  <SelectItem key={l} value={l}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2">

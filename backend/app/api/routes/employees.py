@@ -9,7 +9,7 @@ from app.core.auth import get_current_account, require_employee_writer, require_
 from app.core.db import get_db
 from app.models.account import Account
 from app.models.activity_log import ActivityCategory, ActivitySeverity
-from app.models.employee import Employee, EmployeeStatus
+from app.models.employee import Employee, EmployeeLevel, EmployeeStatus
 from app.models.permission import Permission
 from app.schemas.employee import (
     EmployeeBulkDeleteRequest,
@@ -49,6 +49,7 @@ async def list_employees(
     office: str | None = None,
     department: str | None = None,
     status_filter: Annotated[EmployeeStatus | None, Query(alias="status")] = None,
+    level_filter: Annotated[EmployeeLevel | None, Query(alias="level")] = None,
     limit: Annotated[int, Query(le=1000)] = 500,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[Employee]:
@@ -66,6 +67,8 @@ async def list_employees(
         stmt = stmt.where(Employee.department == department)
     if status_filter:
         stmt = stmt.where(Employee.status == status_filter)
+    if level_filter:
+        stmt = stmt.where(Employee.level == level_filter)
     stmt = stmt.order_by(Employee.name).offset(offset).limit(limit)
 
     result = await db.execute(stmt)
@@ -126,6 +129,7 @@ async def import_employees(
             office=row.office or "PH Eastwood",
             department=row.department or "",
             position=row.position or "",
+            level=row.level or EmployeeLevel.L1,
             job_offer_date=row.job_offer_date,
             start_date=row.start_date or date.today(),
             status=row.status or EmployeeStatus.ACTIVE,

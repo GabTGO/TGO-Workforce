@@ -19,12 +19,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -41,13 +36,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Employee, EmployeeStatus } from "@/data/employees";
-import { STATUSES } from "@/data/employees";
-import {
-  useEmployeesQuery,
-  useImportEmployees,
-  useUpdateEmployee,
-} from "@/data/employee-store";
+import type { Employee, EmployeeLevel, EmployeeStatus } from "@/data/employees";
+import { LEVELS, STATUSES } from "@/data/employees";
+import { useEmployeesQuery, useImportEmployees, useUpdateEmployee } from "@/data/employee-store";
 
 // Recognized column headers, matched case-insensitively with spaces/underscores stripped —
 // so "Employee ID", "employee_id" and "EmployeeID" all map to the same field. This is the
@@ -68,6 +59,8 @@ const HEADER_ALIASES: Record<string, keyof Employee> = {
   role: "position",
   jobtitle: "position",
   title: "position",
+  level: "level",
+  careerlevel: "level",
   startdate: "startDate",
   datestarted: "startDate",
   hiredate: "startDate",
@@ -95,9 +88,7 @@ function normalizeHeader(header: string): keyof Employee | null {
 function normalizeDate(value: unknown): string {
   if (value == null || value === "") return "";
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime())
-      ? ""
-      : value.toISOString().slice(0, 10);
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
   }
   const parsed = new Date(String(value));
   if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
@@ -139,6 +130,25 @@ function normalizeStatus(value: unknown): EmployeeStatus | undefined {
   if (value == null || value === "") return undefined;
   const raw = String(value).trim().toLowerCase();
   return STATUS_ALIASES[raw];
+}
+
+// Level is a real backend enum too (see normalizeStatus's reasoning above) —
+// recognizes either the full "L1 - Associate" label or the bare "L1" code,
+// so a spreadsheet that only has short codes still imports correctly.
+const LEVEL_ALIASES: Record<string, EmployeeLevel> = Object.fromEntries(
+  LEVELS.flatMap((level) => {
+    const code = level.split(" - ")[0]!.toLowerCase();
+    return [
+      [level.toLowerCase(), level],
+      [code, level],
+    ];
+  }),
+);
+
+function normalizeLevel(value: unknown): EmployeeLevel | undefined {
+  if (value == null || value === "") return undefined;
+  const raw = String(value).trim().toLowerCase();
+  return LEVEL_ALIASES[raw];
 }
 
 // One parsed row, plus a stable key for React and for the review table's selection state —
@@ -228,6 +238,9 @@ async function parseWorkbook(file: File): Promise<ReviewRow[]> {
       } else if (field === "status") {
         const status = normalizeStatus(value);
         if (status) employee.status = status;
+      } else if (field === "level") {
+        const level = normalizeLevel(value);
+        if (level) employee.level = level;
       } else {
         employee[field] = String(value).trim();
       }
@@ -323,9 +336,7 @@ export function ImportEmployeesDialog() {
       setStep("review");
     } catch (error) {
       console.error(error);
-      toast.error(
-        "Couldn't read that file. Make sure it's a valid .xlsx, .xls or .csv file.",
-      );
+      toast.error("Couldn't read that file. Make sure it's a valid .xlsx, .xls or .csv file.");
     } finally {
       setScanning(false);
     }
@@ -382,9 +393,7 @@ export function ImportEmployeesDialog() {
       | "sourceType",
     value: string,
   ) {
-    setRows((prev) =>
-      prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)),
-    );
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
   }
 
   function setRowStatus(key: string, status: EmployeeStatus | "unset") {
@@ -431,9 +440,7 @@ export function ImportEmployeesDialog() {
     const count = selected.size;
     setRows((prev) => prev.filter((r) => !selected.has(r.key)));
     setSelected(new Set());
-    toast.success(
-      `Removed ${count} row${count === 1 ? "" : "s"} from the import`,
-    );
+    toast.success(`Removed ${count} row${count === 1 ? "" : "s"} from the import`);
   }
 
   async function handleImport() {
@@ -488,9 +495,7 @@ export function ImportEmployeesDialog() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div>
                 <p className="text-sm font-medium">Scanning file...</p>
-                <p className="text-sm text-muted-foreground">
-                  Reading {file?.name}
-                </p>
+                <p className="text-sm text-muted-foreground">Reading {file?.name}</p>
               </div>
             </div>
           ) : (
@@ -498,14 +503,12 @@ export function ImportEmployeesDialog() {
               <div className="pb-1">
                 <h2 className="text-base font-semibold">Import from Excel</h2>
                 <p className="text-sm text-muted-foreground">
-                  Upload a .xlsx, .xls or .csv file — an export from another
-                  system works fine. We'll scan it, match its columns to
-                  employee fields, and cross-check every row against your
-                  current directory (by Employee ID, or by name when there's
-                  no ID column) so rows that already exist here are called out
-                  separately from ones that look genuinely new — and the
-                  reverse too: anyone already in your directory that this
-                  file doesn't mention at all, in case that's useful to know.
+                  Upload a .xlsx, .xls or .csv file — an export from another system works fine.
+                  We'll scan it, match its columns to employee fields, and cross-check every row
+                  against your current directory (by Employee ID, or by name when there's no ID
+                  column) so rows that already exist here are called out separately from ones that
+                  look genuinely new — and the reverse too: anyone already in your directory that
+                  this file doesn't mention at all, in case that's useful to know.
                 </p>
               </div>
 
@@ -532,15 +535,12 @@ export function ImportEmployeesDialog() {
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Recognized columns: Employee ID, Full Name, Office,
-                  Department, Position (or Role), Start Date, Birthday, Status,
-                  Date Resigned, Job Offer Date. Only Full Name is required —
-                  any other columns in the file (onboarding checklists,
-                  recruiter notes, and so on) are simply ignored. Status also
-                  understands common variants from other systems — e.g.
-                  "Termed" or "Fired" both map to Terminated, "Quit" maps to
-                  Resigned — so you don't need to relabel a source export
-                  before importing it.
+                  Recognized columns: Employee ID, Full Name, Office, Department, Position (or
+                  Role), Start Date, Birthday, Status, Date Resigned, Job Offer Date. Only Full Name
+                  is required — any other columns in the file (onboarding checklists, recruiter
+                  notes, and so on) are simply ignored. Status also understands common variants from
+                  other systems — e.g. "Termed" or "Fired" both map to Terminated, "Quit" maps to
+                  Resigned — so you don't need to relabel a source export before importing it.
                 </p>
               </div>
 
@@ -569,8 +569,7 @@ export function ImportEmployeesDialog() {
               <div>
                 <p className="text-sm font-medium">Importing employees...</p>
                 <p className="text-sm text-muted-foreground">
-                  Adding {usableCount} record{usableCount === 1 ? "" : "s"} to
-                  the directory
+                  Adding {usableCount} record{usableCount === 1 ? "" : "s"} to the directory
                 </p>
               </div>
             </div>
@@ -582,15 +581,13 @@ export function ImportEmployeesDialog() {
                     <h2 className="text-base font-semibold">Review import</h2>
                     <p className="text-sm text-muted-foreground">
                       Found {rows.length + duplicateRows.length} row
-                      {rows.length + duplicateRows.length === 1 ? "" : "s"} in{" "}
-                      {file?.name}.{" "}
+                      {rows.length + duplicateRows.length === 1 ? "" : "s"} in {file?.name}.{" "}
                       {duplicateRows.length > 0
                         ? `${duplicateRows.length} already ${duplicateRows.length === 1 ? "matches" : "match"} someone in your directory (hidden below, by default) — ${rows.length} look new.`
                         : "None of them matched your existing directory — all look new."}{" "}
                       {statusMismatchCount > 0 &&
                         `${statusMismatchCount} of those matches ${statusMismatchCount === 1 ? "has" : "have"} a Status that differs from what's on file here — see below.`}{" "}
-                      Edit, delete or add rows below — nothing is saved until
-                      you import.
+                      Edit, delete or add rows below — nothing is saved until you import.
                     </p>
                   </div>
                   <Button
@@ -623,7 +620,8 @@ export function ImportEmployeesDialog() {
                             variant="outline"
                             className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                           >
-                            {statusMismatchCount} status mismatch{statusMismatchCount === 1 ? "" : "es"}
+                            {statusMismatchCount} status mismatch
+                            {statusMismatchCount === 1 ? "" : "es"}
                           </Badge>
                         )}
                       </span>
@@ -640,17 +638,22 @@ export function ImportEmployeesDialog() {
                             {duplicateRows.map((r) => {
                               const mismatch = statusMismatch(r);
                               return (
-                                <TableRow key={r.key} className={mismatch ? "bg-amber-500/5" : undefined}>
+                                <TableRow
+                                  key={r.key}
+                                  className={mismatch ? "bg-amber-500/5" : undefined}
+                                >
                                   <TableCell className="text-sm">
                                     <p className="font-medium">{r.name || "(no name)"}</p>
                                     <p className="text-xs text-muted-foreground">
-                                      Matches existing {r.matchedEmployee.id} · {r.matchedEmployee.name}
+                                      Matches existing {r.matchedEmployee.id} ·{" "}
+                                      {r.matchedEmployee.name}
                                     </p>
                                     {mismatch && (
                                       <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                                         <AlertTriangle className="h-3 w-3 shrink-0" />
-                                        Status differs — file says <strong>{r.status}</strong>, current
-                                        record says <strong>{r.matchedEmployee.status}</strong>
+                                        Status differs — file says <strong>{r.status}</strong>,
+                                        current record says{" "}
+                                        <strong>{r.matchedEmployee.status}</strong>
                                       </p>
                                     )}
                                   </TableCell>
@@ -711,8 +714,8 @@ export function ImportEmployeesDialog() {
                       <div className="border-t">
                         <p className="px-4 pt-2.5 text-xs text-muted-foreground">
                           Likely added here after {file?.name || "this file"} was exported — could
-                          also mean a name/ID spelling difference kept a real match from being found.
-                          Nothing to do here; this is informational only.
+                          also mean a name/ID spelling difference kept a real match from being
+                          found. Nothing to do here; this is informational only.
                         </p>
                         <div className="max-h-56 overflow-auto">
                           <Table>
@@ -731,11 +734,15 @@ export function ImportEmployeesDialog() {
                                 <TableRow key={e.id}>
                                   <TableCell className="font-mono text-xs">{e.id}</TableCell>
                                   <TableCell className="text-sm font-medium">{e.name}</TableCell>
-                                  <TableCell className="text-sm text-muted-foreground">{e.office}</TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {e.office}
+                                  </TableCell>
                                   <TableCell className="text-sm text-muted-foreground">
                                     {e.department}
                                   </TableCell>
-                                  <TableCell className="text-sm text-muted-foreground">{e.status}</TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {e.status}
+                                  </TableCell>
                                   <TableCell className="text-sm text-muted-foreground">
                                     {e.startDate}
                                   </TableCell>
@@ -752,21 +759,12 @@ export function ImportEmployeesDialog() {
                 {someSelected && (
                   <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5">
                     <p className="text-sm font-medium">
-                      {selected.size} row{selected.size === 1 ? "" : "s"}{" "}
-                      selected
+                      {selected.size} row{selected.size === 1 ? "" : "s"} selected
                     </p>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={deleteSelected}
-                    >
+                    <Button variant="destructive" size="sm" onClick={deleteSelected}>
                       <Trash2 className="mr-2 h-4 w-4" /> Delete Selected
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelected(new Set())}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
                       <X className="mr-2 h-4 w-4" /> Clear selection
                     </Button>
                   </div>
@@ -779,16 +777,8 @@ export function ImportEmployeesDialog() {
                     <TableRow className="bg-primary/5 hover:bg-primary/5">
                       <TableHead className="w-10">
                         <Checkbox
-                          checked={
-                            allSelected
-                              ? true
-                              : someSelected
-                                ? "indeterminate"
-                                : false
-                          }
-                          onCheckedChange={(checked) =>
-                            toggleAll(checked === true)
-                          }
+                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                          onCheckedChange={(checked) => toggleAll(checked === true)}
                           aria-label="Select all rows"
                         />
                       </TableHead>
@@ -809,10 +799,7 @@ export function ImportEmployeesDialog() {
                   <TableBody>
                     {rows.length === 0 && (
                       <TableRow>
-                        <TableCell
-                          colSpan={13}
-                          className="h-24 text-center text-muted-foreground"
-                        >
+                        <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
                           {duplicateRows.length > 0
                             ? "Everyone in this file already matched someone in your directory. Add one below, expand the panel above to add a match anyway, or go back and pick a different file."
                             : "No rows left. Add one below or go back and pick a different file."}
@@ -824,16 +811,12 @@ export function ImportEmployeesDialog() {
                       return (
                         <TableRow
                           key={r.key}
-                          data-state={
-                            selected.has(r.key) ? "selected" : undefined
-                          }
+                          data-state={selected.has(r.key) ? "selected" : undefined}
                         >
                           <TableCell>
                             <Checkbox
                               checked={selected.has(r.key)}
-                              onCheckedChange={(checked) =>
-                                toggleRow(r.key, checked === true)
-                              }
+                              onCheckedChange={(checked) => toggleRow(r.key, checked === true)}
                               aria-label={`Select row ${r.name || r.key}`}
                             />
                           </TableCell>
@@ -843,9 +826,7 @@ export function ImportEmployeesDialog() {
                               maxLength={20}
                               placeholder="Auto"
                               className="h-8 w-24 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "id", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "id", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
@@ -853,9 +834,7 @@ export function ImportEmployeesDialog() {
                               value={r.name ?? ""}
                               placeholder="Required"
                               className={`h-8 w-36 text-xs ${missingName ? "border-destructive" : ""}`}
-                              onChange={(e) =>
-                                setRowField(r.key, "name", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "name", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
@@ -863,27 +842,21 @@ export function ImportEmployeesDialog() {
                               value={r.office ?? ""}
                               placeholder="PH Eastwood"
                               className="h-8 w-32 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "office", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "office", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
                             <Input
                               value={r.department ?? ""}
                               className="h-8 w-32 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "department", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "department", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
                             <Input
                               value={r.position ?? ""}
                               className="h-8 w-36 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "position", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "position", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
@@ -891,13 +864,7 @@ export function ImportEmployeesDialog() {
                               type="date"
                               value={r.jobOfferDate ?? ""}
                               className="h-8 w-36 text-xs"
-                              onChange={(e) =>
-                                setRowField(
-                                  r.key,
-                                  "jobOfferDate",
-                                  e.target.value,
-                                )
-                              }
+                              onChange={(e) => setRowField(r.key, "jobOfferDate", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
@@ -905,28 +872,21 @@ export function ImportEmployeesDialog() {
                               type="date"
                               value={r.startDate ?? ""}
                               className="h-8 w-36 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "startDate", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "startDate", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
                             <Select
                               value={r.status ?? "unset"}
                               onValueChange={(v) =>
-                                setRowStatus(
-                                  r.key,
-                                  v as EmployeeStatus | "unset",
-                                )
+                                setRowStatus(r.key, v as EmployeeStatus | "unset")
                               }
                             >
                               <SelectTrigger className="h-8 w-28 text-xs">
                                 <SelectValue placeholder="Active" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="unset">
-                                  Active (default)
-                                </SelectItem>
+                                <SelectItem value="unset">Active (default)</SelectItem>
                                 {STATUSES.map((s) => (
                                   <SelectItem key={s} value={s}>
                                     {s}
@@ -940,9 +900,7 @@ export function ImportEmployeesDialog() {
                               type="date"
                               value={r.exitDate ?? ""}
                               className="h-8 w-36 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "exitDate", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "exitDate", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
@@ -950,18 +908,14 @@ export function ImportEmployeesDialog() {
                               type="date"
                               value={r.birthday ?? ""}
                               className="h-8 w-36 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "birthday", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "birthday", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
                             <Input
                               value={r.sourceType ?? ""}
                               className="h-8 w-28 text-xs"
-                              onChange={(e) =>
-                                setRowField(r.key, "sourceType", e.target.value)
-                              }
+                              onChange={(e) => setRowField(r.key, "sourceType", e.target.value)}
                             />
                           </TableCell>
                           <TableCell>
@@ -991,8 +945,7 @@ export function ImportEmployeesDialog() {
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
                       <AlertTriangle className="h-3.5 w-3.5" />
                       {rows.length - usableCount} row
-                      {rows.length - usableCount === 1 ? "" : "s"} missing a
-                      name will be skipped
+                      {rows.length - usableCount === 1 ? "" : "s"} missing a name will be skipped
                     </p>
                   )}
                 </div>

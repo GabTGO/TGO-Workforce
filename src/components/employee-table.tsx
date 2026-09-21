@@ -53,6 +53,7 @@ import { useCurrentAccount } from "@/lib/session";
 import { canManageEmployees } from "@/lib/permissions";
 import {
   DEPARTMENTS,
+  LEVELS,
   OFFICES,
   STATUSES,
   formatDate,
@@ -71,13 +72,9 @@ import {
 } from "@/lib/export";
 import { MANAGE_PASSWORD } from "@/lib/manage-password";
 
-type SortKey =
-  "id" | "name" | "office" | "department" | "position" | "startDate" | "status";
+type SortKey = "id" | "name" | "office" | "department" | "position" | "startDate" | "status";
 
-const statusVariant: Record<
-  EmployeeStatus,
-  "default" | "secondary" | "destructive"
-> = {
+const statusVariant: Record<EmployeeStatus, "default" | "secondary" | "destructive"> = {
   Active: "default",
   Resigned: "secondary",
   Terminated: "destructive",
@@ -103,6 +100,7 @@ export function EmployeeTable() {
   const [office, setOffice] = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>([]);
   const [department, setDepartment] = useState<string[]>([]);
+  const [level, setLevel] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "name",
     dir: "asc",
@@ -133,7 +131,8 @@ export function EmployeeTable() {
         matchesQuery &&
         (office.length === 0 || office.includes(e.office)) &&
         matchesStatus &&
-        (department.length === 0 || department.includes(e.department))
+        (department.length === 0 || department.includes(e.department)) &&
+        (level.length === 0 || level.includes(e.level))
       );
     });
     return [...rows].sort((a, b) => {
@@ -141,14 +140,11 @@ export function EmployeeTable() {
       const bv = String(b[sort.key as keyof Employee] ?? "");
       return sort.dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [employees, query, office, status, department, sort]);
+  }, [employees, query, office, status, department, level, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
-  const rows = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  );
+  const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Drop any selected id that no longer exists (deleted elsewhere, or by
   // this same bulk action) so the "N selected" count and the header
@@ -180,11 +176,11 @@ export function EmployeeTable() {
     setOffice([]);
     setStatus([]);
     setDepartment([]);
+    setLevel([]);
     setPage(1);
   }
 
-  const allOnPageSelected =
-    rows.length > 0 && rows.every((e) => selected.has(e.id));
+  const allOnPageSelected = rows.length > 0 && rows.every((e) => selected.has(e.id));
   const someOnPageSelected = rows.some((e) => selected.has(e.id));
 
   function toggleRow(id: string, checked: boolean) {
@@ -218,13 +214,9 @@ export function EmployeeTable() {
     const ids = [...selected];
     try {
       const result = await bulkDeleteMutation.mutateAsync(ids);
-      toast.success(
-        `Removed ${result.deleted} employee${result.deleted === 1 ? "" : "s"}`,
-      );
+      toast.success(`Removed ${result.deleted} employee${result.deleted === 1 ? "" : "s"}`);
       if (result.notFound.length > 0) {
-        toast.error(
-          `${result.notFound.length} selected row(s) were already removed elsewhere`,
-        );
+        toast.error(`${result.notFound.length} selected row(s) were already removed elsewhere`);
       }
       setSelected(new Set());
     } catch (error) {
@@ -240,12 +232,9 @@ export function EmployeeTable() {
   // "Export Options" respects the checkbox selection: with rows checked, it
   // exports just those; with nothing checked, it exports everything the
   // current filters match — same selection semantics as bulk delete.
-  const exportRows =
-    selected.size > 0 ? filtered.filter((e) => selected.has(e.id)) : filtered;
+  const exportRows = selected.size > 0 ? filtered.filter((e) => selected.has(e.id)) : filtered;
   const exportScopeLabel =
-    selected.size > 0
-      ? `Selected (${selected.size})`
-      : `All (${filtered.length})`;
+    selected.size > 0 ? `Selected (${selected.size})` : `All (${filtered.length})`;
 
   async function handleExport(format: "csv" | "xlsx" | "pdf") {
     if (exportRows.length === 0) {
@@ -284,13 +273,9 @@ export function EmployeeTable() {
     try {
       await exportEmployeesDetailedXlsx(
         rows,
-        scope === "filtered"
-          ? "TGO_Workforce_Filtered_Export"
-          : "TGO_Workforce_Detailed_Export",
+        scope === "filtered" ? "TGO_Workforce_Filtered_Export" : "TGO_Workforce_Detailed_Export",
       );
-      toast.success(
-        `Exported ${rows.length} employee${rows.length === 1 ? "" : "s"}`,
-      );
+      toast.success(`Exported ${rows.length} employee${rows.length === 1 ? "" : "s"}`);
     } catch (error) {
       console.error(error);
       toast.error("Export failed. Please try again.");
@@ -306,10 +291,7 @@ export function EmployeeTable() {
     }
     setExporting(true);
     try {
-      await exportWorkforceSummaryXlsx(
-        filtered,
-        "TGO_Workforce_Summary_Export",
-      );
+      await exportWorkforceSummaryXlsx(filtered, "TGO_Workforce_Summary_Export");
       toast.success("Exported workforce summary");
     } catch (error) {
       console.error(error);
@@ -319,13 +301,7 @@ export function EmployeeTable() {
     }
   }
 
-  const SortButton = ({
-    label,
-    sortKey,
-  }: {
-    label: string;
-    sortKey: SortKey;
-  }) => (
+  const SortButton = ({ label, sortKey }: { label: string; sortKey: SortKey }) => (
     <button
       type="button"
       onClick={() => toggleSort(sortKey)}
@@ -379,6 +355,15 @@ export function EmployeeTable() {
           }}
           options={[...DEPARTMENTS]}
         />
+        <MultiSelectFilter
+          label="Level"
+          selected={level}
+          onChange={(v) => {
+            setLevel(v);
+            setPage(1);
+          }}
+          options={[...LEVELS]}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -401,22 +386,13 @@ export function EmployeeTable() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              disabled={exporting}
-              onSelect={() => handleExport("csv")}
-            >
+            <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("csv")}>
               Export {exportScopeLabel} as CSV
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={exporting}
-              onSelect={() => handleExport("xlsx")}
-            >
+            <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("xlsx")}>
               Export {exportScopeLabel} as Excel
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={exporting}
-              onSelect={() => handleExport("pdf")}
-            >
+            <DropdownMenuItem disabled={exporting} onSelect={() => handleExport("pdf")}>
               Export {exportScopeLabel} as PDF
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -429,16 +405,10 @@ export function EmployeeTable() {
             >
               Filtered Export ({exportScopeLabel})
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={exporting}
-              onSelect={() => handleDetailedExport("all")}
-            >
+            <DropdownMenuItem disabled={exporting} onSelect={() => handleDetailedExport("all")}>
               Detailed Export (All {employees.length})
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={exporting}
-              onSelect={handleSummaryExport}
-            >
+            <DropdownMenuItem disabled={exporting} onSelect={handleSummaryExport}>
               Summary Export (by Team &amp; Office)
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -450,18 +420,10 @@ export function EmployeeTable() {
           <p className="text-sm font-medium">
             {selected.size} employee{selected.size === 1 ? "" : "s"} selected
           </p>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setConfirmingBulkDelete(true)}
-          >
+          <Button variant="destructive" size="sm" onClick={() => setConfirmingBulkDelete(true)}>
             <Trash2 className="mr-2 h-4 w-4" /> Delete Selected
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelected(new Set())}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
             <X className="mr-2 h-4 w-4" /> Clear selection
           </Button>
         </div>
@@ -477,15 +439,9 @@ export function EmployeeTable() {
                     <TableHead className="w-10">
                       <Checkbox
                         checked={
-                          allOnPageSelected
-                            ? true
-                            : someOnPageSelected
-                              ? "indeterminate"
-                              : false
+                          allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false
                         }
-                        onCheckedChange={(checked) =>
-                          togglePage(checked === true)
-                        }
+                        onCheckedChange={(checked) => togglePage(checked === true)}
                         aria-label="Select all rows on this page"
                       />
                     </TableHead>
@@ -527,37 +483,25 @@ export function EmployeeTable() {
                   </TableRow>
                 )}
                 {rows.map((e) => (
-                  <TableRow
-                    key={e.id}
-                    data-state={selected.has(e.id) ? "selected" : undefined}
-                  >
+                  <TableRow key={e.id} data-state={selected.has(e.id) ? "selected" : undefined}>
                     {canManage && (
                       <TableCell>
                         <Checkbox
                           checked={selected.has(e.id)}
-                          onCheckedChange={(checked) =>
-                            toggleRow(e.id, checked === true)
-                          }
+                          onCheckedChange={(checked) => toggleRow(e.id, checked === true)}
                           aria-label={`Select ${e.name}`}
                         />
                       </TableCell>
                     )}
                     <TableCell className="font-mono text-xs">{e.id}</TableCell>
-                    <TableCell className="font-medium whitespace-nowrap">
-                      {e.name}
-                    </TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">{e.name}</TableCell>
+                    <TableCell className="whitespace-nowrap">{e.office}</TableCell>
+                    <TableCell className="whitespace-nowrap">{e.department}</TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {e.office}
+                      <div>{e.position}</div>
+                      <div className="text-xs text-muted-foreground">{e.level}</div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {e.department}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {e.position}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDate(e.startDate)}
-                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(e.startDate)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div>{tenure(e.startDate, e.exitDate)}</div>
                       <div className="text-xs text-muted-foreground">
@@ -576,9 +520,7 @@ export function EmployeeTable() {
                         <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDate(e.exitDate)}
-                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(e.exitDate)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -634,8 +576,7 @@ export function EmployeeTable() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               This permanently removes {selected.size} record
-              {selected.size === 1 ? "" : "s"} from the directory. This can't be
-              undone.
+              {selected.size === 1 ? "" : "s"} from the directory. This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-2 py-1">
@@ -669,9 +610,7 @@ export function EmployeeTable() {
               disabled={bulkDeleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {bulkDeleteMutation.isPending
-                ? "Deleting..."
-                : "Confirm & Delete"}
+              {bulkDeleteMutation.isPending ? "Deleting..." : "Confirm & Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

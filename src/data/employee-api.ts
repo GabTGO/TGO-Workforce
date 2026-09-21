@@ -6,7 +6,7 @@
 // Query hooks; components should use that, not this file, directly.
 
 import { apiUrl } from "@/lib/api";
-import type { Employee, EmployeeStatus } from "@/data/employees";
+import type { Employee, EmployeeLevel, EmployeeStatus } from "@/data/employees";
 
 type BackendEmployee = {
   id: string;
@@ -14,6 +14,7 @@ type BackendEmployee = {
   office: string;
   department: string;
   position: string;
+  level: EmployeeLevel;
   job_offer_date: string | null;
   start_date: string;
   status: EmployeeStatus;
@@ -31,6 +32,7 @@ function fromBackend(row: BackendEmployee): Employee {
     office: row.office,
     department: row.department,
     position: row.position,
+    level: row.level,
     jobOfferDate: row.job_offer_date ?? undefined,
     startDate: row.start_date,
     status: row.status,
@@ -59,10 +61,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * HTTPException (400/404/409/...), or `{"detail": [{"msg": "...", ...}, ...]}`
  * for a Pydantic validation error (422). Surface the human-readable message
  * either way instead of dumping raw JSON into a toast. */
-async function readErrorMessage(
-  response: Response,
-  path: string,
-): Promise<string> {
+async function readErrorMessage(response: Response, path: string): Promise<string> {
   const fallback = `Request to ${path} failed (${response.status})`;
   const body = await response.text();
   if (!body) return fallback;
@@ -72,9 +71,7 @@ async function readErrorMessage(
     if (Array.isArray(parsed.detail)) {
       const messages = parsed.detail
         .map((item) =>
-          item && typeof item === "object" && "msg" in item
-            ? String(item.msg)
-            : null,
+          item && typeof item === "object" && "msg" in item ? String(item.msg) : null,
         )
         .filter((msg): msg is string => Boolean(msg));
       if (messages.length > 0) return messages.join("; ");
@@ -95,6 +92,7 @@ export type NewEmployeeInput = {
   office?: string;
   department?: string;
   position?: string;
+  level?: EmployeeLevel;
   jobOfferDate?: string;
   startDate: string;
   status?: EmployeeStatus;
@@ -109,6 +107,7 @@ function toCreatePayload(input: NewEmployeeInput) {
     office: input.office || undefined,
     department: input.department || undefined,
     position: input.position || undefined,
+    level: input.level || undefined,
     job_offer_date: input.jobOfferDate || undefined,
     start_date: input.startDate,
     status: input.status || undefined,
@@ -118,9 +117,7 @@ function toCreatePayload(input: NewEmployeeInput) {
   };
 }
 
-export async function createEmployee(
-  input: NewEmployeeInput,
-): Promise<Employee> {
+export async function createEmployee(input: NewEmployeeInput): Promise<Employee> {
   const row = await request<BackendEmployee>("/employees", {
     method: "POST",
     body: JSON.stringify(toCreatePayload(input)),
@@ -138,16 +135,14 @@ export async function createEmployee(
  * when it differs from `originalId` we send it as a rename (the backend
  * uniqueness-checks it — see backend/app/api/routes/employees.py). Omitting
  * it entirely when unchanged avoids a no-op rename round-trip. */
-export async function updateEmployee(
-  originalId: string,
-  employee: Employee,
-): Promise<Employee> {
+export async function updateEmployee(originalId: string, employee: Employee): Promise<Employee> {
   const payload = {
     id: employee.id !== originalId ? employee.id : undefined,
     name: employee.name,
     office: employee.office,
     department: employee.department,
     position: employee.position,
+    level: employee.level,
     job_offer_date: employee.jobOfferDate || null,
     start_date: employee.startDate,
     status: employee.status,
@@ -155,13 +150,10 @@ export async function updateEmployee(
     birthday: employee.birthday || null,
     source_type: employee.sourceType || null,
   };
-  const row = await request<BackendEmployee>(
-    `/employees/${encodeURIComponent(originalId)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    },
-  );
+  const row = await request<BackendEmployee>(`/employees/${encodeURIComponent(originalId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
   return fromBackend(row);
 }
 
@@ -173,13 +165,11 @@ export async function deleteEmployee(id: string): Promise<void> {
 
 export type BulkDeleteResult = { deleted: number; notFound: string[] };
 
-export async function bulkDeleteEmployees(
-  ids: string[],
-): Promise<BulkDeleteResult> {
-  const result = await request<{ deleted: number; not_found: string[] }>(
-    "/employees/bulk-delete",
-    { method: "POST", body: JSON.stringify({ ids }) },
-  );
+export async function bulkDeleteEmployees(ids: string[]): Promise<BulkDeleteResult> {
+  const result = await request<{ deleted: number; not_found: string[] }>("/employees/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
   return { deleted: result.deleted, notFound: result.not_found };
 }
 
@@ -194,6 +184,7 @@ export async function importEmployees(
     office: row.office || undefined,
     department: row.department || undefined,
     position: row.position || undefined,
+    level: row.level || undefined,
     job_offer_date: row.jobOfferDate || undefined,
     start_date: row.startDate || undefined,
     status: row.status || undefined,
