@@ -82,6 +82,12 @@ const statusVariant: Record<EmployeeStatus, "default" | "secondary" | "destructi
 
 const PAGE_SIZE = 8;
 
+// A pseudo-value in the Level filter (like "Training" is for Status below)
+// standing in for "level is blank" — Level has no default value anymore (see
+// the employees.level model comment), so without this there'd be no way to
+// filter for the employees who still need one set by hand.
+const UNSET_LEVEL = "No level yet";
+
 export function EmployeeTable() {
   const employees = useEmployees();
   const bulkDeleteMutation = useBulkDeleteEmployees();
@@ -132,12 +138,14 @@ export function EmployeeTable() {
       const matchesStatus =
         status.length === 0 ||
         status.some((s) => (s === "Training" ? isInTraining(e) : e.status === s));
+      const matchesLevel =
+        level.length === 0 || level.some((l) => (l === UNSET_LEVEL ? !e.level : e.level === l));
       return (
         matchesQuery &&
         (office.length === 0 || office.includes(e.office)) &&
         matchesStatus &&
         (department.length === 0 || department.includes(e.department)) &&
-        (level.length === 0 || level.includes(e.level))
+        matchesLevel
       );
     });
     return [...rows].sort((a, b) => {
@@ -367,7 +375,7 @@ export function EmployeeTable() {
             setLevel(v);
             setPage(1);
           }}
-          options={listOptions?.levels ?? []}
+          options={[UNSET_LEVEL, ...(listOptions?.levels ?? [])]}
         />
       </div>
 
