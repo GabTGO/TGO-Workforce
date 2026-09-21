@@ -45,13 +45,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BulkFixDialog } from "@/components/bulk-fix-dialog";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { ManageEmployeesDialog } from "@/components/manage-employees-dialog";
 import { NewHireDialog } from "@/components/new-hire-dialog";
 import { useBulkDeleteEmployees, useEmployees } from "@/data/employee-store";
 import { useListOptionsQuery } from "@/data/list-options-store";
 import { useCurrentAccount } from "@/lib/session";
-import { canManageEmployees } from "@/lib/permissions";
+import { canManageEmployees, getEffectiveRole, isSuperAdminRole } from "@/lib/permissions";
 import {
   DEPARTMENTS,
   OFFICES,
@@ -104,6 +105,13 @@ export function EmployeeTable() {
   // route (see backend/app/core/auth.py's require_employee_writer), so this
   // is a UX nicety, not the actual security boundary.
   const canManage = canManageEmployees(account?.permissions);
+  // Bulk Fix is deliberately stricter than canManage above — it can rewrite
+  // Department/Position/Level/Birthday across many records at once from an
+  // uploaded file, so it's reachable only for a genuine Super Admin (not
+  // just anyone the permission matrix grants employees.manage to). Same UX-
+  // nicety caveat as canManage: the PATCH it drives still only requires
+  // employees.manage server-side, which every Super Admin already has.
+  const isSuperAdmin = isSuperAdminRole(getEffectiveRole(account));
   const [query, setQuery] = useState("");
   // Empty array = no filter applied (matches every value) — see
   // MultiSelectFilter's doc comment. Multiple values can be checked at once
@@ -387,6 +395,7 @@ export function EmployeeTable() {
             <ImportEmployeesDialog />
           </>
         )}
+        {isSuperAdmin && <BulkFixDialog />}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" disabled={exporting}>
