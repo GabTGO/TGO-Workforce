@@ -19,6 +19,7 @@ import {
   formatDate,
   matchesMilestoneTimeFilter,
   MILESTONE_TIME_FILTER_LABELS,
+  OFFICES,
   type MilestoneTimeFilter,
 } from "@/data/employees";
 import { useEmployees } from "@/data/employee-store";
@@ -34,6 +35,11 @@ const TIME_FILTERS: MilestoneTimeFilter[] = [
   "last-30",
   "next-30",
 ];
+
+// Sentinel Select value for "every office" — Radix Select can't take an
+// empty string as an item value.
+const ALL_OFFICES = "all";
+type OfficeFilter = typeof ALL_OFFICES | (typeof OFFICES)[number];
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -71,11 +77,17 @@ function AnniversariesPage() {
   const canView = canViewMilestones(account?.permissions);
   const employees = useEmployees();
   const [timeFilter, setTimeFilter] = useState<MilestoneTimeFilter>("all");
+  const [officeFilter, setOfficeFilter] = useState<OfficeFilter>(ALL_OFFICES);
   const allMilestones = anniversaries(employees);
-  const list = allMilestones.filter((e) => matchesMilestoneTimeFilter(e.monthIndex, e.day, timeFilter));
+  const officeMilestones = allMilestones.filter(
+    (e) => officeFilter === ALL_OFFICES || e.office === officeFilter,
+  );
+  const list = officeMilestones.filter((e) =>
+    matchesMilestoneTimeFilter(e.monthIndex, e.day, timeFilter),
+  );
   const months = [...new Set(list.map((e) => e.monthName))];
   const currentMonthName = new Date().toLocaleString("en-US", { month: "long" });
-  const thisMonth = allMilestones.filter((e) => e.monthName === currentMonthName).length;
+  const thisMonth = officeMilestones.filter((e) => e.monthName === currentMonthName).length;
   const milestoneYears = list.filter((e) => e.years > 0);
   const longestTenure = milestoneYears.reduce((max, e) => Math.max(max, e.years), 0);
 
@@ -121,30 +133,58 @@ function AnniversariesPage() {
         title="Anniversaries"
         description="Tenure milestones grouped by month for recognition planning."
         action={
-          <Select value={timeFilter} onValueChange={(v) => setTimeFilter(v as MilestoneTimeFilter)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_FILTERS.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {MILESTONE_TIME_FILTER_LABELS[f]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={officeFilter} onValueChange={(v) => setOfficeFilter(v as OfficeFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_OFFICES}>All offices</SelectItem>
+                {OFFICES.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={timeFilter}
+              onValueChange={(v) => setTimeFilter(v as MilestoneTimeFilter)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_FILTERS.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {MILESTONE_TIME_FILTER_LABELS[f]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Total Milestones" value={list.length} hint="Active employees tracked" icon={Award} />
+        <MetricCard
+          title="Total Milestones"
+          value={list.length}
+          hint="Active employees tracked"
+          icon={Award}
+        />
         <MetricCard
           title="This Month"
           value={thisMonth}
           hint={`Anniversaries in ${currentMonthName}`}
           icon={CalendarClock}
         />
-        <MetricCard title="Months Covered" value={months.length} hint="Months with a milestone" icon={Star} />
+        <MetricCard
+          title="Months Covered"
+          value={months.length}
+          hint="Months with a milestone"
+          icon={Star}
+        />
         <MetricCard
           title="Longest Tenure"
           value={`${longestTenure} yrs`}
@@ -157,7 +197,8 @@ function AnniversariesPage() {
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
             <Award className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              No anniversaries match "{MILESTONE_TIME_FILTER_LABELS[timeFilter]}". Try a wider range.
+              No anniversaries match "{MILESTONE_TIME_FILTER_LABELS[timeFilter]}". Try a wider
+              range.
             </p>
           </CardContent>
         </Card>
@@ -184,7 +225,8 @@ function AnniversariesPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{e.name}</p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {e.monthName} {e.day}, {CURRENT_YEAR} · Joined {formatDate(e.startDate)}
+                          {e.monthName} {e.day}, {CURRENT_YEAR} · Joined {formatDate(e.startDate)} ·{" "}
+                          {e.office}
                         </p>
                       </div>
                       <Badge variant="secondary">{e.years} yrs</Badge>

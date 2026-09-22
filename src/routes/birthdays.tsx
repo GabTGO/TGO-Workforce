@@ -17,6 +17,7 @@ import {
 import {
   matchesMilestoneTimeFilter,
   MILESTONE_TIME_FILTER_LABELS,
+  OFFICES,
   upcomingBirthdays,
   type MilestoneTimeFilter,
 } from "@/data/employees";
@@ -33,6 +34,11 @@ const TIME_FILTERS: MilestoneTimeFilter[] = [
   "last-30",
   "next-30",
 ];
+
+// Sentinel Select value for "every office" — Radix Select can't take an
+// empty string as an item value.
+const ALL_OFFICES = "all";
+type OfficeFilter = typeof ALL_OFFICES | (typeof OFFICES)[number];
 
 export const Route = createFileRoute("/birthdays")({
   head: () => ({
@@ -65,11 +71,17 @@ function BirthdaysPage() {
   const canView = canViewMilestones(account?.permissions);
   const employees = useEmployees();
   const [timeFilter, setTimeFilter] = useState<MilestoneTimeFilter>("all");
+  const [officeFilter, setOfficeFilter] = useState<OfficeFilter>(ALL_OFFICES);
   const allBirthdays = upcomingBirthdays(employees);
-  const list = allBirthdays.filter((e) => matchesMilestoneTimeFilter(e.monthIndex, e.day, timeFilter));
+  const officeBirthdays = allBirthdays.filter(
+    (e) => officeFilter === ALL_OFFICES || e.office === officeFilter,
+  );
+  const list = officeBirthdays.filter((e) =>
+    matchesMilestoneTimeFilter(e.monthIndex, e.day, timeFilter),
+  );
   const months = [...new Set(list.map((e) => e.monthName))];
   const currentMonthName = new Date().toLocaleString("en-US", { month: "long" });
-  const thisMonth = allBirthdays.filter((e) => e.monthName === currentMonthName).length;
+  const thisMonth = officeBirthdays.filter((e) => e.monthName === currentMonthName).length;
   const eastwood = list.filter((e) => e.office === "PH Eastwood").length;
   const medellin = list.filter((e) => e.office === "CO Medellin").length;
 
@@ -115,30 +127,58 @@ function BirthdaysPage() {
         title="Birthdays"
         description="Birthday calendar for active employees across all hubs."
         action={
-          <Select value={timeFilter} onValueChange={(v) => setTimeFilter(v as MilestoneTimeFilter)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_FILTERS.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {MILESTONE_TIME_FILTER_LABELS[f]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={officeFilter} onValueChange={(v) => setOfficeFilter(v as OfficeFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_OFFICES}>All offices</SelectItem>
+                {OFFICES.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={timeFilter}
+              onValueChange={(v) => setTimeFilter(v as MilestoneTimeFilter)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_FILTERS.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {MILESTONE_TIME_FILTER_LABELS[f]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Total Birthdays" value={list.length} hint="Active employees tracked" icon={Cake} />
+        <MetricCard
+          title="Total Birthdays"
+          value={list.length}
+          hint="Active employees tracked"
+          icon={Cake}
+        />
         <MetricCard
           title="This Month"
           value={thisMonth}
           hint={`Celebrations in ${currentMonthName}`}
           icon={CalendarClock}
         />
-        <MetricCard title="PH Eastwood" value={eastwood} hint="Manila delivery hub" icon={Building2} />
+        <MetricCard
+          title="PH Eastwood"
+          value={eastwood}
+          hint="Manila delivery hub"
+          icon={Building2}
+        />
         <MetricCard title="CO Medellin" value={medellin} hint="LATAM delivery hub" icon={Globe2} />
       </div>
       {list.length === 0 ? (
