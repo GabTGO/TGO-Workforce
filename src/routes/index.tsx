@@ -735,7 +735,10 @@ function Dashboard() {
       )}
 
       {isFullAccess && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        // Exactly 5 cards since Resigned/Terminated moved into their own
+        // modal — xl:grid-cols-5 fills one full row at wide viewports
+        // instead of leaving a lone orphan card on its own line.
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <MetricCard
             title="Active Employees"
             value={m.active}

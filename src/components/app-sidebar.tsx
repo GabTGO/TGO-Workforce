@@ -67,20 +67,7 @@ type NavItem = {
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Overview",
-    items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      // Admin/Super Admin-only: Analytics rolls up numbers across every
-      // module (Employee Directory, Onboarding, Attendance), which no single
-      // module-siloed role should see in full — see app/routes/analytics.tsx's
-      // own isFullAccessRole gate, which enforces this independent of what
-      // the nav shows.
-      { title: "Analytics", url: "/analytics", icon: BarChart3, adminOnly: true },
-      // No permission/adminOnly flag — open to every signed-in role, same as
-      // the backend route (see app/api/routes/feedback.py). Only who can
-      // *triage* a card (status/priority/reporter identity) differs, and
-      // that's enforced inside the page itself, not by hiding the nav link.
-      { title: "Feedback", url: "/feedback", icon: MessageSquare },
-    ],
+    items: [{ title: "Dashboard", url: "/", icon: LayoutDashboard }],
   },
   {
     label: "People",
@@ -96,7 +83,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Milestones",
+    label: "Employee Milestones",
     items: [
       {
         title: "Anniversaries",
@@ -122,7 +109,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Attendance",
+    label: "Employee Relations",
     items: [
       {
         title: "Violations",
@@ -131,7 +118,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         permission: "attendance.view",
       },
       {
-        title: "Reports",
+        title: "Violations Report",
         url: "/attendance-reports",
         icon: FileBarChart,
         permission: "attendance.view",
@@ -142,6 +129,17 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "System",
     items: [
       { title: "Activity Logs", url: "/activity-logs", icon: ScrollText },
+      // Admin/Super Admin-only: Analytics rolls up numbers across every
+      // module (Employee Directory, Onboarding, Attendance), which no single
+      // module-siloed role should see in full — see app/routes/analytics.tsx's
+      // own isFullAccessRole gate, which enforces this independent of what
+      // the nav shows.
+      { title: "Analytics", url: "/analytics", icon: BarChart3, adminOnly: true },
+      // No permission/adminOnly flag — open to every signed-in role, same as
+      // the backend route (see app/api/routes/feedback.py). Only who can
+      // *triage* a card (status/priority/reporter identity) differs, and
+      // that's enforced inside the page itself, not by hiding the nav link.
+      { title: "Feedback", url: "/feedback", icon: MessageSquare },
       {
         title: "User Management",
         url: "/user-management",
