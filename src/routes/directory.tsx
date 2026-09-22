@@ -1,11 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UserCheck, UserMinus, UserX } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { EmployeeTable } from "@/components/employee-table";
-import { MetricCard } from "@/components/metric-card";
-import { statusDistribution } from "@/data/employees";
-import { useEmployees } from "@/data/employee-store";
 
 export const Route = createFileRoute("/directory")({
   head: () => ({
@@ -30,36 +26,12 @@ export const Route = createFileRoute("/directory")({
 });
 
 function DirectoryPage() {
-  const employees = useEmployees();
-  const byStatus = Object.fromEntries(statusDistribution(employees).map((s) => [s.status, s.count]));
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Employee Directory"
         description="Complete roster across all hubs with filtering, sorting and exports."
       />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard
-          title="Active"
-          value={byStatus.Active ?? 0}
-          hint="Currently employed"
-          icon={UserCheck}
-        />
-        <MetricCard
-          title="Resigned"
-          value={byStatus.Resigned ?? 0}
-          hint="Voluntary departures"
-          icon={UserMinus}
-        />
-        <MetricCard
-          title="Terminated"
-          value={byStatus.Terminated ?? 0}
-          hint="Involuntary departures"
-          icon={UserX}
-        />
-      </div>
 
       <EmployeeTable />
     </div>
