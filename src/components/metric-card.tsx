@@ -49,11 +49,18 @@ export function MetricCard({
   value,
   hint,
   icon: Icon,
+  onClick,
 }: {
   title: string;
   value: number | string;
   hint: string;
   icon: LucideIcon;
+  /** When provided, the whole card becomes clickable (keyboard-operable too)
+   * with a hover affordance — e.g. the Dashboard's cards open a detail modal
+   * for the employees behind that number (see @/components/metric-detail-modal
+   * and src/routes/index.tsx). Omit for a plain, non-interactive card, same
+   * as every existing usage before this prop existed. */
+  onClick?: () => void;
 }) {
   const { data: account } = useCurrentAccount();
   const animationsEnabled = account?.animations_enabled ?? true;
@@ -65,7 +72,26 @@ export function MetricCard({
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   return (
-    <Card>
+    <Card
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={
+        onClick
+          ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40"
+          : undefined
+      }
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />

@@ -2,9 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Users,
-  UserMinus,
   UserPlus,
-  UserX,
   LogOut,
   Building2,
   Globe2,
@@ -26,6 +24,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/app-shell";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { MetricCard } from "@/components/metric-card";
+import { MetricDetailModal } from "@/components/metric-detail-modal";
 import { HeadcountTrendChart } from "@/components/workforce-charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -177,6 +176,55 @@ function Dashboard() {
       return daysAgo >= 0 && daysAgo <= RECENT_MILESTONE_DAYS ? [{ ...e, daysAgo }] : [];
     })
     .sort((a, b) => a.daysAgo - b.daysAgo);
+
+  // The employee lists behind each clickable metric card below — same
+  // filters the card's own number is computed from, just kept as arrays
+  // instead of a count so the detail modal has something to show.
+  const activeEmployees = employees.filter((e) => e.status === "Active");
+  const eastwoodActiveEmployees = employees.filter(
+    (e) => e.office === "PH Eastwood" && e.status === "Active",
+  );
+  const medellinActiveEmployees = employees.filter(
+    (e) => e.office === "CO Medellin" && e.status === "Active",
+  );
+
+  type DashboardMetricKey = "active" | "newHires" | "exits" | "eastwood" | "medellin";
+  const [openMetric, setOpenMetric] = useState<DashboardMetricKey | null>(null);
+  const metricModalConfig: Record<
+    DashboardMetricKey,
+    { title: string; description: string; employees: typeof employees; exportBaseName: string }
+  > = {
+    active: {
+      title: "Active Employees",
+      description: "Everyone currently employed, across every hub.",
+      employees: activeEmployees,
+      exportBaseName: "active-employees",
+    },
+    newHires: {
+      title: `New Hires (${RECENT_HIRE_DAYS} days)`,
+      description: `Started in the last ${RECENT_HIRE_DAYS} days — still within the training window.`,
+      employees: recentNewHires,
+      exportBaseName: "new-hires",
+    },
+    exits: {
+      title: `Exits (${RECENT_MILESTONE_DAYS} days)`,
+      description: `Departures across every hub in the last ${RECENT_MILESTONE_DAYS} days.`,
+      employees: recentExits,
+      exportBaseName: "exits",
+    },
+    eastwood: {
+      title: "PH Eastwood (Active)",
+      description: "Active employees at the Manila delivery hub.",
+      employees: eastwoodActiveEmployees,
+      exportBaseName: "ph-eastwood-active",
+    },
+    medellin: {
+      title: "CO Medellin (Active)",
+      description: "Active employees at the LATAM delivery hub.",
+      employees: medellinActiveEmployees,
+      exportBaseName: "co-medellin-active",
+    },
+  };
 
   const awards = useAwards(canViewAwardsModule);
   const recentAwards = awards
@@ -693,44 +741,47 @@ function Dashboard() {
             value={m.active}
             hint="Currently employed"
             icon={Users}
-          />
-          <MetricCard
-            title="Resigned"
-            value={resignedCount}
-            hint="Voluntarily left"
-            icon={UserMinus}
-          />
-          <MetricCard
-            title="Terminated"
-            value={terminatedCount}
-            hint="Involuntarily separated"
-            icon={UserX}
+            onClick={() => setOpenMetric("active")}
           />
           <MetricCard
             title="New Hires"
             value={recentNewHires.length}
             hint={`Started in last ${RECENT_HIRE_DAYS} days`}
             icon={UserPlus}
+            onClick={() => setOpenMetric("newHires")}
           />
           <MetricCard
             title="Exits"
             value={recentExits.length}
             hint={`Departures in last ${RECENT_MILESTONE_DAYS} days`}
             icon={LogOut}
+            onClick={() => setOpenMetric("exits")}
           />
           <MetricCard
             title="PH Eastwood (Active)"
             value={m.eastwood}
             hint="Manila delivery hub"
             icon={Building2}
+            onClick={() => setOpenMetric("eastwood")}
           />
           <MetricCard
             title="CO Medellin (Active)"
             value={m.medellin}
             hint="LATAM delivery hub"
             icon={Globe2}
+            onClick={() => setOpenMetric("medellin")}
           />
         </div>
+      )}
+
+      {openMetric && (
+        <MetricDetailModal
+          open={!!openMetric}
+          onOpenChange={(next) => {
+            if (!next) setOpenMetric(null);
+          }}
+          {...metricModalConfig[openMetric]}
+        />
       )}
 
       {(isFullAccess && (canViewOnboardingModule || canViewAttendanceModule)) ||
