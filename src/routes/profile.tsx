@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Cake,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -11,7 +12,9 @@ import {
   ScrollText,
   ShieldCheck,
   Sun,
+  Trophy,
   Upload,
+  Award as AwardIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,10 +44,12 @@ import {
 } from "@/components/ui/select";
 import { useMyActivityLogs, type ActivitySeverity } from "@/data/activity-log-store";
 import type { ActivityCategory, ActivityLogEntry } from "@/data/activity-log-store";
-import { formatDate } from "@/data/employees";
+import { useAwards } from "@/data/award-store";
+import { useEmployees } from "@/data/employee-store";
+import { formatDate, parseCalendarDate } from "@/data/employees";
 import { useCurrentAccount, useUpdateMyPreferences, type Theme } from "@/lib/session";
 import { applyTheme } from "@/lib/theme";
-import { PERMISSION_LABELS } from "@/lib/permissions";
+import { canViewAwards, PERMISSION_LABELS } from "@/lib/permissions";
 import { ROLE_LABELS } from "@/lib/roles";
 
 // Keeps an uploaded photo (there's no object storage — see the comment on
@@ -468,16 +473,48 @@ function ProfileActivityList({ logs, loading }: { logs: ActivityLogEntry[]; load
   );
 }
 
+// An Account (Zoho SSO identity) and an Employee (HR directory record) are
+// entirely separate tables with no shared id — plenty of admin/super-admin
+// accounts exist purely to run the portal and were never hired as an actual
+// TGO employee. The best available signal tying "me, signed in" to "me, in
+// the directory" is an exact name match against either the account's
+// display name or its first+last name, normalized the same way
+// import-employees-dialog.tsx already matches cross-imported rows. Good
+// enough for "show my own birthday/anniversary/awards if I have a directory
+// row" — not used anywhere access-control-relevant.
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function ProfilePage() {
   const { data: account, isLoading } = useCurrentAccount();
   const updatePreferences = useUpdateMyPreferences();
   const { data: myActivity, isLoading: activityLoading } = useMyActivityLogs(account?.id, 200);
+  const employees = useEmployees();
+  const awards = useAwards(canViewAwards(account?.permissions));
 
   const displayName =
     account?.display_name ||
     [account?.first_name, account?.last_name].filter(Boolean).join(" ") ||
     account?.email ||
     "";
+
+  const accountNameCandidates = [
+    account?.display_name,
+    [account?.first_name, account?.last_name].filter(Boolean).join(" "),
+  ].filter((name): name is string => !!name?.trim());
+  const myEmployeeRecord = employees.find((e) =>
+    accountNameCandidates.some((candidate) => normalizeName(candidate) === normalizeName(e.name)),
+  );
+  const myAwards = myEmployeeRecord
+    ? awards.filter((a) => a.employeeId === myEmployeeRecord.id)
+    : [];
+  const myAnniversaryYears = myEmployeeRecord
+    ? Math.max(
+        0,
+        new Date().getFullYear() - parseCalendarDate(myEmployeeRecord.startDate).getFullYear(),
+      )
+    : null;
 
   function setTheme(theme: Theme) {
     applyTheme(theme);
@@ -527,6 +564,60 @@ function ProfilePage() {
               <EditProfileDialog displayName={displayName} photoUrl={account.photo_url ?? ""} />
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AwardIcon className="h-4 w-4 text-muted-foreground" />
+            My Employee Info
+          </CardTitle>
+          <CardDescription>
+            {myEmployeeRecord
+              ? "Matched to your row in the Employee Directory by name."
+              : "Not linked to an Employee Directory row — some admin accounts aren't hired employees."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <Cake className="h-3.5 w-3.5 text-muted-foreground" /> Birthday
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {myEmployeeRecord?.birthday ? formatDate(myEmployeeRecord.birthday) : "No data"}
+              </p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <AwardIcon className="h-3.5 w-3.5 text-muted-foreground" /> Work anniversary
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {myEmployeeRecord
+                  ? `Joined ${formatDate(myEmployeeRecord.startDate)} · ${myAnniversaryYears} yr${myAnniversaryYears === 1 ? "" : "s"} with TGO`
+                  : "No data"}
+              </p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <Trophy className="h-3.5 w-3.5 text-muted-foreground" /> Awards
+              </p>
+              {!myEmployeeRecord ? (
+                <p className="mt-1 text-sm text-muted-foreground">No data</p>
+              ) : myAwards.length === 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">No awards yet</p>
+              ) : (
+                <ul className="mt-1 space-y-0.5">
+                  {myAwards.map((a) => (
+                    <li key={a.id} className="truncate text-sm text-muted-foreground">
+                      {a.title} · {formatDate(a.awardedDate)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
