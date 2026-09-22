@@ -532,40 +532,96 @@ function ProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       <PageHeader title="Profile" description="Your account and how HR Operations looks for you." />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Account</CardTitle>
-          <CardDescription>
-            Seeded from your first Zoho sign-in — it's yours to customize from here on.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!isLoading && account && (
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-              <Avatar className="size-16">
-                {account.photo_url && <AvatarImage src={account.photo_url} alt={displayName} />}
-                <AvatarFallback className="text-base">{initials(displayName)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-1">
-                <p className="text-base font-semibold">{displayName}</p>
-                <p className="text-sm text-muted-foreground">{account.email}</p>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <Badge variant="secondary" className="gap-1">
-                    <ShieldCheck className="h-3 w-3" /> {ROLE_LABELS[account.role]}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    Last signed in {formatDate(account.last_login_at ?? undefined)}
-                  </span>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Account</CardTitle>
+            <CardDescription>
+              Seeded from your first Zoho sign-in — it's yours to customize from here on.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!isLoading && account && (
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+                <Avatar className="size-16">
+                  {account.photo_url && <AvatarImage src={account.photo_url} alt={displayName} />}
+                  <AvatarFallback className="text-base">{initials(displayName)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-1">
+                  <p className="text-base font-semibold">{displayName}</p>
+                  <p className="text-sm text-muted-foreground">{account.email}</p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Badge variant="secondary" className="gap-1">
+                      <ShieldCheck className="h-3 w-3" /> {ROLE_LABELS[account.role]}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Last signed in {formatDate(account.last_login_at ?? undefined)}
+                    </span>
+                  </div>
                 </div>
+                <EditProfileDialog displayName={displayName} photoUrl={account.photo_url ?? ""} />
               </div>
-              <EditProfileDialog displayName={displayName} photoUrl={account.photo_url ?? ""} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              Personal to your account — this follows you to any device you sign in on.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Theme</p>
+                <p className="text-xs text-muted-foreground">Switch between light and dark mode.</p>
+              </div>
+              <div className="flex items-center gap-1 rounded-md border p-1">
+                <button
+                  type="button"
+                  onClick={() => setTheme("light")}
+                  disabled={isLoading}
+                  className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
+                    account?.theme === "light"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Sun className="h-3.5 w-3.5" /> Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme("dark")}
+                  disabled={isLoading}
+                  className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
+                    account?.theme === "dark"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Moon className="h-3.5 w-3.5" /> Dark
+                </button>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <Separator className="my-4" />
+            <p className="text-xs text-muted-foreground">
+              Looking for notification and default-office preferences? Those live on the{" "}
+              <Link
+                to="/settings"
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                Settings
+              </Link>{" "}
+              page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
@@ -618,57 +674,6 @@ function ProfilePage() {
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>
-            Personal to your account — this follows you to any device you sign in on.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">Theme</p>
-              <p className="text-xs text-muted-foreground">Switch between light and dark mode.</p>
-            </div>
-            <div className="flex items-center gap-1 rounded-md border p-1">
-              <button
-                type="button"
-                onClick={() => setTheme("light")}
-                disabled={isLoading}
-                className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
-                  account?.theme === "light"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Sun className="h-3.5 w-3.5" /> Light
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme("dark")}
-                disabled={isLoading}
-                className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
-                  account?.theme === "dark"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Moon className="h-3.5 w-3.5" /> Dark
-              </button>
-            </div>
-          </div>
-          <Separator className="my-4" />
-          <p className="text-xs text-muted-foreground">
-            Looking for notification and default-office preferences? Those live on the{" "}
-            <Link to="/settings" className="font-medium text-primary underline underline-offset-2">
-              Settings
-            </Link>{" "}
-            page.
-          </p>
         </CardContent>
       </Card>
 
