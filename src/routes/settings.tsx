@@ -81,6 +81,7 @@ function SettingsPage() {
 
   const showViolationReviewToggle = canApproveAttendance(account?.permissions);
   const showNewHireToggle = canManageOnboarding(account?.permissions);
+  const showNotificationInbox = showViolationReviewToggle || showNewHireToggle;
 
   const dirty =
     !!account &&
@@ -108,6 +109,68 @@ function SettingsPage() {
     });
   }
 
+  // Workspace and Appearance are both short, single-control cards — stacked
+  // in one column (instead of forced to h-full match whatever's next to
+  // them) so each sizes to its own content instead of leaving a wall of
+  // empty space below a two-line Select.
+  const workspaceCard = (
+    <Card key="workspace">
+      <CardHeader>
+        <CardTitle>Workspace</CardTitle>
+        <CardDescription>
+          Torero Global Outsourcing HR Operations — internal operations portal. Your default office
+          pre-fills the New Hire form's office picker.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-2 sm:max-w-xs">
+          <Label>Default office</Label>
+          <Select value={defaultOffice} onValueChange={setDefaultOffice} disabled={isLoading}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_DEFAULT}>No default</SelectItem>
+              {OFFICES.map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const appearanceCard = (
+    <Card key="appearance">
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+        <CardDescription>
+          Visual effects shown across the app — only affects your own view.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex min-h-28 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4">
+          <div>
+            <p className="text-sm font-medium">Interface animations</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Page transitions and animated counters on dashboard numbers. Turn off for a snappier,
+              static interface.
+            </p>
+          </div>
+          <Switch
+            checked={animationsEnabled}
+            onCheckedChange={setAnimationsEnabled}
+            disabled={isLoading}
+            className="shrink-0"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="max-w-7xl space-y-6">
       <PageHeader
@@ -115,37 +178,18 @@ function SettingsPage() {
         description="Workspace defaults and notification preferences for your account."
       />
 
-      <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle>Workspace</CardTitle>
-            <CardDescription>
-              Torero Global Outsourcing HR Operations — internal operations portal. Your default
-              office pre-fills the New Hire form's office picker.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 sm:max-w-xs">
-              <Label>Default office</Label>
-              <Select value={defaultOffice} onValueChange={setDefaultOffice} disabled={isLoading}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_DEFAULT}>No default</SelectItem>
-                  {OFFICES.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+      <div
+        className={
+          showNotificationInbox ? "grid gap-4 lg:grid-cols-3" : "grid gap-4 sm:grid-cols-2"
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {workspaceCard}
+          {appearanceCard}
+        </div>
 
-        {(showViolationReviewToggle || showNewHireToggle) && (
-          <Card className="h-full">
+        {showNotificationInbox && (
+          <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Notification Inbox</CardTitle>
               <CardDescription>
@@ -191,33 +235,7 @@ function SettingsPage() {
           </Card>
         )}
 
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>
-              Visual effects shown across the app — only affects your own view.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex min-h-28 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4">
-              <div>
-                <p className="text-sm font-medium">Interface animations</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Page transitions and animated counters on dashboard numbers. Turn off for a
-                  snappier, static interface.
-                </p>
-              </div>
-              <Switch
-                checked={animationsEnabled}
-                onCheckedChange={setAnimationsEnabled}
-                disabled={isLoading}
-                className="shrink-0"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2 2xl:col-span-3">
+        <Card className={showNotificationInbox ? "lg:col-span-3" : "sm:col-span-2"}>
           <CardHeader>
             <CardTitle>Dashboard Cards</CardTitle>
             <CardDescription>
