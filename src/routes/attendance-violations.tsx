@@ -66,7 +66,6 @@ import {
   type ViolationRecord,
   type ViolationType,
 } from "@/data/violation-api";
-import { useAppSettingsQuery } from "@/data/app-settings-store";
 import {
   useAnalyticsOverviewQuery,
   useCreateViolation,
@@ -159,8 +158,6 @@ function AttendanceViolationsPage() {
   const canWrite = canManageAttendance(account?.permissions);
   const canApprove = canApproveAttendance(account?.permissions);
   const isAdmin = isFullAccessRole(getEffectiveRole(account));
-  const { data: appSettings } = useAppSettingsQuery(canView);
-  const outlookMode = !!appSettings?.useOutlookForViolations;
 
   const [filters, setFilters] = useState({
     office: "",
@@ -275,14 +272,6 @@ function AttendanceViolationsPage() {
       <PageHeader
         title="Attendance Violations"
         description="Track violation records through preparation, approval and automated employee notification."
-        badge={
-          <Badge
-            variant="outline"
-            className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-          >
-            {outlookMode ? "In Progress / Using Your Mail App" : "In Progress"}
-          </Badge>
-        }
       />
 
       {overview && (
