@@ -118,6 +118,14 @@ export function tenure(startDate: string, exitDate?: string) {
   return `${y}y ${m}m`;
 }
 
+/** "1 yr" for 0 or 1 year, "N yrs" for 2+ — a work-anniversary badge/tenure
+ * count reads oddly as "1 yrs" or "0 yrs" otherwise. Shared so Anniversaries,
+ * the Dashboard's mini anniversary card and Profile all pluralize the same
+ * way. */
+export function formatYears(years: number): string {
+  return `${years} yr${years < 2 ? "" : "s"}`;
+}
+
 export function formatDate(iso?: string) {
   if (!iso) return "—";
   return parseCalendarDate(iso).toLocaleDateString("en-US", {

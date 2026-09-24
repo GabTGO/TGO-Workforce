@@ -59,6 +59,7 @@ import {
   daysSinceLastOccurrence,
   daysUntilNextOccurrence,
   formatDate,
+  formatYears,
   MILESTONE_TIME_FILTER_LABELS,
   metrics,
   officeDistribution,
@@ -545,7 +546,7 @@ function Dashboard() {
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Badge variant="secondary">{e.years} yrs</Badge>
+                              <Badge variant="secondary">{formatYears(e.years)}</Badge>
                             </TableCell>
                           </TableRow>
                         ))}

@@ -17,6 +17,7 @@ import {
 import {
   anniversaries,
   formatDate,
+  formatYears,
   matchesMilestoneTimeFilter,
   MILESTONE_TIME_FILTER_LABELS,
   OFFICES,
@@ -187,7 +188,7 @@ function AnniversariesPage() {
         />
         <MetricCard
           title="Longest Tenure"
-          value={`${longestTenure} yrs`}
+          value={formatYears(longestTenure)}
           hint="Most years with TGO"
           icon={Trophy}
         />
@@ -229,7 +230,7 @@ function AnniversariesPage() {
                           {e.office}
                         </p>
                       </div>
-                      <Badge variant="secondary">{e.years} yrs</Badge>
+                      <Badge variant="secondary">{formatYears(e.years)}</Badge>
                     </div>
                   ))}
               </CardContent>

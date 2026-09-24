@@ -46,7 +46,7 @@ import { useMyActivityLogs, type ActivitySeverity } from "@/data/activity-log-st
 import type { ActivityCategory, ActivityLogEntry } from "@/data/activity-log-store";
 import { useAwards } from "@/data/award-store";
 import { useEmployees } from "@/data/employee-store";
-import { formatDate, parseCalendarDate } from "@/data/employees";
+import { formatDate, formatYears, parseCalendarDate } from "@/data/employees";
 import { useCurrentAccount, useUpdateMyPreferences, type Theme } from "@/lib/session";
 import { applyTheme } from "@/lib/theme";
 import { canViewAwards, PERMISSION_LABELS } from "@/lib/permissions";
@@ -651,7 +651,7 @@ function ProfilePage() {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {myEmployeeRecord
-                  ? `Joined ${formatDate(myEmployeeRecord.startDate)} · ${myAnniversaryYears} yr${myAnniversaryYears === 1 ? "" : "s"} with TGO`
+                  ? `Joined ${formatDate(myEmployeeRecord.startDate)} · ${formatYears(myAnniversaryYears ?? 0)} with TGO`
                   : "No data"}
               </p>
             </div>
