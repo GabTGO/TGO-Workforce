@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, FlaskConical, LogOut, User, LifeBuoy, ShieldCheck } from "lucide-react";
+import { ChevronDown, FlaskConical, LogOut, User, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppSidebar, NAV_ITEMS } from "@/components/app-sidebar";
@@ -183,9 +183,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>
                     <User className="mr-2 h-4 w-4" /> Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <LifeBuoy className="mr-2 h-4 w-4" /> Support
                   </DropdownMenuItem>
                   {/* Keyed off the REAL role, not the effective one — this
                       control (and its sibling in SandboxBanner) must stay
