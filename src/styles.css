@@ -213,37 +213,12 @@
 /* The nav list (ui/sidebar.tsx's SidebarContent, data-sidebar="content")
    scrolls once there are enough groups to outgrow the viewport — same
    attribute-selector approach as the gradient above, since that component
-   doesn't take a className here. Swaps the plain OS scrollbar for a thin,
-   fully-rounded brand-green thumb (a "dot" rather than a bar) that's
-   invisible until hovered, so it never competes with the nav itself. */
+   doesn't take a className here. Hidden entirely: scrolling (wheel/touch/
+   keyboard) still works, there's just no visible scrollbar track or thumb. */
 [data-sidebar="content"] {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-[data-sidebar="content"]:hover {
-  scrollbar-color: rgba(114, 179, 96, 0.55) transparent;
+  scrollbar-width: none;
 }
 
 [data-sidebar="content"]::-webkit-scrollbar {
-  width: 6px;
-}
-
-[data-sidebar="content"]::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-[data-sidebar="content"]::-webkit-scrollbar-thumb {
-  background-color: transparent;
-  border-radius: 9999px;
-  background-clip: padding-box;
-  border: 1.5px solid transparent;
-}
-
-[data-sidebar="content"]:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(114, 179, 96, 0.55);
-}
-
-[data-sidebar="content"]::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(114, 179, 96, 0.85);
+  display: none;
 }
