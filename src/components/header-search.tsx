@@ -1,14 +1,16 @@
 // Replaces the header's old static breadcrumb with a quick-nav search —
 // "where do I go" is a more useful thing to put there than "where am I"
-// (the page title right below already says that). Only ever lists pages
+// (the page title right below already says that). Pages only ever list what
 // getAccessibleNavItems() says this signed-in account can actually reach —
 // same adminOnly/superAdminOnly/permission gating the sidebar itself uses
-// (see @/components/app-sidebar), so this is a faster way to reach a page
-// already in the nav, never a way to discover one that isn't.
+// (see @/components/app-sidebar). Employees are searchable here too, but
+// only when the account holds employees.view — same gate the Employee
+// Directory page itself enforces — so this never becomes a way to discover
+// a page or a person a role isn't supposed to see.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Command as CommandPrimitive } from "cmdk";
-import { Search, User } from "lucide-react";
+import { Search, User, Users } from "lucide-react";
 
 import { getAccessibleNavItems, type NavItem } from "@/components/app-sidebar";
 import {
@@ -18,6 +20,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { useEmployees } from "@/data/employee-store";
+import { canViewEmployees } from "@/lib/permissions";
 import { useCurrentAccount } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +42,10 @@ export function HeaderSearch() {
     () => [...getAccessibleNavItems(account), { title: "Profile", url: "/profile", icon: User }],
     [account],
   );
+
+  const canSeeEmployees = canViewEmployees(account?.permissions);
+  const employees = useEmployees();
+  const employeeResults = canSeeEmployees ? employees : [];
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -68,6 +76,13 @@ export function HeaderSearch() {
     inputRef.current?.blur();
   }
 
+  function goToEmployee(employeeId: string) {
+    navigate({ to: "/directory/$employeeId", params: { employeeId } });
+    setOpen(false);
+    setQuery("");
+    inputRef.current?.blur();
+  }
+
   return (
     <div
       ref={containerRef}
@@ -92,7 +107,7 @@ export function HeaderSearch() {
             value={query}
             onValueChange={setQuery}
             onFocus={() => setOpen(true)}
-            placeholder="Search pages..."
+            placeholder={canSeeEmployees ? "Search pages or employees..." : "Search pages..."}
             className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {!open && !query && (
@@ -108,9 +123,9 @@ export function HeaderSearch() {
             className="absolute left-0 top-full z-50 mt-2 max-h-80 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
           >
             <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
-              No pages match &quot;{query}&quot;.
+              Nothing matches &quot;{query}&quot;.
             </CommandEmpty>
-            <CommandGroup>
+            <CommandGroup heading="Pages">
               {items.map((item) => (
                 <CommandItem key={item.url} value={item.title} onSelect={() => go(item.url)}>
                   <item.icon className="h-4 w-4 text-muted-foreground" />
@@ -118,6 +133,23 @@ export function HeaderSearch() {
                 </CommandItem>
               ))}
             </CommandGroup>
+            {employeeResults.length > 0 && (
+              <CommandGroup heading="Employees">
+                {employeeResults.map((employee) => (
+                  <CommandItem
+                    key={employee.id}
+                    value={employee.name}
+                    onSelect={() => goToEmployee(employee.id)}
+                  >
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    {employee.name}
+                    <span className="ml-auto truncate text-xs text-muted-foreground">
+                      {employee.position || employee.office}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         )}
       </Command>

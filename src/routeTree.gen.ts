@@ -27,6 +27,8 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UserManagementRouteImport } from './routes/user-management'
+import { Route as DirectoryIndexRouteImport } from './routes/directory.index'
+import { Route as DirectoryEmployeeIdRouteImport } from './routes/directory.$employeeId'
 import { Route as UserManagementIndexRouteImport } from './routes/user-management.index'
 import { Route as UserManagementAccountIdRouteImport } from './routes/user-management.$accountId'
 
@@ -120,6 +122,16 @@ const UserManagementRoute = UserManagementRouteImport.update({
   path: '/user-management',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DirectoryIndexRoute = DirectoryIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DirectoryRoute,
+} as any)
+const DirectoryEmployeeIdRoute = DirectoryEmployeeIdRouteImport.update({
+  id: '/$employeeId',
+  path: '/$employeeId',
+  getParentRoute: () => DirectoryRoute,
+} as any)
 const UserManagementIndexRoute = UserManagementIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -141,7 +153,7 @@ export interface FileRoutesByFullPath {
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
   '/database-backups': typeof DatabaseBackupsRoute
-  '/directory': typeof DirectoryRoute
+  '/directory': typeof DirectoryRouteWithChildren
   '/feedback': typeof FeedbackRoute
   '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
@@ -150,7 +162,9 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRouteWithChildren
+  '/directory/$employeeId': typeof DirectoryEmployeeIdRoute
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
+  '/directory/': typeof DirectoryIndexRoute
   '/user-management/': typeof UserManagementIndexRoute
 }
 export interface FileRoutesByTo {
@@ -163,7 +177,6 @@ export interface FileRoutesByTo {
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
   '/database-backups': typeof DatabaseBackupsRoute
-  '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
   '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
@@ -171,7 +184,9 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/directory/$employeeId': typeof DirectoryEmployeeIdRoute
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
+  '/directory': typeof DirectoryIndexRoute
   '/user-management': typeof UserManagementIndexRoute
 }
 export interface FileRoutesById {
@@ -185,7 +200,7 @@ export interface FileRoutesById {
   '/awards': typeof AwardsRoute
   '/birthdays': typeof BirthdaysRoute
   '/database-backups': typeof DatabaseBackupsRoute
-  '/directory': typeof DirectoryRoute
+  '/directory': typeof DirectoryRouteWithChildren
   '/feedback': typeof FeedbackRoute
   '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
@@ -194,7 +209,9 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRouteWithChildren
+  '/directory/$employeeId': typeof DirectoryEmployeeIdRoute
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
+  '/directory/': typeof DirectoryIndexRoute
   '/user-management/': typeof UserManagementIndexRoute
 }
 export interface FileRouteTypes {
@@ -218,7 +235,9 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/user-management'
+    | '/directory/$employeeId'
     | '/user-management/$accountId'
+    | '/directory/'
     | '/user-management/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -231,7 +250,6 @@ export interface FileRouteTypes {
     | '/awards'
     | '/birthdays'
     | '/database-backups'
-    | '/directory'
     | '/feedback'
     | '/hmo-management'
     | '/login'
@@ -239,7 +257,9 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/settings'
+    | '/directory/$employeeId'
     | '/user-management/$accountId'
+    | '/directory'
     | '/user-management'
   id:
     | '__root__'
@@ -261,7 +281,9 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/user-management'
+    | '/directory/$employeeId'
     | '/user-management/$accountId'
+    | '/directory/'
     | '/user-management/'
   fileRoutesById: FileRoutesById
 }
@@ -275,7 +297,7 @@ export interface RootRouteChildren {
   AwardsRoute: typeof AwardsRoute
   BirthdaysRoute: typeof BirthdaysRoute
   DatabaseBackupsRoute: typeof DatabaseBackupsRoute
-  DirectoryRoute: typeof DirectoryRoute
+  DirectoryRoute: typeof DirectoryRouteWithChildren
   FeedbackRoute: typeof FeedbackRoute
   HmoManagementRoute: typeof HmoManagementRoute
   LoginRoute: typeof LoginRoute
@@ -414,6 +436,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/directory/': {
+      id: '/directory/'
+      path: '/'
+      fullPath: '/directory/'
+      preLoaderRoute: typeof DirectoryIndexRouteImport
+      parentRoute: typeof DirectoryRoute
+    }
+    '/directory/$employeeId': {
+      id: '/directory/$employeeId'
+      path: '/$employeeId'
+      fullPath: '/directory/$employeeId'
+      preLoaderRoute: typeof DirectoryEmployeeIdRouteImport
+      parentRoute: typeof DirectoryRoute
+    }
     '/user-management/': {
       id: '/user-management/'
       path: '/'
@@ -430,6 +466,20 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface DirectoryRouteChildren {
+  DirectoryEmployeeIdRoute: typeof DirectoryEmployeeIdRoute
+  DirectoryIndexRoute: typeof DirectoryIndexRoute
+}
+
+const DirectoryRouteChildren: DirectoryRouteChildren = {
+  DirectoryEmployeeIdRoute: DirectoryEmployeeIdRoute,
+  DirectoryIndexRoute: DirectoryIndexRoute,
+}
+
+const DirectoryRouteWithChildren = DirectoryRoute._addFileChildren(
+  DirectoryRouteChildren,
+)
 
 interface UserManagementRouteChildren {
   UserManagementAccountIdRoute: typeof UserManagementAccountIdRoute
@@ -455,7 +505,7 @@ const rootRouteChildren: RootRouteChildren = {
   AwardsRoute: AwardsRoute,
   BirthdaysRoute: BirthdaysRoute,
   DatabaseBackupsRoute: DatabaseBackupsRoute,
-  DirectoryRoute: DirectoryRoute,
+  DirectoryRoute: DirectoryRouteWithChildren,
   FeedbackRoute: FeedbackRoute,
   HmoManagementRoute: HmoManagementRoute,
   LoginRoute: LoginRoute,
