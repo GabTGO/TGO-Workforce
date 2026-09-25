@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { EmployeeNameLink } from "@/components/employee-name-link";
 import { NewHireDialog } from "@/components/new-hire-dialog";
 import { MetricCard } from "@/components/metric-card";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
@@ -46,8 +47,7 @@ export const Route = createFileRoute("/new-hires")({
       { title: "New Hires — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
-        content:
-          "Employees who joined TGO in the last twelve months, with onboarding details.",
+        content: "Employees who joined TGO in the last twelve months, with onboarding details.",
       },
       { property: "og:title", content: "New Hires — Torero Global Outsourcing HR Operations" },
       {
@@ -104,10 +104,7 @@ function NewHiresPage() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
-  const rows = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  );
+  const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // `list` is already newest-first, so a brand-new hire is first in it — the
   // only things that could still bury it are a stale filter or being stuck
@@ -126,11 +123,7 @@ function NewHiresPage() {
       <PageHeader
         title="New Hires"
         description="Everyone who joined in the last twelve months."
-        action={
-          canManage ? (
-            <NewHireDialog onCreated={handleNewHireCreated} />
-          ) : undefined
-        }
+        action={canManage ? <NewHireDialog onCreated={handleNewHireCreated} /> : undefined}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -221,10 +214,7 @@ function NewHiresPage() {
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="h-24 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                     No new hires match the current filters.
                   </TableCell>
                 </TableRow>
@@ -232,7 +222,9 @@ function NewHiresPage() {
               {rows.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-mono text-xs">{e.id}</TableCell>
-                  <TableCell className="font-medium">{e.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <EmployeeNameLink employee={e} />
+                  </TableCell>
                   <TableCell>{e.office}</TableCell>
                   <TableCell>{e.department}</TableCell>
                   <TableCell>{e.position}</TableCell>

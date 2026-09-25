@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
+import { EmployeeNameLink } from "@/components/employee-name-link";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { MetricCard } from "@/components/metric-card";
 import { MetricDetailModal } from "@/components/metric-detail-modal";
@@ -482,7 +483,9 @@ function Dashboard() {
                                 daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
                               }
                             >
-                              <TableCell className="font-medium">{e.name}</TableCell>
+                              <TableCell className="font-medium">
+                                <EmployeeNameLink employee={e} />
+                              </TableCell>
                               <TableCell className="text-muted-foreground">{e.office}</TableCell>
                               <TableCell className="text-right text-muted-foreground">
                                 {formatDate(e.startDate)}
@@ -536,7 +539,9 @@ function Dashboard() {
                             }
                           >
                             <TableCell>
-                              <p className="font-medium">{e.name}</p>
+                              <p className="font-medium">
+                                <EmployeeNameLink employee={e} />
+                              </p>
                               <p className="text-xs text-muted-foreground">{e.department}</p>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
@@ -590,7 +595,9 @@ function Dashboard() {
                               e.daysAway <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined
                             }
                           >
-                            <TableCell className="font-medium">{e.name}</TableCell>
+                            <TableCell className="font-medium">
+                              <EmployeeNameLink employee={e} />
+                            </TableCell>
                             <TableCell className="text-muted-foreground">{e.office}</TableCell>
                             <TableCell className="text-right text-muted-foreground">
                               {e.monthName.slice(0, 3)} {e.day}
@@ -641,7 +648,16 @@ function Dashboard() {
                             }
                           >
                             <TableCell>
-                              <p className="font-medium">{a.employeeName}</p>
+                              <p className="font-medium">
+                                {(() => {
+                                  const employee = employees.find((e) => e.id === a.employeeId);
+                                  return employee ? (
+                                    <EmployeeNameLink employee={employee} />
+                                  ) : (
+                                    a.employeeName
+                                  );
+                                })()}
+                              </p>
                               <p className="text-xs text-muted-foreground">{a.employeeOffice}</p>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
@@ -711,7 +727,9 @@ function Dashboard() {
                         key={e.id}
                         className={e.daysAgo <= SOON_THRESHOLD_DAYS ? "bg-amber-500/5" : undefined}
                       >
-                        <TableCell className="font-medium">{e.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <EmployeeNameLink employee={e} />
+                        </TableCell>
                         <TableCell>
                           <Badge variant={EXIT_STATUS_VARIANT[e.status] ?? "secondary"}>
                             {e.status}

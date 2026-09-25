@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
 import { AwardFormDialog } from "@/components/award-form-dialog";
+import { EmployeeNameLink } from "@/components/employee-name-link";
 import { MetricCard } from "@/components/metric-card";
 import {
   AlertDialog,
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import type { Award } from "@/data/award-api";
 import { useAwardsQuery, useDeleteAward } from "@/data/award-store";
+import { useEmployees } from "@/data/employee-store";
 import { formatDate, parseCalendarDate } from "@/data/employees";
 import { canManageAwards, canViewAwards } from "@/lib/permissions";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -42,7 +44,10 @@ export const Route = createFileRoute("/awards")({
         name: "description",
         content: "Give and track employee recognition awards across TGO delivery hubs.",
       },
-      { property: "og:title", content: "Recognition & Awards — Torero Global Outsourcing HR Operations" },
+      {
+        property: "og:title",
+        content: "Recognition & Awards — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
         content: "Recognize active employees and keep a record of every award given.",
@@ -68,6 +73,10 @@ function AwardsPage() {
   const { data, isLoading, isError } = useAwardsQuery(canView);
   const awards = data ?? [];
   const deleteMutation = useDeleteAward();
+  // For linking a row's name to their full profile (/directory/$employeeId)
+  // and the hover preview — Award only carries employeeId/employeeName/
+  // employeeOffice, not a full Employee record.
+  const employees = useEmployees();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Award | null>(null);
@@ -75,7 +84,9 @@ function AwardsPage() {
 
   const currentMonthName = new Date().toLocaleString("en-US", { month: "long" });
   const thisMonthCount = awards.filter(
-    (a) => parseCalendarDate(a.awardedDate).toLocaleString("en-US", { month: "long" }) === currentMonthName,
+    (a) =>
+      parseCalendarDate(a.awardedDate).toLocaleString("en-US", { month: "long" }) ===
+      currentMonthName,
   ).length;
   const uniqueRecipients = new Set(awards.map((a) => a.employeeId)).size;
 
@@ -87,7 +98,9 @@ function AwardsPage() {
       setDeleting(null);
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Couldn't delete this award. Please try again.");
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't delete this award. Please try again.",
+      );
     }
   }
 
@@ -183,77 +196,101 @@ function AwardsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={canManage ? 5 : 4}
+                      className="h-24 text-center text-muted-foreground"
+                    >
                       Loading awards...
                     </TableCell>
                   </TableRow>
                 ) : isError ? (
                   <TableRow>
-                    <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={canManage ? 5 : 4}
+                      className="h-24 text-center text-muted-foreground"
+                    >
                       Couldn't load awards. Try refreshing the page.
                     </TableCell>
                   </TableRow>
                 ) : awards.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={canManage ? 5 : 4}
+                      className="h-24 text-center text-muted-foreground"
+                    >
                       No awards given yet.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  awards.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-8">
-                            <AvatarFallback className="text-xs">{initials(a.employeeName)}</AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{a.employeeName}</p>
-                            <p className="truncate text-xs text-muted-foreground">{a.employeeOffice}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm font-medium">{a.title}</p>
-                        {a.description && (
-                          <p className="max-w-xs truncate text-xs text-muted-foreground">{a.description}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {formatDate(a.awardedDate)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {a.awardedByLabel}
-                      </TableCell>
-                      {canManage && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => {
-                                setEditing(a);
-                                setFormOpen(true);
-                              }}
-                              aria-label={`Edit ${a.title} for ${a.employeeName}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => setDeleting(a)}
-                              aria-label={`Delete ${a.title} for ${a.employeeName}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                  awards.map((a) => {
+                    const employee = employees.find((e) => e.id === a.employeeId);
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-8">
+                              <AvatarFallback className="text-xs">
+                                {initials(a.employeeName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {employee ? (
+                                  <EmployeeNameLink employee={employee} />
+                                ) : (
+                                  a.employeeName
+                                )}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {a.employeeOffice}
+                              </p>
+                            </div>
                           </div>
                         </TableCell>
-                      )}
-                    </TableRow>
-                  ))
+                        <TableCell>
+                          <p className="text-sm font-medium">{a.title}</p>
+                          {a.description && (
+                            <p className="max-w-xs truncate text-xs text-muted-foreground">
+                              {a.description}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                          {formatDate(a.awardedDate)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                          {a.awardedByLabel}
+                        </TableCell>
+                        {canManage && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditing(a);
+                                  setFormOpen(true);
+                                }}
+                                aria-label={`Edit ${a.title} for ${a.employeeName}`}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={() => setDeleting(a)}
+                                aria-label={`Delete ${a.title} for ${a.employeeName}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -280,8 +317,8 @@ function AwardsPage() {
             </div>
             <AlertDialogTitle>Delete this award?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes "{deleting?.title}" from {deleting?.employeeName}'s record. This
-              can't be undone.
+              This permanently removes "{deleting?.title}" from {deleting?.employeeName}'s record.
+              This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -294,11 +331,7 @@ function AwardsPage() {
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Delete"
-              )}
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

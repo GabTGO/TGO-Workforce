@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Building2, Cake, CalendarClock, Globe2, ShieldAlert } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { EmployeeNameLink } from "@/components/employee-name-link";
 import { MetricCard } from "@/components/metric-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -211,7 +212,9 @@ function BirthdaysPage() {
                         <AvatarFallback className="text-xs">{initials(e.name)}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{e.name}</p>
+                        <p className="truncate text-sm font-medium">
+                          <EmployeeNameLink employee={e} />
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">{e.office}</p>
                       </div>
                       <Badge variant="outline">

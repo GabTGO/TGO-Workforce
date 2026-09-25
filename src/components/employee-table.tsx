@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -47,7 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { BulkFixDialog } from "@/components/bulk-fix-dialog";
-import { EmployeeHoverCard } from "@/components/employee-hover-card";
+import { EmployeeNameLink } from "@/components/employee-name-link";
 import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { ManageEmployeesDialog } from "@/components/manage-employees-dialog";
 import { NewHireDialog } from "@/components/new-hire-dialog";
@@ -520,15 +519,7 @@ export function EmployeeTable() {
                     )}
                     <TableCell className="font-mono text-xs">{e.id}</TableCell>
                     <TableCell className="font-medium whitespace-nowrap">
-                      <EmployeeHoverCard employee={e}>
-                        <Link
-                          to="/directory/$employeeId"
-                          params={{ employeeId: e.id }}
-                          className="hover:underline hover:decoration-primary/60 hover:underline-offset-2"
-                        >
-                          {e.name}
-                        </Link>
-                      </EmployeeHoverCard>
+                      <EmployeeNameLink employee={e} />
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{e.office}</TableCell>
                     <TableCell className="whitespace-nowrap">{e.department}</TableCell>

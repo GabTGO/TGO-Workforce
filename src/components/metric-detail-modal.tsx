@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmployeeNameLink } from "@/components/employee-name-link";
 import {
   Dialog,
   DialogContent,
@@ -169,7 +170,9 @@ export function MetricDetailModal({
                 filtered.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="font-mono text-xs">{e.id}</TableCell>
-                    <TableCell className="font-medium whitespace-nowrap">{e.name}</TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">
+                      <EmployeeNameLink employee={e} />
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{e.office}</TableCell>
                     <TableCell className="whitespace-nowrap">{e.department}</TableCell>
                     <TableCell className="whitespace-nowrap">{e.position}</TableCell>
