@@ -75,6 +75,15 @@ export const PERMISSION_LABELS: Record<Permission, { title: string; description:
     title: "Manage Recognition & Awards",
     description: "Give a new award, and edit or delete existing awards.",
   },
+  "benefits.view": {
+    title: "View Employee Benefits",
+    description: "See the Employee Benefits pages (currently just HMO Management).",
+  },
+  "benefits.manage": {
+    title: "Manage Employee Benefits",
+    description:
+      "Add, edit and delete benefits records — placeholder until the module is built out.",
+  },
 };
 
 // Narrower than isFullAccessRole above — a few things (editing the
@@ -152,6 +161,17 @@ export function canViewAwards(permissions: Permission[] | undefined): boolean {
 
 export function canManageAwards(permissions: Permission[] | undefined): boolean {
   return hasPermission(permissions, "awards.manage");
+}
+
+// Employee Benefits — placeholder module (HMO Management to start; more
+// pages to follow once scoped). Not granted to any role by default; a Super
+// Admin turns it on from User Management's permission matrix.
+export function canViewBenefits(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "benefits.view");
+}
+
+export function canManageBenefits(permissions: Permission[] | undefined): boolean {
+  return hasPermission(permissions, "benefits.manage");
 }
 
 // Mirrors ROLE_FIELD_ACCESS in backend/app/api/routes/new_hires.py — the New

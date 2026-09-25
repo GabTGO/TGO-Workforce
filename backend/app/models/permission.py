@@ -44,6 +44,14 @@ class Permission(enum.StrEnum):
     # as Employees/Onboarding above.
     AWARDS_VIEW = "awards.view"
     AWARDS_MANAGE = "awards.manage"
+    # Employee Benefits — placeholder module (HMO Management to start; more
+    # to follow once scoped). Added now so the nav item and permission-matrix
+    # row exist ahead of the actual feature; not granted to any role by
+    # default (see services/permissions.py's DEFAULT_GRANTS comment — new
+    # permissions simply start ungranted, a Super Admin turns them on once
+    # there's something real behind them).
+    BENEFITS_VIEW = "benefits.view"
+    BENEFITS_MANAGE = "benefits.manage"
 
 
 class RolePermission(Base):

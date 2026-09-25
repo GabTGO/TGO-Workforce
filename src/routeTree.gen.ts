@@ -20,6 +20,7 @@ import { Route as BirthdaysRouteImport } from './routes/birthdays'
 import { Route as DatabaseBackupsRouteImport } from './routes/database-backups'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as FeedbackRouteImport } from './routes/feedback'
+import { Route as HmoManagementRouteImport } from './routes/hmo-management'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NewHiresRouteImport } from './routes/new-hires'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -84,6 +85,11 @@ const FeedbackRoute = FeedbackRouteImport.update({
   path: '/feedback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HmoManagementRoute = HmoManagementRouteImport.update({
+  id: '/hmo-management',
+  path: '/hmo-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
+  '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
+  '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRoute
   '/feedback': typeof FeedbackRoute
+  '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -202,6 +211,7 @@ export interface FileRouteTypes {
     | '/database-backups'
     | '/directory'
     | '/feedback'
+    | '/hmo-management'
     | '/login'
     | '/new-hires'
     | '/onboarding'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/database-backups'
     | '/directory'
     | '/feedback'
+    | '/hmo-management'
     | '/login'
     | '/new-hires'
     | '/onboarding'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/database-backups'
     | '/directory'
     | '/feedback'
+    | '/hmo-management'
     | '/login'
     | '/new-hires'
     | '/onboarding'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   DatabaseBackupsRoute: typeof DatabaseBackupsRoute
   DirectoryRoute: typeof DirectoryRoute
   FeedbackRoute: typeof FeedbackRoute
+  HmoManagementRoute: typeof HmoManagementRoute
   LoginRoute: typeof LoginRoute
   NewHiresRoute: typeof NewHiresRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -352,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeedbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hmo-management': {
+      id: '/hmo-management'
+      path: '/hmo-management'
+      fullPath: '/hmo-management'
+      preLoaderRoute: typeof HmoManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -437,6 +457,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatabaseBackupsRoute: DatabaseBackupsRoute,
   DirectoryRoute: DirectoryRoute,
   FeedbackRoute: FeedbackRoute,
+  HmoManagementRoute: HmoManagementRoute,
   LoginRoute: LoginRoute,
   NewHiresRoute: NewHiresRoute,
   OnboardingRoute: OnboardingRoute,

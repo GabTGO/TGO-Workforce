@@ -8,6 +8,7 @@ import {
   Award,
   Cake,
   DatabaseBackup,
+  HeartPulse,
   MessageSquare,
   ScrollText,
   Settings,
@@ -79,6 +80,22 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         url: "/onboarding",
         icon: ClipboardCheck,
         permission: "onboarding.view",
+      },
+    ],
+  },
+  {
+    label: "Employee Benefits",
+    items: [
+      // Placeholder module — HMO Management is a blank page for now, more
+      // to follow once it's scoped. Ungated for every non-admin role by
+      // default (benefits.view isn't in any role's default grants); a
+      // Super Admin turns it on from User Management once there's
+      // something real behind it.
+      {
+        title: "HMO Management",
+        url: "/hmo-management",
+        icon: HeartPulse,
+        permission: "benefits.view",
       },
     ],
   },

@@ -32,7 +32,9 @@ export type Permission =
   | "attendance.manage"
   | "attendance.approve"
   | "awards.view"
-  | "awards.manage";
+  | "awards.manage"
+  | "benefits.view"
+  | "benefits.manage";
 
 export type AccountProfile = {
   id: string;

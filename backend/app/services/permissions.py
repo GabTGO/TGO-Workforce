@@ -21,6 +21,7 @@ VIEW_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.ONBOARDING_VIEW,
         Permission.ATTENDANCE_VIEW,
         Permission.AWARDS_VIEW,
+        Permission.BENEFITS_VIEW,
     }
 )
 
@@ -90,6 +91,14 @@ PERMISSION_LABELS: dict[Permission, dict[str, str]] = {
     Permission.AWARDS_MANAGE: {
         "title": "Manage Recognition & Awards",
         "description": "Give a new award to an active employee, and edit or delete existing awards.",
+    },
+    Permission.BENEFITS_VIEW: {
+        "title": "View Employee Benefits",
+        "description": "See the Employee Benefits pages (currently just HMO Management).",
+    },
+    Permission.BENEFITS_MANAGE: {
+        "title": "Manage Employee Benefits",
+        "description": "Add, edit and delete benefits records — placeholder, not yet built.",
     },
 }
 
