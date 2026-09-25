@@ -35,7 +35,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useCurrentAccount } from "@/lib/session";
-import type { Permission } from "@/lib/session";
+import type { AccountProfile, Permission } from "@/lib/session";
 import {
   getEffectiveRole,
   isFullAccessRole,
@@ -44,7 +44,7 @@ import {
 } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
-type NavItem = {
+export type NavItem = {
   title: string;
   url: NonNullable<LinkProps["to"]>;
   icon: LucideIcon;
@@ -191,6 +191,24 @@ function isNavItemVisible(
 ): boolean {
   const requiredList = Array.isArray(required) ? required : [required];
   return requiredList.every((permission) => hasPermission(permissions, permission));
+}
+
+// Same gating AppSidebar renders with below, exposed for anything else that
+// needs "which pages can this account actually reach" — currently the header
+// search (@/components/header-search), so a page nobody can see never shows
+// up as a navigable search result either.
+export function getAccessibleNavItems(
+  account: Pick<AccountProfile, "role" | "sandbox_role" | "permissions"> | null | undefined,
+): NavItem[] {
+  const effectiveRole = getEffectiveRole(account);
+  const isAdmin = isFullAccessRole(effectiveRole);
+  const isSuperAdmin = isSuperAdminRole(effectiveRole);
+  return NAV_ITEMS.filter(
+    (item) =>
+      (!item.adminOnly || isAdmin) &&
+      (!item.superAdminOnly || isSuperAdmin) &&
+      (!item.permission || isNavItemVisible(account?.permissions, item.permission)),
+  );
 }
 
 export function AppSidebar() {

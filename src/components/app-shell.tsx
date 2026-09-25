@@ -3,7 +3,8 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, FlaskConical, LogOut, User, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
-import { AppSidebar, NAV_ITEMS } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { HeaderSearch } from "@/components/header-search";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,17 +14,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { SandboxBanner } from "@/components/sandbox-banner";
 import { Button } from "@/components/ui/button";
 import { signOut, useCurrentAccount, useEnterSandbox } from "@/lib/session";
-import { useAccountsQuery } from "@/data/account-store";
-import { getEffectiveRole, isFullAccessRole } from "@/lib/permissions";
 import { ROLE_LABELS, SANDBOXABLE_ROLES } from "@/lib/roles";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,19 +27,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Pages reachable from the header (not the sidebar), so they're not in
-// NAV_ITEMS — kept here just so the breadcrumb has a title for them too.
-const EXTRA_PAGE_TITLES: Record<string, string> = {
-  "/profile": "Profile",
-};
-
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  const current = NAV_ITEMS.find((i) => i.url === pathname);
-  const currentTitle =
-    current?.title ??
-    EXTRA_PAGE_TITLES[pathname] ??
-    (pathname.startsWith("/user-management/") ? "User Profile" : undefined);
   const navigate = useNavigate();
 
   // Auth guard — runs client-side only (TanStack Start's beforeLoad executes
@@ -60,15 +40,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   // reload. Bounces to /login once the query resolves to "nobody"; renders
   // nothing until then so a signed-out visitor never sees a dashboard flash.
   const { data: account, isLoading } = useCurrentAccount();
-
-  // A single account's profile page (/user-management/:accountId) gets its
-  // own 3-level breadcrumb (User Management → Accounts → their name) instead
-  // of the usual single crumb — reuses the same cached accounts list the
-  // Accounts table itself fetches (ACCOUNTS_KEY), so this doesn't add an
-  // extra request beyond what navigating here already primed.
-  const isUserProfilePath = pathname.startsWith("/user-management/");
-  const isAdminForBreadcrumb = isFullAccessRole(getEffectiveRole(account));
-  const profileAccountsQuery = useAccountsQuery(isAdminForBreadcrumb && isUserProfilePath);
 
   useEffect(() => {
     if (!isLoading && !account) {
@@ -109,16 +80,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       .join("")
       .toUpperCase() || "?";
 
-  const profileAccountId = isUserProfilePath
-    ? pathname.slice("/user-management/".length)
-    : undefined;
-  const profileAccount = profileAccountsQuery.data?.find((a) => a.id === profileAccountId);
-  const profileDisplayName = profileAccount
-    ? profileAccount.displayName ||
-      [profileAccount.firstName, profileAccount.lastName].filter(Boolean).join(" ") ||
-      profileAccount.email
-    : undefined;
-
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
@@ -127,33 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur">
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-1 h-5" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden sm:block">
-                  <BreadcrumbLink href="/">Torero Global Outsourcing</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden sm:block" />
-                {isUserProfilePath ? (
-                  <>
-                    <BreadcrumbItem className="hidden sm:block">
-                      <BreadcrumbLink href="/user-management">User Management</BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="hidden sm:block" />
-                    <BreadcrumbItem className="hidden sm:block">
-                      <BreadcrumbLink href="/user-management">Accounts</BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="hidden sm:block" />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>{profileDisplayName ?? currentTitle}</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </>
-                ) : (
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>{currentTitle ?? "Overview"}</BreadcrumbPage>
-                  </BreadcrumbItem>
-                )}
-              </BreadcrumbList>
-            </Breadcrumb>
+            <HeaderSearch />
 
             <div className="ml-auto flex items-center gap-1">
               <NotificationBell />
