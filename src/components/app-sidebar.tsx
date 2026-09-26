@@ -143,7 +143,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "System",
+    label: "Insights",
     items: [
       { title: "Activity Logs", url: "/activity-logs", icon: ScrollText },
       // Admin/Super Admin-only: Analytics rolls up numbers across every
@@ -157,6 +157,11 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       // *triage* a card (status/priority/reporter identity) differs, and
       // that's enforced inside the page itself, not by hiding the nav link.
       { title: "Feedback", url: "/feedback", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
       {
         title: "User Management",
         url: "/user-management",
