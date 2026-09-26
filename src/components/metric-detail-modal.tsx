@@ -175,7 +175,10 @@ export function MetricDetailModal({
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{e.office}</TableCell>
                     <TableCell className="whitespace-nowrap">{e.department}</TableCell>
-                    <TableCell className="whitespace-nowrap">{e.position}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div>{e.position}</div>
+                      <div className="text-xs text-muted-foreground">{e.level || "—"}</div>
+                    </TableCell>
                     <TableCell>
                       {isInTraining(e) ? (
                         <Badge
