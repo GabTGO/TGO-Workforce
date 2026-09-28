@@ -1,20 +1,18 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  Building2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Globe2,
+  Circle,
   Search,
-  UserCheck,
-  UserPlus,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
-import { EmployeeNameLink } from "@/components/employee-name-link";
-import { NewHireDialog } from "@/components/new-hire-dialog";
+import { FilterSelect } from "@/components/filter-select";
 import { MetricCard } from "@/components/metric-card";
-import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,19 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DEPARTMENTS,
-  OFFICES,
-  STATUSES,
-  formatDate,
-  isInTraining,
-  metrics,
-  tenure,
-  tenureDays,
-} from "@/data/employees";
-import { useEmployees } from "@/data/employee-store";
-import { useCurrentAccount } from "@/lib/session";
-import { canManageEmployees } from "@/lib/permissions";
+import { usePortalNewHires } from "@/data/new-hire-portal-store";
+import type { PortalNewHireStatus } from "@/data/new-hire-portal-api";
 
 export const Route = createFileRoute("/new-hires")({
   head: () => ({
@@ -47,12 +34,13 @@ export const Route = createFileRoute("/new-hires")({
       { title: "New Hires — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
-        content: "Employees who joined TGO in the last twelve months, with onboarding details.",
+        content:
+          "Candidates in the onboarding pipeline, live from the Onboarding/Offboarding portal.",
       },
       { property: "og:title", content: "New Hires — Torero Global Outsourcing HR Operations" },
       {
         property: "og:description",
-        content: "Track recent TGO hires by hub, department and start date.",
+        content: "Track candidates through the onboarding portal's hiring pipeline.",
       },
     ],
   }),
@@ -61,95 +49,93 @@ export const Route = createFileRoute("/new-hires")({
 
 const PAGE_SIZE = 8;
 
+const STATUS_LABELS: Record<PortalNewHireStatus, string> = {
+  PENDING: "Pending",
+  IN_PROGRESS: "In Progress",
+  COMPLETED: "Completed",
+};
+
+function StatusBadge({ status }: { status: PortalNewHireStatus }) {
+  if (status === "COMPLETED") return <Badge>Completed</Badge>;
+  if (status === "IN_PROGRESS") return <Badge variant="secondary">In Progress</Badge>;
+  return <Badge variant="outline">Pending</Badge>;
+}
+
 function NewHiresPage() {
-  const employees = useEmployees();
-  const { data: account } = useCurrentAccount();
-  const canManage = canManageEmployees(account?.permissions);
-  const list = metrics(employees).newHireList;
-  const active = list.filter((e) => e.status === "Active").length;
-  const eastwood = list.filter((e) => e.office === "PH Eastwood").length;
-  const medellin = list.filter((e) => e.office === "CO Medellin").length;
+  const { data, isLoading, isError } = usePortalNewHires();
+  const hires = useMemo(() => data ?? [], [data]);
 
   const [query, setQuery] = useState("");
-  // Empty array = no filter applied (matches every value) — same convention
-  // as the Employee Directory table's multi-select filters, so several
-  // offices/statuses/departments can be checked at once.
-  const [office, setOffice] = useState<string[]>([]);
-  const [status, setStatus] = useState<string[]>([]);
-  const [department, setDepartment] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
 
-  // Same search + filter shape as the Employee Directory table (see
-  // employee-table.tsx) so the two feel like one product, just scoped to the
-  // last 12 months of hires here.
+  const statusLabelToValue = useMemo(
+    () => new Map(Object.entries(STATUS_LABELS).map(([value, label]) => [label, value])),
+    [],
+  );
+  const statusFilterLabel =
+    statusFilter === "all" ? "all" : (STATUS_LABELS[statusFilter as PortalNewHireStatus] ?? "all");
+
+  const departmentOptions = useMemo(
+    () => Array.from(new Set(hires.map((h) => h.department).filter(Boolean))).sort(),
+    [hires],
+  );
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return list.filter((e) => {
+    return hires.filter((h) => {
       const matchesQuery =
         !q ||
-        e.name.toLowerCase().includes(q) ||
-        e.id.toLowerCase().includes(q) ||
-        e.position.toLowerCase().includes(q);
-      const matchesStatus =
-        status.length === 0 ||
-        status.some((s) => (s === "Training" ? isInTraining(e) : e.status === s));
-      return (
-        matchesQuery &&
-        (office.length === 0 || office.includes(e.office)) &&
-        matchesStatus &&
-        (department.length === 0 || department.includes(e.department))
-      );
+        h.name.toLowerCase().includes(q) ||
+        (h.companyId ?? "").toLowerCase().includes(q) ||
+        h.email.toLowerCase().includes(q) ||
+        h.position.toLowerCase().includes(q) ||
+        h.department.toLowerCase().includes(q);
+      const matchesStatus = statusFilter === "all" || h.status === statusFilter;
+      const matchesDepartment = departmentFilter === "all" || h.department === departmentFilter;
+      return matchesQuery && matchesStatus && matchesDepartment;
     });
-  }, [list, query, office, status, department]);
+  }, [hires, query, statusFilter, departmentFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  // `list` is already newest-first, so a brand-new hire is first in it — the
-  // only things that could still bury it are a stale filter or being stuck
-  // on a later page, so clear both instead of making someone click back to
-  // page 1 and reset filters themselves.
-  function handleNewHireCreated() {
-    setQuery("");
-    setOffice([]);
-    setStatus([]);
-    setDepartment([]);
-    setPage(1);
-  }
+  const stats = useMemo(() => {
+    const total = hires.length;
+    const pending = hires.filter((h) => h.status === "PENDING").length;
+    const inProgress = hires.filter((h) => h.status === "IN_PROGRESS").length;
+    const completed = hires.filter((h) => h.status === "COMPLETED").length;
+    return { total, pending, inProgress, completed };
+  }, [hires]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="New Hires"
-        description="Everyone who joined in the last twelve months."
-        action={canManage ? <NewHireDialog onCreated={handleNewHireCreated} /> : undefined}
+        description="Candidates in the onboarding pipeline, pulled live from the Onboarding/Offboarding portal."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          title="New Hires"
-          value={list.length}
-          hint="Joined in last 12 months"
-          icon={UserPlus}
+          title="Total"
+          value={stats.total}
+          hint="In the portal's pipeline"
+          icon={Users}
+        />
+        <MetricCard title="Pending" value={stats.pending} hint="Not yet started" icon={Circle} />
+        <MetricCard
+          title="In Progress"
+          value={stats.inProgress}
+          hint="Currently onboarding"
+          icon={TrendingUp}
         />
         <MetricCard
-          title="Still Active"
-          value={active}
-          hint="Of these new hires — not your total headcount"
-          icon={UserCheck}
-        />
-        <MetricCard
-          title="PH Eastwood"
-          value={eastwood}
-          hint="New hires at the Manila hub"
-          icon={Building2}
-        />
-        <MetricCard
-          title="CO Medellin"
-          value={medellin}
-          hint="New hires at the LATAM hub"
-          icon={Globe2}
+          title="Completed"
+          value={stats.completed}
+          hint="Finished the portal's process"
+          icon={CheckCircle2}
         />
       </div>
 
@@ -162,37 +148,29 @@ function NewHiresPage() {
               setQuery(e.target.value);
               setPage(1);
             }}
-            placeholder="Search name, ID or position..."
+            placeholder="Search name, ID, email or position..."
             className="pl-9"
           />
         </div>
-
-        <MultiSelectFilter
-          label="Office"
-          selected={office}
-          onChange={(v) => {
-            setOffice(v);
+        <FilterSelect
+          value={statusFilterLabel}
+          onChange={(label) => {
+            setStatusFilter(statusLabelToValue.get(label) ?? "all");
             setPage(1);
           }}
-          options={[...OFFICES]}
+          placeholder="Status"
+          allLabel="All statuses"
+          options={Object.values(STATUS_LABELS)}
         />
-        <MultiSelectFilter
-          label="Status"
-          selected={status}
+        <FilterSelect
+          value={departmentFilter}
           onChange={(v) => {
-            setStatus(v);
+            setDepartmentFilter(v);
             setPage(1);
           }}
-          options={[...STATUSES, "Training"]}
-        />
-        <MultiSelectFilter
-          label="Department"
-          selected={department}
-          onChange={(v) => {
-            setDepartment(v);
-            setPage(1);
-          }}
-          options={[...DEPARTMENTS]}
+          placeholder="Department"
+          allLabel="All departments"
+          options={departmentOptions}
         />
       </div>
 
@@ -201,53 +179,63 @@ function NewHiresPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee ID</TableHead>
-                <TableHead>Full Name</TableHead>
-                <TableHead>Office</TableHead>
-                <TableHead>Department</TableHead>
+                <TableHead>Company ID</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Position</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Start Date</TableHead>
-                <TableHead>Tenure</TableHead>
+                <TableHead>Manager</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && (
+              {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    Loading new hires from the onboarding portal…
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && isError && (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    Couldn't reach the onboarding portal. Try again shortly.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !isError && rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                     No new hires match the current filters.
                   </TableCell>
                 </TableRow>
               )}
-              {rows.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="font-mono text-xs">{e.id}</TableCell>
-                  <TableCell className="font-medium">
-                    <EmployeeNameLink employee={e} />
+              {rows.map((h) => (
+                <TableRow key={h.id}>
+                  <TableCell className="font-mono text-xs">
+                    {h.companyId ?? <span className="italic text-muted-foreground/60">—</span>}
                   </TableCell>
-                  <TableCell>{e.office}</TableCell>
-                  <TableCell>{e.department}</TableCell>
-                  <TableCell>{e.position}</TableCell>
-                  <TableCell>{formatDate(e.startDate)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <div>{tenure(e.startDate, e.exitDate)}</div>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    <div>{h.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {tenureDays(e.startDate, e.exitDate)} days
+                      {h.email}
+                      {h.phone ? ` · ${h.phone}` : ""}
                     </div>
                   </TableCell>
+                  <TableCell className="whitespace-nowrap">{h.position}</TableCell>
+                  <TableCell className="whitespace-nowrap">{h.department}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {new Date(h.startDate).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {h.manager ?? <span className="italic text-muted-foreground/60">—</span>}
+                  </TableCell>
                   <TableCell>
-                    {isInTraining(e) ? (
-                      <Badge
-                        variant="outline"
-                        className="border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                      >
-                        Training
-                      </Badge>
-                    ) : (
-                      <Badge variant={e.status === "Active" ? "default" : "secondary"}>
-                        {e.status}
-                      </Badge>
-                    )}
+                    <StatusBadge status={h.status} />
                   </TableCell>
                 </TableRow>
               ))}

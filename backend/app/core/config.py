@@ -87,9 +87,22 @@ class Settings(BaseSettings):
     cliq_webhook_endpoint: str = ""
     cliq_webhook_token: str = ""
 
+    # --- Onboarding/Offboarding portal (New Hires) -------------------------
+    # A separate, already-deployed system that tracks candidates through the
+    # actual hiring pipeline (PENDING/IN_PROGRESS/COMPLETED). Its
+    # GET-only /api/external/new-hires API replaces this app's own New Hires
+    # page as of the page's rewrite — see app/services/onboarding_portal.py.
+    # Auth is a plain `x-api-key` header, not Authorization: Bearer.
+    onboarding_portal_base_url: str = ""
+    onboarding_portal_api_key: str = ""
+
     @property
     def cliq_configured(self) -> bool:
         return bool(self.cliq_webhook_endpoint and self.cliq_webhook_token)
+
+    @property
+    def onboarding_portal_configured(self) -> bool:
+        return bool(self.onboarding_portal_base_url and self.onboarding_portal_api_key)
 
     @property
     def zoho_configured(self) -> bool:
