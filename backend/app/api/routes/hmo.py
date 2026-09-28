@@ -35,6 +35,7 @@ from app.schemas.hmo import (
     HmoRequestUpdate,
 )
 from app.services.activity_log import record_activity
+from app.services.notify import notify_permission_holders
 
 router = APIRouter(
     prefix="/hmo",
@@ -125,6 +126,16 @@ async def create_hmo_member(
         details={"name": member.display_name},
         commit=False,
     )
+    await notify_permission_holders(
+        db,
+        Permission.BENEFITS_MANAGE,
+        title="New HMO member added",
+        body=f"{member.display_name} — {payload.member_type.value}",
+        link="/hmo-management",
+        exclude_account_id=account.id,
+        require_preference=Account.notify_on_hmo_member_added,
+        commit=False,
+    )
     await db.commit()
     await db.refresh(member)
     return member
@@ -159,6 +170,41 @@ async def update_hmo_member(
     await db.commit()
     await db.refresh(member)
     return member
+
+
+@router.delete("/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_hmo_member(
+    member_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account: WriterAccount,
+) -> None:
+    """Hard delete — unlike Employee/Violation, HmoMember has no soft-delete
+    flag, since the shared ActivityLog audit trail (target=str(member.id))
+    already preserves the history independent of whether the row itself
+    still exists. Deleting a Principal cascades to its Dependent rows and
+    HmoRequest rows (ON DELETE CASCADE on both FKs) — the frontend's
+    confirmation dialog warns about this before calling here."""
+    member = _get_or_404(await db.get(HmoMember, member_id))
+
+    target = member.display_name
+    dependent_count = 0
+    if member.member_type == HmoMemberType.PRINCIPAL:
+        result = await db.execute(
+            select(HmoMember).where(HmoMember.principal_member_id == member.id)
+        )
+        dependent_count = len(result.scalars().all())
+
+    await db.delete(member)
+    await record_activity(
+        db,
+        action="Removed HMO member record"
+        + (f" (with {dependent_count} dependent{'s' if dependent_count != 1 else ''})" if dependent_count else ""),
+        category=ActivityCategory.BENEFITS,
+        account=account,
+        target=target,
+        commit=False,
+    )
+    await db.commit()
 
 
 # --- Requests ---------------------------------------------------------------

@@ -33,6 +33,7 @@ class AccountRead(BaseModel):
     notify_new_hires: bool
     notify_on_violation_review: bool
     notify_on_new_hire_added: bool
+    notify_on_hmo_member_added: bool
     animations_enabled: bool
     # Not a mapped column — populated by the /auth/me route (and anywhere else
     # that returns AccountRead for "the signed-in caller") via
@@ -84,6 +85,7 @@ class AccountPreferencesUpdate(BaseModel):
     notify_new_hires: bool | None = None
     notify_on_violation_review: bool | None = None
     notify_on_new_hire_added: bool | None = None
+    notify_on_hmo_member_added: bool | None = None
     animations_enabled: bool | None = None
 
 

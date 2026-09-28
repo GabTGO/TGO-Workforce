@@ -512,6 +512,13 @@ export async function updateHmoMember(id: string, patch: HmoMemberPatch): Promis
   return fromBackendMember(row);
 }
 
+/** Hard delete — deleting a Principal cascades to its Dependent rows and
+ * HMO requests server-side; the confirmation dialog that calls this warns
+ * about that first. */
+export async function deleteHmoMember(id: string): Promise<void> {
+  await request<void>(`/hmo/members/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 // --- Requests ----------------------------------------------------------------
 
 export async function fetchHmoRequests(): Promise<HmoRequest[]> {

@@ -79,6 +79,7 @@ export type AccountProfile = {
   // roles that would ever receive them (see the Settings page).
   notify_on_violation_review: boolean;
   notify_on_new_hire_added: boolean;
+  notify_on_hmo_member_added: boolean;
   // Gates page-enter transitions and dashboard count-up effects app-wide for
   // this account — purely cosmetic, so it defaults on and lives here instead
   // of a global config.
@@ -97,6 +98,7 @@ export type PreferencesPatch = Partial<
     | "notify_new_hires"
     | "notify_on_violation_review"
     | "notify_on_new_hire_added"
+    | "notify_on_hmo_member_added"
     | "animations_enabled"
   >
 >;

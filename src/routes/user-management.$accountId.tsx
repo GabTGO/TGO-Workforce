@@ -88,6 +88,7 @@ const ALL_CATEGORIES: ActivityCategory[] = [
   "System",
   "Onboarding",
   "Attendance",
+  "Benefits",
 ];
 
 function initials(name: string) {
@@ -153,6 +154,7 @@ const categoryChartConfig = {
   System: { label: "System", color: "var(--chart-4)" },
   Onboarding: { label: "Onboarding", color: "var(--chart-5)" },
   Attendance: { label: "Attendance", color: "var(--chart-1)" },
+  Benefits: { label: "Benefits", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 function activityByCategory(

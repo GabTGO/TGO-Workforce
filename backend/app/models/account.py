@@ -154,6 +154,12 @@ class Account(Base):
     notify_on_new_hire_added: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Same reasoning as notify_on_new_hire_added above, gating HMO Management's
+    # own inbox event (Permission.BENEFITS_MANAGE holders only — see the
+    # Settings page's showHmoToggle).
+    notify_on_hmo_member_added: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
     # Client-side page-enter transitions and dashboard count-up effects —
     # purely cosmetic, so it's a self-service preference like the rest of this
     # block rather than an admin-managed setting.

@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
+  AlertTriangle,
   Calendar,
   CreditCard,
   Download,
@@ -20,12 +21,23 @@ import {
   Plus,
   Receipt,
   ShieldAlert,
+  Trash2,
   UserCheck,
   UserMinus,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PageHeader } from "@/components/app-shell";
 import { HmoMemberFormDialog } from "@/components/hmo-member-form-dialog";
 import { MetricCard } from "@/components/metric-card";
@@ -55,6 +67,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -79,6 +92,7 @@ import {
 import {
   useCreateHmoBillingPeriod,
   useCreateHmoRequest,
+  useDeleteHmoMember,
   useHmoBillingPeriodsQuery,
   useHmoMembersQuery,
   useHmoRequestsQuery,
@@ -151,6 +165,23 @@ function formatCurrency(amount: number): string {
   return `₱${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
+/** Animated placeholder rows shown while a table's data is still loading —
+ * one skeleton bar per row, spanning every column, so the table doesn't
+ * flash between "Loading…" text and real rows. */
+function TableSkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <TableRow key={i}>
+          <TableCell colSpan={columns} className="py-3">
+            <Skeleton className="h-5 w-full" />
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
 function formatDate(dateIso: string | null): string {
   if (!dateIso) return "—";
   return new Date(dateIso).toLocaleDateString("en-US", {
@@ -174,6 +205,7 @@ function HmoManagementPage() {
 
   const updateMemberMutation = useUpdateHmoMember();
   const updateRequestMutation = useUpdateHmoRequest();
+  const deleteMemberMutation = useDeleteHmoMember();
 
   const principals = useMemo(() => members.filter((m) => m.memberType === "Principal"), [members]);
   const dependents = useMemo(() => members.filter((m) => m.memberType === "Dependent"), [members]);
@@ -182,6 +214,24 @@ function HmoManagementPage() {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [newRequestOpen, setNewRequestOpen] = useState(false);
   const [newBillingOpen, setNewBillingOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<HmoMember | null>(null);
+  const deleteTargetDependentCount = deleteTarget
+    ? dependents.filter((d) => d.principalMemberId === deleteTarget.id).length
+    : 0;
+
+  async function confirmDeleteMember() {
+    if (!deleteTarget) return;
+    try {
+      await deleteMemberMutation.mutateAsync(deleteTarget.id);
+      toast.success(`${deleteTarget.displayName} removed from HMO Management`);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : `Couldn't remove ${deleteTarget.displayName}.`,
+      );
+    }
+  }
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState(ALL);
@@ -327,7 +377,13 @@ function HmoManagementPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="HMO Management" description="Employee Benefits." />
-        <p className="text-sm text-muted-foreground">Checking access…</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-9 w-full max-w-2xl" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
@@ -547,11 +603,7 @@ function HmoManagementPage() {
                   </TableHeader>
                   <TableBody>
                     {membersLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                          Loading…
-                        </TableCell>
-                      </TableRow>
+                      <TableSkeletonRows columns={5} />
                     ) : enrollmentQueue.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
@@ -751,10 +803,12 @@ function HmoManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMembers.length === 0 ? (
+                    {membersLoading ? (
+                      <TableSkeletonRows columns={9} />
+                    ) : filteredMembers.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
-                          {membersLoading ? "Loading…" : "No members match your search."}
+                          No members match your search.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -783,11 +837,24 @@ function HmoManagementPage() {
                             {m.monthlyPremium != null ? formatCurrency(m.monthlyPremium) : "—"}
                           </TableCell>
                           <TableCell>
-                            <Button asChild size="sm" variant="outline">
-                              <Link to="/hmo-management/$memberId" params={{ memberId: m.id }}>
-                                View
-                              </Link>
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button asChild size="sm" variant="outline">
+                                <Link to="/hmo-management/$memberId" params={{ memberId: m.id }}>
+                                  View
+                                </Link>
+                              </Button>
+                              {canManage && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  title="Delete"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => setDeleteTarget(m)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -1045,6 +1112,37 @@ function HmoManagementPage() {
         members={members}
       />
       <NewBillingPeriodDialog open={newBillingOpen} onOpenChange={setNewBillingOpen} />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <AlertDialogTitle>Remove this HMO member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes {deleteTarget?.displayName || "this member"} from HMO
+              Management, including their card, billing and request history.
+              {deleteTargetDependentCount > 0 &&
+                ` This also removes ${deleteTargetDependentCount} dependent${deleteTargetDependentCount === 1 ? "" : "s"} tied to them.`}{" "}
+              This can't be undone, though the removal itself is logged in the activity log.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDeleteMember();
+              }}
+              disabled={deleteMemberMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMemberMutation.isPending ? "Removing..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   createHmoBillingPeriod,
   createHmoMember,
   createHmoRequest,
+  deleteHmoMember,
   fetchHmoBillingPeriods,
   fetchHmoMembers,
   fetchHmoRequests,
@@ -65,6 +66,14 @@ export function useUpdateHmoMember() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: HmoMemberPatch }) =>
       updateHmoMember(id, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: MEMBERS_KEY }),
+  });
+}
+
+export function useDeleteHmoMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteHmoMember(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MEMBERS_KEY }),
   });
 }

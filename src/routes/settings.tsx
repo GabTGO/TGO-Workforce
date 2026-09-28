@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { OFFICES } from "@/data/employees";
 import { useCurrentAccount, useUpdateMyPreferences, type PreferencesPatch } from "@/lib/session";
-import { canApproveAttendance, canManageOnboarding } from "@/lib/permissions";
+import { canApproveAttendance, canManageBenefits, canManageOnboarding } from "@/lib/permissions";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -60,6 +60,7 @@ function SettingsPage() {
   const [notifyNewHires, setNotifyNewHires] = useState(true);
   const [notifyOnViolationReview, setNotifyOnViolationReview] = useState(true);
   const [notifyOnNewHireAdded, setNotifyOnNewHireAdded] = useState(true);
+  const [notifyOnHmoMemberAdded, setNotifyOnHmoMemberAdded] = useState(true);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   // Seed local form state from the account exactly once — after that, this
   // page's own edits are the source of truth, so a background refetch of
@@ -76,12 +77,14 @@ function SettingsPage() {
     setNotifyNewHires(account.notify_new_hires);
     setNotifyOnViolationReview(account.notify_on_violation_review);
     setNotifyOnNewHireAdded(account.notify_on_new_hire_added);
+    setNotifyOnHmoMemberAdded(account.notify_on_hmo_member_added);
     setAnimationsEnabled(account.animations_enabled);
   }, [account]);
 
   const showViolationReviewToggle = canApproveAttendance(account?.permissions);
   const showNewHireToggle = canManageOnboarding(account?.permissions);
-  const showNotificationInbox = showViolationReviewToggle || showNewHireToggle;
+  const showHmoToggle = canManageBenefits(account?.permissions);
+  const showNotificationInbox = showViolationReviewToggle || showNewHireToggle || showHmoToggle;
 
   const dirty =
     !!account &&
@@ -91,6 +94,7 @@ function SettingsPage() {
       notifyNewHires !== account.notify_new_hires ||
       notifyOnViolationReview !== account.notify_on_violation_review ||
       notifyOnNewHireAdded !== account.notify_on_new_hire_added ||
+      notifyOnHmoMemberAdded !== account.notify_on_hmo_member_added ||
       animationsEnabled !== account.animations_enabled);
 
   function handleSave() {
@@ -101,6 +105,7 @@ function SettingsPage() {
       notify_new_hires: notifyNewHires,
       notify_on_violation_review: notifyOnViolationReview,
       notify_on_new_hire_added: notifyOnNewHireAdded,
+      notify_on_hmo_member_added: notifyOnHmoMemberAdded,
       animations_enabled: animationsEnabled,
     };
     updatePreferences.mutate(patch, {
@@ -226,6 +231,22 @@ function SettingsPage() {
                   <Switch
                     checked={notifyOnNewHireAdded}
                     onCheckedChange={setNotifyOnNewHireAdded}
+                    disabled={isLoading}
+                    className="shrink-0"
+                  />
+                </div>
+              )}
+              {showHmoToggle && (
+                <div className="flex min-h-28 items-start justify-between gap-4 rounded-md border bg-muted/20 p-4">
+                  <div>
+                    <p className="text-sm font-medium">HMO member added</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Notify me when someone adds a new member to HMO Management.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notifyOnHmoMemberAdded}
+                    onCheckedChange={setNotifyOnHmoMemberAdded}
                     disabled={isLoading}
                     className="shrink-0"
                   />
