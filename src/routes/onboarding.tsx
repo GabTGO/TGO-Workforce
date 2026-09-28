@@ -35,7 +35,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FilterSelect } from "@/components/filter-select";
 import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/metric-card";
-import { OnboardingExportButton, OnboardingImportDialog } from "@/components/onboarding-import-export";
+import {
+  OnboardingExportButton,
+  OnboardingImportDialog,
+} from "@/components/onboarding-import-export";
 import { OnboardingHireDialog } from "@/components/onboarding-hire-dialog";
 import { OnboardingNotifyDialog } from "@/components/onboarding-notify-dialog";
 import {
@@ -55,13 +58,16 @@ import { useCurrentAccount } from "@/lib/session";
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
-      { title: "Onboarding — Torero Global Outsourcing HR Operations" },
+      { title: "Onboarding Cliq Tracker — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
           "Track new hires through the 7-step onboarding checklist, from job offer discussion to onboarding day.",
       },
-      { property: "og:title", content: "Onboarding — Torero Global Outsourcing HR Operations" },
+      {
+        property: "og:title",
+        content: "Onboarding Cliq Tracker — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
         content: "The onboarding checklist tracker for recruitment and HR.",
@@ -129,8 +135,7 @@ function OnboardingPage() {
     [hires],
   );
   const specialistOptions = useMemo(
-    () =>
-      Array.from(new Set(hires.map((h) => h.onboardingSpecialist).filter(Boolean))).sort(),
+    () => Array.from(new Set(hires.map((h) => h.onboardingSpecialist).filter(Boolean))).sort(),
     [hires],
   );
   const statusOptions = ["Not Started", "In Progress", "Complete"];
@@ -138,13 +143,11 @@ function OnboardingPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return hires.filter((h) => {
-      const matchesQuery =
-        !q || `${h.name} ${h.roleTitle}`.toLowerCase().includes(q);
+      const matchesQuery = !q || `${h.name} ${h.roleTitle}`.toLowerCase().includes(q);
       const matchesLead = leadFilter === "all" || h.recruitmentLead === leadFilter;
       const matchesSpecialist =
         specialistFilter === "all" || h.onboardingSpecialist === specialistFilter;
-      const matchesStatus =
-        statusFilter === "all" || computeStatus(h) === statusFilter;
+      const matchesStatus = statusFilter === "all" || computeStatus(h) === statusFilter;
       return matchesQuery && matchesLead && matchesSpecialist && matchesStatus;
     });
   }, [hires, query, leadFilter, specialistFilter, statusFilter]);
@@ -215,7 +218,7 @@ function OnboardingPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Onboarding"
+          title="Onboarding Cliq Tracker"
           description="Track new hires through the 7-step onboarding checklist."
         />
         <p className="text-sm text-muted-foreground">Checking access…</p>
@@ -227,7 +230,7 @@ function OnboardingPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Onboarding"
+          title="Onboarding Cliq Tracker"
           description="Track new hires through the 7-step onboarding checklist."
         />
         <Card>
@@ -250,7 +253,7 @@ function OnboardingPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Onboarding"
+        title="Onboarding Cliq Tracker"
         description="Track new hires through the 7-step onboarding checklist."
         action={canManage ? <OnboardingHireDialog onCreated={handleAdded} /> : undefined}
       />
@@ -380,7 +383,9 @@ function OnboardingPage() {
                     <TableCell className="text-muted-foreground">{hire.roleTitle}</TableCell>
                     <TableCell className="text-muted-foreground">{hire.startDate}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {hire.recruitmentLead || <span className="italic text-muted-foreground/60">—</span>}
+                      {hire.recruitmentLead || (
+                        <span className="italic text-muted-foreground/60">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {hire.onboardingSpecialist || (
@@ -401,7 +406,9 @@ function OnboardingPage() {
                       </TableCell>
                     ))}
                     <TableCell className="text-muted-foreground">
-                      {hire.completedBy ?? <span className="italic text-muted-foreground/60">—</span>}
+                      {hire.completedBy ?? (
+                        <span className="italic text-muted-foreground/60">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={status} />
@@ -488,8 +495,8 @@ function OnboardingPage() {
             <AlertDialogTitle>Remove this new hire?</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes {deleteTarget?.name || "this row"} from the onboarding
-              tracker. This can't be undone, though the deletion itself is logged in the
-              activity log.
+              tracker. This can't be undone, though the deletion itself is logged in the activity
+              log.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

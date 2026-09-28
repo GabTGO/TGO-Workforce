@@ -74,9 +74,9 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "People",
     items: [
       { title: "Employee Directory", url: "/directory", icon: Users, permission: "employees.view" },
-      { title: "New Hires", url: "/new-hires", icon: UserPlus, permission: "employees.view" },
+      { title: "Onboarding", url: "/new-hires", icon: UserPlus, permission: "employees.view" },
       {
-        title: "Onboarding",
+        title: "Onboarding Cliq Tracker",
         url: "/onboarding",
         icon: ClipboardCheck,
         permission: "onboarding.view",
