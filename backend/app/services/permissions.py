@@ -123,12 +123,19 @@ DEFAULT_GRANTS: dict[AccountRole, set[Permission]] = {
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
         Permission.ATTENDANCE_APPROVE,
+        # Per the HMO Management SOP's stated primary users ("HR / Admin and
+        # authorized project stakeholders") — HR runs the module day to day.
+        Permission.BENEFITS_VIEW,
+        Permission.BENEFITS_MANAGE,
     },
     AccountRole.PROJECTS: {
         Permission.EMPLOYEES_VIEW,
         Permission.MILESTONES_VIEW,
         Permission.ATTENDANCE_VIEW,
         Permission.ATTENDANCE_MANAGE,
+        # View-only: Projects are the SOP's "authorized stakeholders" —
+        # monitoring the rollout, not the ones doing day-to-day HMO data entry.
+        Permission.BENEFITS_VIEW,
     },
     AccountRole.RECRUITMENT_LEAD: {
         Permission.EMPLOYEES_VIEW,

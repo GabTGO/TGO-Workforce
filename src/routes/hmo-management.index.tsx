@@ -11,8 +11,12 @@ import {
   AlertCircle,
   Calendar,
   CreditCard,
+  Download,
+  FileSpreadsheet,
+  FileText,
   HeartPulse,
   IdCard,
+  Loader2,
   Plus,
   Receipt,
   ShieldAlert,
@@ -36,6 +40,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -75,6 +85,7 @@ import {
   useUpdateHmoMember,
   useUpdateHmoRequest,
 } from "@/data/hmo-store";
+import { exportHmoMembersCsv, exportHmoMembersPdf } from "@/lib/hmo-export";
 import { canManageBenefits, canViewBenefits } from "@/lib/permissions";
 import { ROLE_LABELS } from "@/lib/roles";
 import { useCurrentAccount } from "@/lib/session";
@@ -278,6 +289,27 @@ function HmoManagementPage() {
   }, [members, becomingEligible, pendingManagerEvaluation, physicalCardsPending]);
 
   const [activeTab, setActiveTab] = useState("overview");
+  const [exportingMembers, setExportingMembers] = useState(false);
+
+  async function handleExportMembers(format: "csv" | "pdf") {
+    if (filteredMembers.length === 0) {
+      toast.error("No members to export.");
+      return;
+    }
+    setExportingMembers(true);
+    try {
+      if (format === "csv") exportHmoMembersCsv(filteredMembers);
+      else await exportHmoMembersPdf(filteredMembers);
+      toast.success(
+        `Exported ${filteredMembers.length} member${filteredMembers.length === 1 ? "" : "s"} as ${format.toUpperCase()}`,
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExportingMembers(false);
+    }
+  }
 
   function updateMemberField(id: string, patch: Record<string, unknown>) {
     updateMemberMutation.mutate(
@@ -671,6 +703,32 @@ function HmoManagementPage() {
                 ))}
               </SelectContent>
             </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exportingMembers}>
+                  {exportingMembers ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={exportingMembers}
+                  onSelect={() => handleExportMembers("csv")}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={exportingMembers}
+                  onSelect={() => handleExportMembers("pdf")}
+                >
+                  <FileText className="mr-2 h-4 w-4" /> Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* SOP section 6: keep this grid narrow, full detail lives on the

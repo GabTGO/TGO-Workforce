@@ -10,6 +10,7 @@ import {
   Award,
   Cake,
   ClipboardCheck,
+  HeartPulse,
   ShieldAlert,
   Send,
   CircleAlert,
@@ -81,12 +82,14 @@ import {
   canManageEmployees,
   canViewAttendance,
   canViewAwards,
+  canViewBenefits,
   canViewEmployees,
   canViewMilestones,
   canViewOnboarding,
   getEffectiveRole,
   isFullAccessRole,
 } from "@/lib/permissions";
+import { useHmoMembersQuery } from "@/data/hmo-store";
 
 const RECENT_MILESTONE_DAYS = 30;
 const RECENT_HIRE_DAYS = 14;
@@ -135,6 +138,7 @@ function Dashboard() {
   const canViewOnboardingModule = canViewOnboarding(account?.permissions);
   const canViewAttendanceModule = canViewAttendance(account?.permissions);
   const canViewAwardsModule = canViewAwards(account?.permissions);
+  const canViewBenefitsModule = canViewBenefits(account?.permissions);
   const m = metrics(employees);
   const dist = officeDistribution(employees);
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
@@ -248,6 +252,24 @@ function Dashboard() {
     total: newHires.length,
     complete: newHires.filter((h) => computeStatus(h) === "Complete").length,
     inProgress: newHires.filter((h) => computeStatus(h) === "In Progress").length,
+  };
+
+  const { data: hmoMembersData } = useHmoMembersQuery(canViewBenefitsModule);
+  const hmoMembers = hmoMembersData ?? [];
+  const hmoStats = {
+    active: hmoMembers.filter((m) => m.memberStatus === "Active").length,
+    pendingEnrollment: hmoMembers.filter((m) =>
+      [
+        "For Manager Evaluation",
+        "Waiting for Requirements",
+        "Ready for Endorsement",
+        "Endorsed to ETIQA",
+        "For Processing",
+      ].includes(m.enrollmentStatus),
+    ).length,
+    physicalCardsPending: hmoMembers.filter(
+      (m) => m.memberStatus === "Active" && m.physicalCardStatus !== "Released to Employee",
+    ).length,
   };
 
   const { data: violationsPage } = useViolationsQuery({}, 0, 500, canViewAttendanceModule);
@@ -806,9 +828,13 @@ function Dashboard() {
         />
       )}
 
-      {(isFullAccess && (canViewOnboardingModule || canViewAttendanceModule)) ||
+      {(isFullAccess &&
+        (canViewOnboardingModule || canViewAttendanceModule || canViewBenefitsModule)) ||
       (!isFullAccess &&
-        (canViewEmployeesModule || canViewOnboardingModule || canViewAttendanceModule)) ? (
+        (canViewEmployeesModule ||
+          canViewOnboardingModule ||
+          canViewAttendanceModule ||
+          canViewBenefitsModule)) ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {!isFullAccess && canViewEmployeesModule && (
             <Card>
@@ -873,6 +899,39 @@ function Dashboard() {
                 <Button asChild size="sm" variant="outline" className="w-full">
                   <Link to="/onboarding">
                     Open onboarding <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canViewBenefitsModule && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HeartPulse className="h-4 w-4 text-muted-foreground" />
+                  HMO Snapshot
+                </CardTitle>
+                <CardDescription>Eligibility, enrollment and card status</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-2xl font-semibold">{hmoStats.active}</p>
+                    <p className="text-xs text-muted-foreground">Active</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{hmoStats.pendingEnrollment}</p>
+                    <p className="text-xs text-muted-foreground">Pending Enrollment</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold">{hmoStats.physicalCardsPending}</p>
+                    <p className="text-xs text-muted-foreground">Cards Pending</p>
+                  </div>
+                </div>
+                <Button asChild size="sm" variant="outline" className="w-full">
+                  <Link to="/hmo-management">
+                    Open HMO Management <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </CardContent>

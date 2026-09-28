@@ -77,6 +77,13 @@ import {
 import { useViolationsQuery } from "@/data/violation-store";
 import { useAwards } from "@/data/award-store";
 import type { Award } from "@/data/award-api";
+import {
+  HMO_ENROLLMENT_STATUSES,
+  HMO_MEMBER_STATUSES,
+  type HmoMember,
+  type HmoMemberStatus,
+} from "@/data/hmo-api";
+import { useHmoMembersQuery } from "@/data/hmo-store";
 import { useFeedbackQuery } from "@/data/feedback-store";
 import type { Feedback, FeedbackStatus, FeedbackType } from "@/data/feedback-api";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -263,6 +270,90 @@ function OnboardingStatusChart({ hires }: { hires: NewHire[] }) {
             <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={95}>
               {data.map((row) => (
                 <Cell key={row.status} fill={ONBOARDING_STATUS_COLORS[row.status]} />
+              ))}
+            </Pie>
+            <ChartLegend content={<ChartLegendContent nameKey="status" />} />
+          </PieChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+const hmoEnrollmentStatusConfig = {
+  count: { label: "Members", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+/** HMO tab's first chart — every member (Principal + Dependent) by
+ * enrollment-workflow stage, per the SOP's own "where in the enrollment
+ * workflow" framing (@/data/hmo-api's HmoEnrollmentStatus) — a horizontal bar
+ * since there are 10 possible stages, too many to read comfortably as a pie. */
+function HmoEnrollmentStatusChart({ members }: { members: HmoMember[] }) {
+  const data = HMO_ENROLLMENT_STATUSES.map((status) => ({
+    status,
+    count: members.filter((m) => m.enrollmentStatus === status).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>HMO Enrollment Status</CardTitle>
+        <CardDescription>Members by enrollment-workflow stage</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={hmoEnrollmentStatusConfig} className="h-[300px] w-full">
+          <BarChart data={data} layout="vertical" margin={{ left: 16 }}>
+            <CartesianGrid horizontal={false} />
+            <XAxis type="number" allowDecimals={false} />
+            <YAxis type="category" dataKey="status" width={150} tick={{ fontSize: 11 }} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="count" fill="var(--chart-1)" radius={4} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+const hmoMemberStatusConfig = {
+  count: { label: "Members" },
+} satisfies ChartConfig;
+
+// Same reasoning as ONBOARDING_STATUS_COLORS above — several HmoMemberStatus
+// values contain spaces, which a `--color-<key>` CSS custom property can't.
+const HMO_MEMBER_STATUS_COLORS: Record<HmoMemberStatus, string> = {
+  "Not Yet Active": "var(--chart-5)",
+  Active: "var(--chart-1)",
+  Inactive: "var(--chart-3)",
+  Suspended: "var(--chart-4)",
+  Terminated: "var(--chart-2)",
+};
+
+/** HMO tab's second chart — whether the membership is currently usable
+ * (@/data/hmo-api's HmoMemberStatus), separate from enrollment stage above,
+ * per the SOP's own design rule that the two fields never conflate. */
+function HmoMemberStatusChart({ members }: { members: HmoMember[] }) {
+  const data = HMO_MEMBER_STATUSES.map((status) => ({
+    status,
+    count: members.filter((m) => m.memberStatus === status).length,
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>HMO Member Status</CardTitle>
+        <CardDescription>Whether the membership is currently usable</CardDescription>
+      </CardHeader>
+      <CardContent className="flex justify-center">
+        <ChartContainer
+          config={hmoMemberStatusConfig}
+          className="mx-auto h-[280px] w-full max-w-[320px]"
+        >
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent nameKey="status" />} />
+            <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={95}>
+              {data.map((row) => (
+                <Cell key={row.status} fill={HMO_MEMBER_STATUS_COLORS[row.status]} />
               ))}
             </Pie>
             <ChartLegend content={<ChartLegendContent nameKey="status" />} />
@@ -515,6 +606,8 @@ function AnalyticsPage() {
   const awards = useAwards(isAdmin);
   const { data: feedbackData } = useFeedbackQuery();
   const feedback = feedbackData ?? [];
+  const { data: hmoMembersData } = useHmoMembersQuery(isAdmin);
+  const allHmoMembers = hmoMembersData ?? [];
 
   // Each tab keeps its own filter state — the three tabs don't share a
   // filterable dimension in common (violations don't have a department,
@@ -535,6 +628,8 @@ function AnalyticsPage() {
   const [onboardingStatus, setOnboardingStatus] = useState<string[]>([]);
   const [attendanceOffice, setAttendanceOffice] = useState<string[]>([]);
   const [attendanceType, setAttendanceType] = useState<string[]>([]);
+  const [hmoMemberType, setHmoMemberType] = useState<string[]>([]);
+  const [hmoEnrollmentStatus, setHmoEnrollmentStatus] = useState<string[]>([]);
 
   // "YYYY-MM-DD" strings compare correctly with plain <=, no Date parsing
   // needed just to validate ordering.
@@ -572,6 +667,16 @@ function AnalyticsPage() {
     [allViolations, attendanceOffice, attendanceType],
   );
 
+  const filteredHmoMembers = useMemo(
+    () =>
+      allHmoMembers.filter(
+        (m) =>
+          (hmoMemberType.length === 0 || hmoMemberType.includes(m.memberType)) &&
+          (hmoEnrollmentStatus.length === 0 || hmoEnrollmentStatus.includes(m.enrollmentStatus)),
+      ),
+    [allHmoMembers, hmoMemberType, hmoEnrollmentStatus],
+  );
+
   const [exporting, setExporting] = useState(false);
 
   function buildExportData(): AnalyticsExportData {
@@ -591,6 +696,9 @@ function AnalyticsPage() {
       filterLines.push(`Attendance · Office: ${attendanceOffice.join(", ")}`);
     if (attendanceType.length)
       filterLines.push(`Attendance · Violation type: ${attendanceType.join(", ")}`);
+    if (hmoMemberType.length) filterLines.push(`HMO · Member type: ${hmoMemberType.join(", ")}`);
+    if (hmoEnrollmentStatus.length)
+      filterLines.push(`HMO · Enrollment status: ${hmoEnrollmentStatus.join(", ")}`);
 
     const active = filteredEmployees.filter((e) => e.status === "Active").length;
     const resigned = filteredEmployees.filter((e) => e.status === "Resigned").length;
@@ -646,6 +754,15 @@ function AnalyticsPage() {
       }),
     );
 
+    const hmoEnrollmentRows = HMO_ENROLLMENT_STATUSES.map((s) => ({
+      status: s,
+      count: filteredHmoMembers.filter((m) => m.enrollmentStatus === s).length,
+    }));
+    const hmoMemberStatusRows = HMO_MEMBER_STATUSES.map((s) => ({
+      status: s,
+      count: filteredHmoMembers.filter((m) => m.memberStatus === s).length,
+    }));
+
     return {
       filterLines,
       summary: [
@@ -657,6 +774,11 @@ function AnalyticsPage() {
         { label: "Attendance Records (filtered)", value: filteredViolations.length },
         { label: "Awards Given (all-time)", value: awards.length },
         { label: "Feedback Cards (all-time)", value: feedback.length },
+        { label: "HMO Members (filtered)", value: filteredHmoMembers.length },
+        {
+          label: "Active HMO Members (filtered)",
+          value: filteredHmoMembers.filter((m) => m.memberStatus === "Active").length,
+        },
       ],
       sections: [
         {
@@ -738,6 +860,16 @@ function AnalyticsPage() {
           title: "Feedback by Status",
           columns: ["Status", "Count"],
           rows: feedbackByStatus.map((r) => [r.status, r.count]),
+        },
+        {
+          title: "HMO Enrollment Status",
+          columns: ["Enrollment Status", "Members"],
+          rows: hmoEnrollmentRows.map((r) => [r.status, r.count]),
+        },
+        {
+          title: "HMO Member Status",
+          columns: ["Member Status", "Members"],
+          rows: hmoMemberStatusRows.map((r) => [r.status, r.count]),
         },
       ],
     };
@@ -827,6 +959,7 @@ function AnalyticsPage() {
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="recognition">Recognition</TabsTrigger>
+          <TabsTrigger value="hmo">HMO</TabsTrigger>
         </TabsList>
 
         <TabsContent value="workforce" className="space-y-4 pt-4">
@@ -956,6 +1089,32 @@ function AnalyticsPage() {
             <AwardsMonthlyTrendChart awards={awards} />
             <FeedbackByTypeChart feedback={feedback} />
             <FeedbackByStatusChart feedback={feedback} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="hmo" className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <MultiSelectFilter
+              label="Member type"
+              selected={hmoMemberType}
+              onChange={setHmoMemberType}
+              options={["Principal", "Dependent"]}
+            />
+            <MultiSelectFilter
+              label="Enrollment status"
+              selected={hmoEnrollmentStatus}
+              onChange={setHmoEnrollmentStatus}
+              options={[...HMO_ENROLLMENT_STATUSES]}
+            />
+            {(hmoMemberType.length > 0 || hmoEnrollmentStatus.length > 0) && (
+              <span className="text-xs text-muted-foreground">
+                Showing {filteredHmoMembers.length} of {allHmoMembers.length} HMO members
+              </span>
+            )}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <HmoEnrollmentStatusChart members={filteredHmoMembers} />
+            <HmoMemberStatusChart members={filteredHmoMembers} />
           </div>
         </TabsContent>
       </Tabs>
