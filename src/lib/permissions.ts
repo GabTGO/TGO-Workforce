@@ -48,12 +48,13 @@ export const PERMISSION_LABELS: Record<Permission, { title: string; description:
     description: "See the Anniversaries and Birthdays pages.",
   },
   "onboarding.view": {
-    title: "View Onboarding",
-    description: "See the onboarding checklist tracker.",
+    title: "View Onboarding Tracker",
+    description:
+      "See the onboarding checklist tracker (distinct from the Onboarding New Hires page, which is gated by View Employees instead).",
   },
   "onboarding.manage": {
-    title: "Manage Onboarding",
-    description: "Add, edit and delete new-hire rows.",
+    title: "Manage Onboarding Tracker",
+    description: "Add, edit and delete new-hire checklist rows.",
   },
   "attendance.view": {
     title: "View Attendance Violations",

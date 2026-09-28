@@ -31,13 +31,16 @@ import type { PortalNewHireStatus } from "@/data/new-hire-portal-api";
 export const Route = createFileRoute("/new-hires")({
   head: () => ({
     meta: [
-      { title: "Onboarding — Torero Global Outsourcing HR Operations" },
+      { title: "Onboarding New Hires — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
           "Candidates in the onboarding pipeline, live from the Onboarding/Offboarding portal.",
       },
-      { property: "og:title", content: "Onboarding — Torero Global Outsourcing HR Operations" },
+      {
+        property: "og:title",
+        content: "Onboarding New Hires — Torero Global Outsourcing HR Operations",
+      },
       {
         property: "og:description",
         content: "Track candidates through the onboarding portal's hiring pipeline.",
@@ -113,7 +116,7 @@ function NewHiresPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Onboarding"
+        title="Onboarding New Hires"
         description="Candidates in the onboarding pipeline, pulled live from the Onboarding/Offboarding portal."
       />
 

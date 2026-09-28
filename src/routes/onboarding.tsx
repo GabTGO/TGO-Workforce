@@ -58,7 +58,7 @@ import { useCurrentAccount } from "@/lib/session";
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
-      { title: "Onboarding Cliq Tracker — Torero Global Outsourcing HR Operations" },
+      { title: "Onboarding Tracker — Torero Global Outsourcing HR Operations" },
       {
         name: "description",
         content:
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/onboarding")({
       },
       {
         property: "og:title",
-        content: "Onboarding Cliq Tracker — Torero Global Outsourcing HR Operations",
+        content: "Onboarding Tracker — Torero Global Outsourcing HR Operations",
       },
       {
         property: "og:description",
@@ -218,7 +218,7 @@ function OnboardingPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Onboarding Cliq Tracker"
+          title="Onboarding Tracker"
           description="Track new hires through the 7-step onboarding checklist."
         />
         <p className="text-sm text-muted-foreground">Checking access…</p>
@@ -230,7 +230,7 @@ function OnboardingPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Onboarding Cliq Tracker"
+          title="Onboarding Tracker"
           description="Track new hires through the 7-step onboarding checklist."
         />
         <Card>
@@ -240,8 +240,8 @@ function OnboardingPage() {
               <p className="font-medium">No access</p>
               <p className="text-sm text-muted-foreground">
                 Your account ({account ? ROLE_LABELS[account.role] : "signed out"}) doesn't have
-                access to Onboarding. Ask a Super Admin to grant it from the permission matrix on
-                User Management if you need it.
+                access to the Onboarding Tracker. Ask a Super Admin to grant it from the permission
+                matrix on User Management if you need it.
               </p>
             </div>
           </CardContent>
@@ -253,7 +253,7 @@ function OnboardingPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Onboarding Cliq Tracker"
+        title="Onboarding Tracker"
         description="Track new hires through the 7-step onboarding checklist."
         action={canManage ? <OnboardingHireDialog onCreated={handleAdded} /> : undefined}
       />

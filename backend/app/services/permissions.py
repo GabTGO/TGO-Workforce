@@ -65,12 +65,13 @@ PERMISSION_LABELS: dict[Permission, dict[str, str]] = {
         "description": "See the Anniversaries and Birthdays pages.",
     },
     Permission.ONBOARDING_VIEW: {
-        "title": "View Onboarding",
-        "description": "See the onboarding checklist tracker.",
+        "title": "View Onboarding Tracker",
+        "description": "See the onboarding checklist tracker (distinct from the Onboarding New "
+        "Hires page, which is gated by View Employees instead).",
     },
     Permission.ONBOARDING_MANAGE: {
-        "title": "Manage Onboarding",
-        "description": "Add, edit and delete new-hire rows (still subject to the SOP's "
+        "title": "Manage Onboarding Tracker",
+        "description": "Add, edit and delete new-hire checklist rows (still subject to the SOP's "
         "Recruitment Lead / Onboarding Specialist checklist-field split).",
     },
     Permission.ATTENDANCE_VIEW: {
