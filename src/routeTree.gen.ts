@@ -29,6 +29,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UserManagementRouteImport } from './routes/user-management'
 import { Route as DirectoryIndexRouteImport } from './routes/directory.index'
 import { Route as DirectoryEmployeeIdRouteImport } from './routes/directory.$employeeId'
+import { Route as HmoManagementIndexRouteImport } from './routes/hmo-management.index'
+import { Route as HmoManagementMemberIdRouteImport } from './routes/hmo-management.$memberId'
 import { Route as UserManagementIndexRouteImport } from './routes/user-management.index'
 import { Route as UserManagementAccountIdRouteImport } from './routes/user-management.$accountId'
 
@@ -132,6 +134,16 @@ const DirectoryEmployeeIdRoute = DirectoryEmployeeIdRouteImport.update({
   path: '/$employeeId',
   getParentRoute: () => DirectoryRoute,
 } as any)
+const HmoManagementIndexRoute = HmoManagementIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => HmoManagementRoute,
+} as any)
+const HmoManagementMemberIdRoute = HmoManagementMemberIdRouteImport.update({
+  id: '/$memberId',
+  path: '/$memberId',
+  getParentRoute: () => HmoManagementRoute,
+} as any)
 const UserManagementIndexRoute = UserManagementIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -155,7 +167,7 @@ export interface FileRoutesByFullPath {
   '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRouteWithChildren
   '/feedback': typeof FeedbackRoute
-  '/hmo-management': typeof HmoManagementRoute
+  '/hmo-management': typeof HmoManagementRouteWithChildren
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -163,8 +175,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRouteWithChildren
   '/directory/$employeeId': typeof DirectoryEmployeeIdRoute
+  '/hmo-management/$memberId': typeof HmoManagementMemberIdRoute
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
   '/directory/': typeof DirectoryIndexRoute
+  '/hmo-management/': typeof HmoManagementIndexRoute
   '/user-management/': typeof UserManagementIndexRoute
 }
 export interface FileRoutesByTo {
@@ -178,15 +192,16 @@ export interface FileRoutesByTo {
   '/birthdays': typeof BirthdaysRoute
   '/database-backups': typeof DatabaseBackupsRoute
   '/feedback': typeof FeedbackRoute
-  '/hmo-management': typeof HmoManagementRoute
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/directory/$employeeId': typeof DirectoryEmployeeIdRoute
+  '/hmo-management/$memberId': typeof HmoManagementMemberIdRoute
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
   '/directory': typeof DirectoryIndexRoute
+  '/hmo-management': typeof HmoManagementIndexRoute
   '/user-management': typeof UserManagementIndexRoute
 }
 export interface FileRoutesById {
@@ -202,7 +217,7 @@ export interface FileRoutesById {
   '/database-backups': typeof DatabaseBackupsRoute
   '/directory': typeof DirectoryRouteWithChildren
   '/feedback': typeof FeedbackRoute
-  '/hmo-management': typeof HmoManagementRoute
+  '/hmo-management': typeof HmoManagementRouteWithChildren
   '/login': typeof LoginRoute
   '/new-hires': typeof NewHiresRoute
   '/onboarding': typeof OnboardingRoute
@@ -210,8 +225,10 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/user-management': typeof UserManagementRouteWithChildren
   '/directory/$employeeId': typeof DirectoryEmployeeIdRoute
+  '/hmo-management/$memberId': typeof HmoManagementMemberIdRoute
   '/user-management/$accountId': typeof UserManagementAccountIdRoute
   '/directory/': typeof DirectoryIndexRoute
+  '/hmo-management/': typeof HmoManagementIndexRoute
   '/user-management/': typeof UserManagementIndexRoute
 }
 export interface FileRouteTypes {
@@ -236,8 +253,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/user-management'
     | '/directory/$employeeId'
+    | '/hmo-management/$memberId'
     | '/user-management/$accountId'
     | '/directory/'
+    | '/hmo-management/'
     | '/user-management/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -251,15 +270,16 @@ export interface FileRouteTypes {
     | '/birthdays'
     | '/database-backups'
     | '/feedback'
-    | '/hmo-management'
     | '/login'
     | '/new-hires'
     | '/onboarding'
     | '/profile'
     | '/settings'
     | '/directory/$employeeId'
+    | '/hmo-management/$memberId'
     | '/user-management/$accountId'
     | '/directory'
+    | '/hmo-management'
     | '/user-management'
   id:
     | '__root__'
@@ -282,8 +302,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/user-management'
     | '/directory/$employeeId'
+    | '/hmo-management/$memberId'
     | '/user-management/$accountId'
     | '/directory/'
+    | '/hmo-management/'
     | '/user-management/'
   fileRoutesById: FileRoutesById
 }
@@ -299,7 +321,7 @@ export interface RootRouteChildren {
   DatabaseBackupsRoute: typeof DatabaseBackupsRoute
   DirectoryRoute: typeof DirectoryRouteWithChildren
   FeedbackRoute: typeof FeedbackRoute
-  HmoManagementRoute: typeof HmoManagementRoute
+  HmoManagementRoute: typeof HmoManagementRouteWithChildren
   LoginRoute: typeof LoginRoute
   NewHiresRoute: typeof NewHiresRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -450,6 +472,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectoryEmployeeIdRouteImport
       parentRoute: typeof DirectoryRoute
     }
+    '/hmo-management/': {
+      id: '/hmo-management/'
+      path: '/'
+      fullPath: '/hmo-management/'
+      preLoaderRoute: typeof HmoManagementIndexRouteImport
+      parentRoute: typeof HmoManagementRoute
+    }
+    '/hmo-management/$memberId': {
+      id: '/hmo-management/$memberId'
+      path: '/$memberId'
+      fullPath: '/hmo-management/$memberId'
+      preLoaderRoute: typeof HmoManagementMemberIdRouteImport
+      parentRoute: typeof HmoManagementRoute
+    }
     '/user-management/': {
       id: '/user-management/'
       path: '/'
@@ -481,6 +517,20 @@ const DirectoryRouteWithChildren = DirectoryRoute._addFileChildren(
   DirectoryRouteChildren,
 )
 
+interface HmoManagementRouteChildren {
+  HmoManagementMemberIdRoute: typeof HmoManagementMemberIdRoute
+  HmoManagementIndexRoute: typeof HmoManagementIndexRoute
+}
+
+const HmoManagementRouteChildren: HmoManagementRouteChildren = {
+  HmoManagementMemberIdRoute: HmoManagementMemberIdRoute,
+  HmoManagementIndexRoute: HmoManagementIndexRoute,
+}
+
+const HmoManagementRouteWithChildren = HmoManagementRoute._addFileChildren(
+  HmoManagementRouteChildren,
+)
+
 interface UserManagementRouteChildren {
   UserManagementAccountIdRoute: typeof UserManagementAccountIdRoute
   UserManagementIndexRoute: typeof UserManagementIndexRoute
@@ -507,7 +557,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatabaseBackupsRoute: DatabaseBackupsRoute,
   DirectoryRoute: DirectoryRouteWithChildren,
   FeedbackRoute: FeedbackRoute,
-  HmoManagementRoute: HmoManagementRoute,
+  HmoManagementRoute: HmoManagementRouteWithChildren,
   LoginRoute: LoginRoute,
   NewHiresRoute: NewHiresRoute,
   OnboardingRoute: OnboardingRoute,

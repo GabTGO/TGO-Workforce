@@ -25,6 +25,9 @@ async def list_activity_logs(
     account: Annotated[Account, Depends(require_account)],
     category: ActivityCategory | None = None,
     severity: ActivitySeverity | None = None,
+    # Exact match on the free-text target column — used by the HMO member
+    # profile page's Activity History panel (target = the member's id).
+    target: str | None = None,
     # Backs the Profile page's "My Activity" section — pass the signed-in
     # account's own id to see only their rows.
     account_id: uuid.UUID | None = None,
@@ -51,6 +54,8 @@ async def list_activity_logs(
         stmt = stmt.where(ActivityLog.severity == severity)
     if account_id is not None:
         stmt = stmt.where(ActivityLog.account_id == account_id)
+    if target is not None:
+        stmt = stmt.where(ActivityLog.target == target)
     stmt = stmt.offset(offset).limit(limit)
 
     result = await db.execute(stmt)

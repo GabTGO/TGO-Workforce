@@ -33,6 +33,7 @@ CATEGORY_PERMISSION: dict[ActivityCategory, Permission | None] = {
     ActivityCategory.EMPLOYEE: Permission.EMPLOYEES_VIEW,
     ActivityCategory.ONBOARDING: Permission.ONBOARDING_VIEW,
     ActivityCategory.ATTENDANCE: Permission.ATTENDANCE_VIEW,
+    ActivityCategory.BENEFITS: Permission.BENEFITS_VIEW,
     ActivityCategory.ACCESS: None,
     ActivityCategory.DATA: None,
     ActivityCategory.SYSTEM: None,

@@ -9,7 +9,7 @@ import { apiUrl } from "@/lib/api";
 // by the Activity Logs page, same as the old hardcoded sample data did.
 
 export type ActivityCategory =
-  "Employee" | "Access" | "Data" | "System" | "Onboarding" | "Attendance";
+  "Employee" | "Access" | "Data" | "System" | "Onboarding" | "Attendance" | "Benefits";
 export type ActivitySeverity = "info" | "warning" | "critical";
 
 export type ActivityLogEntry = {
@@ -32,7 +32,7 @@ type BackendActivityLog = {
   actor_label: string;
   action: string;
   target: string | null;
-  category: "employee" | "access" | "data" | "system" | "onboarding" | "attendance";
+  category: "employee" | "access" | "data" | "system" | "onboarding" | "attendance" | "benefits";
   severity: ActivitySeverity;
   details: Record<string, unknown> | null;
   created_at: string;
@@ -69,10 +69,14 @@ function fromBackend(row: BackendActivityLog): ActivityLogEntry {
 
 async function fetchActivityLogs(opts?: {
   accountId?: string;
+  category?: string;
+  target?: string;
   limit?: number;
 }): Promise<ActivityLogEntry[]> {
   const params = new URLSearchParams({ limit: String(opts?.limit ?? 200) });
   if (opts?.accountId) params.set("account_id", opts.accountId);
+  if (opts?.category) params.set("category", opts.category);
+  if (opts?.target) params.set("target", opts.target);
   const response = await fetch(apiUrl(`/activity-logs?${params.toString()}`), {
     credentials: "include",
   });
@@ -103,6 +107,18 @@ export function useMyActivityLogs(accountId: string | undefined, limit = 10) {
     queryKey: ["activity-logs", "mine", accountId, limit],
     queryFn: () => fetchActivityLogs(accountId ? { accountId, limit } : { limit }),
     enabled: !!accountId,
+    refetchInterval: REALTIME_POLL_MS,
+  });
+}
+
+/** Backs an HMO member's profile page Activity History panel — every
+ * "benefits" category row targeting this one member id. */
+export function useHmoMemberActivityLogs(memberId: string | undefined, limit = 20) {
+  return useQuery({
+    queryKey: ["activity-logs", "benefits", memberId, limit],
+    queryFn: () =>
+      fetchActivityLogs({ category: "benefits", ...(memberId ? { target: memberId } : {}), limit }),
+    enabled: !!memberId,
     refetchInterval: REALTIME_POLL_MS,
   });
 }

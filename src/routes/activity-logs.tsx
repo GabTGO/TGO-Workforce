@@ -52,6 +52,7 @@ const CATEGORY_LABELS: Record<ActivityCategory, string> = {
   Employee: "Employee Directory",
   Onboarding: "Onboarding",
   Attendance: "Attendance",
+  Benefits: "HMO Management",
   Access: "Access & Security",
   Data: "Data",
   System: "System",

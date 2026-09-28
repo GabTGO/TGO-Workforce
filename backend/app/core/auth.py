@@ -188,6 +188,9 @@ require_employee_writer = require_permission(Permission.EMPLOYEES_MANAGE)
 # matrix says — the matrix only decides whether a role reaches this far at all.
 require_onboarding_writer = require_permission(Permission.ONBOARDING_MANAGE)
 
+# Mirrors canManageBenefits in src/lib/permissions.ts.
+require_benefits_writer = require_permission(Permission.BENEFITS_MANAGE)
+
 
 async def require_violation_writer(
     account: Account = Depends(require_account),
