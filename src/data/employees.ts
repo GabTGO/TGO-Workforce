@@ -219,18 +219,13 @@ export function anniversaries(employees: Employee[]) {
       const d = parseCalendarDate(e.startDate);
       if (Number.isNaN(d.getTime())) return [];
       const years = REFERENCE_NOW.getFullYear() - d.getFullYear();
-      // Someone hired this same calendar year hasn't reached a work
-      // anniversary yet — their hire date's month/day would otherwise match
-      // "today" (or "in N days") with a nonsensical "0 yr" badge, which is
-      // just their start date, not an anniversary of it.
-      if (years < 1) return [];
       return [
         {
           ...e,
           monthIndex: d.getMonth(),
           day: d.getDate(),
           monthName: MONTH_NAMES[d.getMonth()]!,
-          years,
+          years: Math.max(years, 0),
         },
       ];
     })

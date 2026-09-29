@@ -153,6 +153,13 @@ function Dashboard() {
   // or back 30 days, so HR can plan upcoming celebrations by default while
   // still keeping the previous recap one click away.
   const recentAnniversaries = anniversaries(employees)
+    // Dashboard-only: someone hired this same calendar year hasn't reached a
+    // work anniversary yet, so their hire date's month/day would otherwise
+    // match "today" (or "in N days") with a nonsensical "0 yr" badge — that's
+    // just their start date, not an anniversary of it. The dedicated
+    // Anniversaries page (routes/anniversaries.tsx) deliberately still shows
+    // these, unchanged.
+    .filter((e) => e.years > 0)
     .map((e) => {
       const daysAway = isUpcomingMilestoneWindow
         ? daysUntilNextOccurrence(e.monthIndex, e.day)
