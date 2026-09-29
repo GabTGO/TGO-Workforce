@@ -95,3 +95,15 @@ class SandboxRoleRequest(BaseModel):
     the route level (sandboxing as Admin/Super Admin would be a no-op)."""
 
     role: AccountRole
+
+
+class SignInStatusRead(BaseModel):
+    """GET /auth/status. `mode` is "zoho" until GATEWAY_URL is set; in
+    "gateway" mode `status` is one of GatewaySignInStatus in app/core/auth.py
+    and the two URLs are where the login page sends the browser."""
+
+    mode: Literal["zoho", "gateway"]
+    status: str | None = None
+    detail: str | None = None
+    login_url: str | None = None
+    logout_url: str | None = None
