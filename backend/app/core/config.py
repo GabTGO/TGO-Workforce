@@ -96,6 +96,26 @@ class Settings(BaseSettings):
     onboarding_portal_base_url: str = ""
     onboarding_portal_api_key: str = ""
 
+    # --- TGO Gateway single sign-on ----------------------------------------
+    # Set GATEWAY_URL (https://gateway.tgocorp.com) and the Gateway owns
+    # sign-in: every request forwards the shared Gateway cookie to
+    # ${GATEWAY_URL}/api/auth/verify with {toolId: gateway_tool_id}, and the
+    # in-app Zoho login is switched off. Leave it empty for local development
+    # and the Zoho login above keeps working unchanged. See app/core/gateway.py.
+    gateway_url: str = ""
+    # Must equal the tool's id in the Gateway registry (TGO-Gateway-Portal
+    # src/data/tools.ts), or verify answers 403 for everyone but Super Admin.
+    gateway_tool_id: str = "workforce"
+    gateway_session_cookie: str = "tgo_gateway_session"
+
+    @property
+    def gateway_enabled(self) -> bool:
+        return bool(self.gateway_url.strip())
+
+    @property
+    def gateway_base_url(self) -> str:
+        return self.gateway_url.strip().rstrip("/")
+
     @property
     def cliq_configured(self) -> bool:
         return bool(self.cliq_webhook_endpoint and self.cliq_webhook_token)

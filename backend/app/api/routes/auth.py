@@ -22,6 +22,10 @@
                      UI preview, so they can actually prove the permission
                      matrix works end to end.
 /auth/logout       clears the session cookie.
+/auth/status       which sign-in this deployment uses (Zoho, or the TGO Gateway
+                     once GATEWAY_URL is set) and, for the Gateway, where the
+                     caller stands: the login page reads it to redirect to the
+                     Gateway or explain a denial instead of looping.
 """
 
 import secrets
@@ -34,14 +38,27 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import SANDBOX_SESSION_KEY, get_current_account, get_effective_role, require_account
+from app.core import gateway
+from app.core.auth import (
+    GATEWAY_STATUS_DETAIL,
+    SANDBOX_SESSION_KEY,
+    get_current_account,
+    get_effective_role,
+    require_account,
+    resolve_gateway_account,
+)
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.models.account import Account, AccountRole
 from app.models.activity_log import ActivityCategory, ActivitySeverity
 from app.models.pending_invite import PendingInvite
 from app.models.session import AccountSession
-from app.schemas.account import AccountPreferencesUpdate, AccountRead, SandboxRoleRequest
+from app.schemas.account import (
+    AccountPreferencesUpdate,
+    AccountRead,
+    SandboxRoleRequest,
+    SignInStatusRead,
+)
 from app.services import zoho
 from app.services.activity_log import record_activity
 from app.services.app_settings import get_app_settings
@@ -66,8 +83,32 @@ async def _account_read(db: AsyncSession, account: Account, request: Request) ->
     return account_read
 
 
+@router.get("/status", response_model=SignInStatusRead)
+async def sign_in_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> SignInStatusRead:
+    if not settings.gateway_enabled:
+        return SignInStatusRead(mode="zoho")
+    sign_in = await resolve_gateway_account(request, db, settings)
+    return SignInStatusRead(
+        mode="gateway",
+        status=sign_in.status,
+        detail=GATEWAY_STATUS_DETAIL.get(sign_in.status),
+        login_url=gateway.login_url(settings, f"{settings.frontend_url.rstrip('/')}/"),
+        logout_url=gateway.logout_url(settings),
+    )
+
+
 @router.get("/zoho/login")
 async def zoho_login(request: Request, settings: Settings = Depends(get_settings)):
+    # With the Gateway in front, it is the only way in: an old bookmark or
+    # button pointing here goes to the Gateway login instead.
+    if settings.gateway_enabled:
+        return RedirectResponse(
+            gateway.login_url(settings, f"{settings.frontend_url.rstrip('/')}/")
+        )
     if not settings.zoho_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -117,6 +158,8 @@ async def zoho_callback(
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
+    if settings.gateway_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     expected_state = request.session.pop("oauth_state", None)
     failure_redirect = f"{settings.frontend_url}/login?error=zoho"
     client_ip = get_client_ip(request)

@@ -1,11 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BarChart3, ScrollText, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { fetchCurrentAccount, signInWithZoho } from "@/lib/session";
+import {
+  fetchCurrentAccount,
+  fetchSignInStatus,
+  signInWithZoho,
+  type SignInStatus,
+} from "@/lib/session";
 import tgoLogoOnDark from "@/assets/tgo-logo-ondark.png";
 
 export const Route = createFileRoute("/login")({
@@ -32,13 +37,33 @@ const HIGHLIGHTS = [
 
 function LoginPage() {
   const navigate = useNavigate();
+  // Null until /auth/status answers. With the TGO Gateway in front (mode
+  // "gateway"), this page never shows the Zoho button: a signed-out visitor
+  // goes straight to the Gateway, and anyone the Gateway turned away sees why
+  // instead of bouncing between the two.
+  const [signIn, setSignIn] = useState<SignInStatus | null>(null);
 
-  // Already signed in — no reason to show the login screen.
   useEffect(() => {
     let cancelled = false;
-    fetchCurrentAccount().then((profile) => {
-      if (!cancelled && profile) {
+    fetchSignInStatus().then(async (result) => {
+      if (cancelled) return;
+      if (result.mode === "gateway") {
+        if (result.status === "signed_in") {
+          navigate({ to: "/" });
+        } else if (result.status === "signed_out" && result.login_url) {
+          window.location.href = result.login_url;
+        } else {
+          setSignIn(result);
+        }
+        return;
+      }
+      // Zoho mode: already signed in — no reason to show the login screen.
+      const profile = await fetchCurrentAccount();
+      if (cancelled) return;
+      if (profile) {
         navigate({ to: "/" });
+      } else {
+        setSignIn(result);
       }
     });
     return () => {
@@ -85,16 +110,23 @@ function LoginPage() {
         <div className="flex flex-col justify-center px-8 py-12 sm:px-10">
           <div className="mx-auto w-full max-w-xs">
             <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Sign in to your HR Operations account
-            </p>
-            <Button
-              className="mt-6 w-full shadow-sm transition-shadow hover:shadow-md"
-              size="lg"
-              onClick={handleZohoSignIn}
-            >
-              Continue with Zoho
-            </Button>
+            {signIn?.mode === "gateway" ? (
+              <GatewayNotice signIn={signIn} />
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Sign in to your HR Operations account
+                </p>
+                <Button
+                  className="mt-6 w-full shadow-sm transition-shadow hover:shadow-md"
+                  size="lg"
+                  disabled={!signIn}
+                  onClick={handleZohoSignIn}
+                >
+                  Continue with Zoho
+                </Button>
+              </>
+            )}
             <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
               Access is limited to authorized HR Operations staff. Contact your admin if you
               can't sign in.
@@ -143,5 +175,35 @@ function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Why a Gateway-mode visitor is still on this page. Every case offers one way
+// forward; an ended session or a denial needs a fresh Gateway sign-in (possibly
+// as someone else), so that button signs out of the Gateway first.
+function GatewayNotice({ signIn }: { signIn: SignInStatus }) {
+  const ended = signIn.status === "ended";
+  const message = ended
+    ? "Your session was ended by an admin. Sign in again through the TGO Gateway."
+    : (signIn.detail ?? "Sign in through the TGO Gateway to continue.");
+  const retry = signIn.status === "unavailable" || !signIn.logout_url;
+
+  return (
+    <>
+      <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+      <Button
+        className="mt-6 w-full shadow-sm transition-shadow hover:shadow-md"
+        size="lg"
+        onClick={() => {
+          if (retry) {
+            window.location.reload();
+          } else if (signIn.logout_url) {
+            window.location.href = signIn.logout_url;
+          }
+        }}
+      >
+        {retry ? "Try again" : ended ? "Sign in again" : "Sign in as someone else"}
+      </Button>
+    </>
   );
 }

@@ -1,4 +1,6 @@
-"""Session-backed auth, wired to the Zoho OAuth login flow.
+"""Session-backed auth, wired to the Zoho OAuth login flow — or, once
+GATEWAY_URL is set, to the TGO Gateway (see resolve_gateway_account below and
+app/core/gateway.py), which then replaces the Zoho login entirely.
 
 The session itself is a signed, httpOnly cookie (Starlette's SessionMiddleware,
 added in app/main.py) holding the account id plus (since the "active
@@ -19,16 +21,32 @@ and app/services/permissions.py. Admin and Super Admin bypass it entirely.
 
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.core.db import get_db
+from app.core.gateway import (
+    GatewayProfile,
+    gateway_token,
+    token_fingerprint,
+    verify_gateway_session,
+)
 from app.models.account import Account, AccountRole
+from app.models.activity_log import ActivityCategory, ActivitySeverity
+from app.models.pending_invite import PendingInvite
 from app.models.permission import Permission
 from app.models.session import AccountSession
+from app.services.activity_log import record_activity
+from app.services.app_settings import get_app_settings
 from app.services.permissions import PERMISSION_LABELS, has_permission
+from app.services.session_info import get_client_ip, lookup_location_label, parse_device_label
 
 # How stale last_seen_at has to be before a request bothers updating it — a
 # write on literally every authenticated request (this app polls several
@@ -64,20 +82,21 @@ def get_effective_role(account: Account, request: Request) -> AccountRole:
         return account.role
 
 
-async def get_current_account(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> Account | None:
+async def _account_from_session(request: Request, db: AsyncSession) -> tuple[Account | None, bool]:
+    """This app's own signed session cookie -> (live Account or None, revoked).
+    `revoked` is True only when the cookie names a session a Super Admin
+    terminated (or that logged out), which Gateway mode needs to tell apart
+    from "no session yet"."""
     raw_id = request.session.get("account_id")
     if not raw_id:
-        return None
+        return None, False
     try:
         account_id = uuid.UUID(raw_id)
     except ValueError:
-        return None
+        return None, False
     account = await db.get(Account, account_id)
     if account is None or not account.is_active:
-        return None
+        return None, False
 
     # A cookie set before the "active sessions" feature shipped has no
     # session_id in it at all — skip the revocation check entirely for those
@@ -92,13 +111,208 @@ async def get_current_account(
         if session_id is not None:
             account_session = await db.get(AccountSession, session_id)
             if account_session is None or account_session.revoked_at is not None:
-                return None
+                return None, True
             now = datetime.now(UTC)
             if now - account_session.last_seen_at >= SESSION_LAST_SEEN_THROTTLE:
                 account_session.last_seen_at = now
                 await db.commit()
 
+    return account, False
+
+
+# --- TGO Gateway mode ---------------------------------------------------------
+# Session key tying this app's session cookie to one Gateway session — see
+# token_fingerprint in app/core/gateway.py.
+GATEWAY_FINGERPRINT_SESSION_KEY = "gateway_fp"
+
+GatewaySignInStatus = Literal[
+    "signed_in",
+    # No Gateway session, or it expired: sign in at the Gateway.
+    "signed_out",
+    # A Super Admin terminated this session here. It stays ended until the
+    # person signs out of the Gateway and back in (a new Gateway session).
+    "ended",
+    # Signed in at the Gateway, but not granted TGO Workforce there.
+    "denied",
+    # The Gateway didn't answer. Fail closed, never fall back to Zoho.
+    "unavailable",
+    # Same meanings as the Zoho callback's ?error=inactive / ?error=invite_only.
+    "inactive",
+    "invite_only",
+]
+
+GATEWAY_STATUS_DETAIL: dict[str, str] = {
+    "denied": (
+        "Your TGO Gateway account doesn't have access to TGO Workforce. "
+        "Request it from the Gateway."
+    ),
+    "unavailable": "The TGO Gateway isn't responding. Try again in a minute.",
+    "inactive": "Your account isn't active yet. Contact your admin.",
+    "invite_only": (
+        "Sign-in is currently invite-only. Ask an admin to add you from User Management."
+    ),
+}
+
+
+@dataclass(frozen=True)
+class GatewaySignIn:
+    status: GatewaySignInStatus
+    account: Account | None = None
+
+
+async def resolve_gateway_account(
+    request: Request, db: AsyncSession, settings: Settings
+) -> GatewaySignIn:
+    """Gateway mode's replacement for reading this app's own session alone.
+
+    The Gateway decides whether the person is signed in and may open TGO
+    Workforce; the Account row (role, restrictions, preferences) is still this
+    app's, matched on email. The local session cookie is kept on top, bound to
+    the Gateway session, so the active-sessions panel, terminate and sandbox
+    all keep working as they did with Zoho."""
+    token = gateway_token(request.cookies, settings)
+    result = await verify_gateway_session(token, settings)
+    if result.status == "unauthenticated":
+        return GatewaySignIn("signed_out")
+    if result.status != "ok" or result.profile is None:
+        return GatewaySignIn(result.status)  # denied / unavailable
+    profile = result.profile
+    fingerprint = token_fingerprint(token)
+
+    # The common path: this browser already has a session here for this same
+    # Gateway session.
+    if request.session.get(GATEWAY_FINGERPRINT_SESSION_KEY) == fingerprint:
+        account, revoked = await _account_from_session(request, db)
+        if revoked:
+            return GatewaySignIn("ended")
+        if account is not None and account.email.lower() == profile.email:
+            return GatewaySignIn("signed_in", account)
+
+    # First visit, or a new Gateway sign-in (possibly as someone else).
+    account = await _upsert_gateway_account(db, profile, settings)
+    if account is None:
+        return GatewaySignIn("invite_only")
+    if not account.is_active:
+        await record_activity(
+            db,
+            action="Sign-in rejected: account inactive",
+            category=ActivityCategory.ACCESS,
+            account=account,
+            severity=ActivitySeverity.WARNING,
+            commit=True,
+        )
+        return GatewaySignIn("inactive")
+
+    client_ip = get_client_ip(request)
+    account_session = AccountSession(
+        id=uuid.uuid4(),
+        account_id=account.id,
+        ip_address=client_ip,
+        device_label=parse_device_label(request.headers.get("user-agent")),
+        location_label=await lookup_location_label(client_ip),
+    )
+    db.add(account_session)
+    account.last_login_at = datetime.now(UTC)
+    await db.commit()
+    # updated_at is server-set on that UPDATE; load it now; a lazy load later
+    # (building AccountRead) would be sync IO on an async session.
+    await db.refresh(account)
+
+    request.session.pop(SANDBOX_SESSION_KEY, None)
+    request.session["account_id"] = str(account.id)
+    request.session["session_id"] = str(account_session.id)
+    request.session[GATEWAY_FINGERPRINT_SESSION_KEY] = fingerprint
+
+    await record_activity(
+        db,
+        action="Signed in via TGO Gateway",
+        category=ActivityCategory.ACCESS,
+        account=account,
+        details={"ip_address": client_ip} if client_ip else None,
+        commit=True,
+    )
+    return GatewaySignIn("signed_in", account)
+
+
+async def _upsert_gateway_account(
+    db: AsyncSession, profile: GatewayProfile, settings: Settings
+) -> Account | None:
+    """The Gateway's version of the Zoho callback's upsert: same PendingInvite,
+    invite-only and admin-allowlist rules, matched on email instead of ZUID
+    (the Gateway doesn't hand out ZUIDs). None means invite-only rejected it."""
+    result = await db.execute(select(Account).where(func.lower(Account.email) == profile.email))
+    account = result.scalar_one_or_none()
+
+    if account is None:
+        invite_result = await db.execute(
+            select(PendingInvite).where(PendingInvite.email == profile.email)
+        )
+        pending_invite = invite_result.scalar_one_or_none()
+        if pending_invite is None and profile.email not in settings.admin_email_set:
+            app_settings = await get_app_settings(db)
+            if app_settings.invite_only_signup:
+                await db.commit()  # persist the get-or-create'd settings row
+                await record_activity(
+                    db,
+                    action="Sign-in rejected: invite required",
+                    category=ActivityCategory.ACCESS,
+                    actor_label=profile.email,
+                    severity=ActivitySeverity.WARNING,
+                    commit=True,
+                )
+                return None
+
+        first_name, _, last_name = (profile.name or "").partition(" ")
+        account = Account(
+            # zoho_user_id is NOT NULL + unique; a Gateway-created account
+            # has no ZUID, so it carries the Gateway's user id instead.
+            zoho_user_id=f"gateway:{profile.user_id or profile.email}",
+            email=profile.email,
+            first_name=first_name or None,
+            last_name=last_name or None,
+            display_name=profile.name,
+            role=pending_invite.role if pending_invite else AccountRole.VIEWER,
+        )
+        db.add(account)
+        if pending_invite is not None:
+            await db.delete(pending_invite)
+
+    if profile.email in settings.admin_email_set:
+        account.role = AccountRole.ADMIN
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two first requests raced to create the same account; use the winner.
+        await db.rollback()
+        result = await db.execute(select(Account).where(func.lower(Account.email) == profile.email))
+        return result.scalar_one()
+    await db.refresh(account)
     return account
+
+
+async def get_current_account(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Account | None:
+    if not settings.gateway_enabled:
+        account, _ = await _account_from_session(request, db)
+        return account
+
+    sign_in = await resolve_gateway_account(request, db, settings)
+    if sign_in.status == "signed_in":
+        return sign_in.account
+    if sign_in.status == "unavailable":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=GATEWAY_STATUS_DETAIL["unavailable"],
+        )
+    if sign_in.status in GATEWAY_STATUS_DETAIL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=GATEWAY_STATUS_DETAIL[sign_in.status]
+        )
+    return None  # signed_out / ended
 
 
 async def require_account(
