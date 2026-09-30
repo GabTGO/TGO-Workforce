@@ -111,6 +111,37 @@ export function signInWithZoho(): void {
   window.location.href = apiUrl("/auth/zoho/login");
 }
 
+// GET /auth/status — which sign-in this deployment uses. "zoho" until the
+// backend has GATEWAY_URL set; then the TGO Gateway owns sign-in and `status`
+// says where this browser stands (see GatewaySignInStatus in
+// backend/app/core/auth.py).
+export type GatewaySignInStatus =
+  "signed_in" | "signed_out" | "ended" | "denied" | "unavailable" | "inactive" | "invite_only";
+
+export interface SignInStatus {
+  mode: "zoho" | "gateway";
+  status: GatewaySignInStatus | null;
+  detail: string | null;
+  login_url: string | null;
+  logout_url: string | null;
+}
+
+export async function fetchSignInStatus(): Promise<SignInStatus> {
+  try {
+    const response = await fetch(apiUrl("/auth/status"), { credentials: "include" });
+    if (response.ok) return (await response.json()) as SignInStatus;
+  } catch {
+    // Fall through: an unreachable backend is shown like an unreachable Gateway.
+  }
+  return {
+    mode: "gateway",
+    status: "unavailable",
+    detail: "TGO Workforce isn't responding. Try again in a minute.",
+    login_url: null,
+    logout_url: null,
+  };
+}
+
 export async function fetchCurrentAccount(): Promise<AccountProfile | null> {
   try {
     const response = await fetch(apiUrl("/auth/me"), {
@@ -207,7 +238,10 @@ export function useExitSandbox() {
   });
 }
 
-export async function signOut(): Promise<void> {
+/** Ends this app's session. Resolves to the TGO Gateway's logout URL when the
+ * Gateway owns sign-in: the caller must go there too, or the still-live
+ * Gateway session signs them straight back in on the next request. */
+export async function signOut(): Promise<string | null> {
   try {
     await fetch(apiUrl("/auth/logout"), {
       method: "POST",
@@ -216,4 +250,6 @@ export async function signOut(): Promise<void> {
   } catch {
     // Best-effort — the cookie expires on its own even if this call fails.
   }
+  const signIn = await fetchSignInStatus();
+  return signIn.mode === "gateway" ? signIn.logout_url : null;
 }

@@ -48,7 +48,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [isLoading, account, navigate]);
 
   async function handleSignOut() {
-    await signOut();
+    const gatewayLogoutUrl = await signOut();
+    if (gatewayLogoutUrl) {
+      window.location.href = gatewayLogoutUrl;
+      return;
+    }
     navigate({ to: "/login" });
   }
 
