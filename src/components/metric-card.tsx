@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { motion } from "motion/react";
 import type { LucideIcon } from "lucide-react";
 import { TrendingDown, TrendingUp } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentAccount } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -48,15 +47,19 @@ function AnimatedNumber({ value, enabled }: { value: number; enabled: boolean })
   return <>{displayed.toLocaleString()}</>;
 }
 
-// --- Decorative curve ------------------------------------------------------
+// --- Decorative mini-graphs ------------------------------------------------
 // Most metric cards across the app only have a *current* count in the
 // database — no stored month-by-month history — so there's no genuine trend
 // to plot. Rather than leave those cards graph-less, they get a soft,
-// deterministic ornamental wave (seeded off the card title so it's stable
-// across renders but varied between cards). It's deliberately drawn faint and
-// carries NO percentage badge, so it reads as card chrome, not as real data —
-// only cards given a real `sparkline` get the strong colored line + a gain/
-// loss badge.
+// deterministic ornamental mini-graph, seeded off the card title so it's
+// stable across renders but *varied between cards*: the seed also picks which
+// shape (smooth area / bars / line) a card gets, so a grid of cards doesn't
+// read as one repeated squiggle. It's drawn faint and carries NO percentage
+// badge — card chrome, not real data. Only cards given a real `sparkline` get
+// the strong colored line + a gain/loss badge.
+
+type ChartKind = "area" | "bar" | "line";
+const DECORATIVE_KINDS: ChartKind[] = ["area", "bar", "line"];
 
 function hashSeed(s: string): number {
   let h = 2166136261;
@@ -78,13 +81,20 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function decorativeCurve(seed: string, points = 9): number[] {
+/** A smooth, gentle wave (sine-based, not a random walk) so decorative graphs
+ * read as a calm trend rather than jagged spaghetti. Seeded phase/amplitude/
+ * drift/frequency give each card its own distinct-but-tidy shape. */
+function decorativeCurve(seed: string, points: number): number[] {
   const rand = mulberry32(hashSeed(seed));
-  let v = 0.4 + rand() * 0.2;
+  const phase = rand() * Math.PI * 2;
+  const freq = 1 + rand() * 1.4;
+  const amp = 0.16 + rand() * 0.12;
+  const drift = (rand() - 0.4) * 0.4;
   const out: number[] = [];
   for (let i = 0; i < points; i += 1) {
-    v += (rand() - 0.45) * 0.25;
-    v = Math.max(0.12, Math.min(0.9, v));
+    const t = points > 1 ? i / (points - 1) : 0;
+    let v = 0.5 + Math.sin(phase + t * Math.PI * freq) * amp + drift * (t - 0.5);
+    v = Math.max(0.12, Math.min(0.92, v));
     out.push(v);
   }
   return out;
@@ -125,20 +135,16 @@ export function MetricCard({
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const gradientId = useId();
 
-  // Built conditionally (rather than passing `undefined` props) so it type-
-  // checks under exactOptionalPropertyTypes, and so nothing animates at all
-  // when the account has turned animations off.
-  const iconMotion = animationsEnabled
-    ? {
-        animate: { y: [0, -2.5, 0] },
-        transition: { duration: 3, repeat: Infinity, ease: "easeInOut" as const },
-        whileHover: { scale: 1.18, rotate: -8 },
-        whileTap: { scale: 0.92 },
-      }
-    : {};
-
   const isReal = !!sparkline && sparkline.length > 1;
-  const series = isReal ? sparkline : decorativeCurve(title);
+  // Decorative cards pick their shape from the same seed as the curve, so a
+  // grid shows a mix of areas, bars and lines rather than one repeated shape.
+  const kind: ChartKind = isReal
+    ? "area"
+    : DECORATIVE_KINDS[hashSeed(title) % DECORATIVE_KINDS.length]!;
+  // Bars read cleaner with fewer, chunkier columns; lines/areas want more
+  // points to look smooth.
+  const points = kind === "bar" ? 7 : 10;
+  const series = isReal ? sparkline : decorativeCurve(title, points);
   const first = series[0]!;
   const last = series[series.length - 1]!;
   const changePercent = isReal && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
@@ -168,12 +174,9 @@ export function MetricCard({
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <motion.span
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary"
-          {...iconMotion}
-        >
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Icon className="h-4 w-4" />
-        </motion.span>
+        </span>
       </CardHeader>
       <CardContent>
         <div className="flex items-end justify-between gap-2">
@@ -201,29 +204,57 @@ export function MetricCard({
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
         <div
           key={`${pathname}-${animationsEnabled}`}
-          className={cn("-mx-1 mt-3 h-12 w-[calc(100%+0.5rem)]", !isReal && "opacity-50")}
+          className={cn("-mx-1 mt-3 h-12 w-[calc(100%+0.5rem)]", !isReal && "opacity-60")}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={lineColor} stopOpacity={isReal ? 0.35 : 0.18} />
-                  <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area
-                type="monotone"
-                dataKey="v"
-                stroke={lineColor}
-                strokeWidth={isReal ? 2 : 1.5}
-                strokeOpacity={isReal ? 1 : 0.55}
-                fill={`url(#${gradientId})`}
-                isAnimationActive={animationsEnabled}
-                animationDuration={900}
-                animationEasing="ease-out"
-                dot={false}
-              />
-            </AreaChart>
+            {kind === "bar" ? (
+              <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                <Bar
+                  dataKey="v"
+                  fill={lineColor}
+                  fillOpacity={isReal ? 0.8 : 0.5}
+                  radius={[2, 2, 0, 0]}
+                  isAnimationActive={animationsEnabled}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                />
+              </BarChart>
+            ) : kind === "line" ? (
+              <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                <Line
+                  type="monotone"
+                  dataKey="v"
+                  stroke={lineColor}
+                  strokeWidth={isReal ? 2 : 1.5}
+                  strokeOpacity={isReal ? 1 : 0.65}
+                  isAnimationActive={animationsEnabled}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                  dot={false}
+                />
+              </LineChart>
+            ) : (
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={lineColor} stopOpacity={isReal ? 0.35 : 0.2} />
+                    <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="v"
+                  stroke={lineColor}
+                  strokeWidth={isReal ? 2 : 1.5}
+                  strokeOpacity={isReal ? 1 : 0.65}
+                  fill={`url(#${gradientId})`}
+                  isAnimationActive={animationsEnabled}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                  dot={false}
+                />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
       </CardContent>
