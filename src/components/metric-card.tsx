@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
+import { motion } from "motion/react";
 import type { LucideIcon } from "lucide-react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
@@ -47,6 +48,48 @@ function AnimatedNumber({ value, enabled }: { value: number; enabled: boolean })
   return <>{displayed.toLocaleString()}</>;
 }
 
+// --- Decorative curve ------------------------------------------------------
+// Most metric cards across the app only have a *current* count in the
+// database — no stored month-by-month history — so there's no genuine trend
+// to plot. Rather than leave those cards graph-less, they get a soft,
+// deterministic ornamental wave (seeded off the card title so it's stable
+// across renders but varied between cards). It's deliberately drawn faint and
+// carries NO percentage badge, so it reads as card chrome, not as real data —
+// only cards given a real `sparkline` get the strong colored line + a gain/
+// loss badge.
+
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function decorativeCurve(seed: string, points = 9): number[] {
+  const rand = mulberry32(hashSeed(seed));
+  let v = 0.4 + rand() * 0.2;
+  const out: number[] = [];
+  for (let i = 0; i < points; i += 1) {
+    v += (rand() - 0.45) * 0.25;
+    v = Math.max(0.12, Math.min(0.9, v));
+    out.push(v);
+  }
+  return out;
+}
+
 export function MetricCard({
   title,
   value,
@@ -65,13 +108,11 @@ export function MetricCard({
    * and src/routes/index.tsx). Omit for a plain, non-interactive card, same
    * as every existing usage before this prop existed. */
   onClick?: () => void;
-  /** Optional recent-history series, oldest → newest (e.g. the last 6
-   * months' headcount) — renders as a small animated trend line + a
-   * gain/loss badge under the value, matching the "metric card with a graph
-   * inside" reference look. Most metric cards across the app have no real
-   * day-by-day series behind their number, so this stays opt-in rather than
-   * ever faking one — omit it for the plain KPI layout. Needs at least 2
-   * points to draw a line. */
+  /** A REAL recent-history series, oldest → newest (e.g. the last 6 months'
+   * headcount) — renders as a strong animated trend line + a gain/loss badge.
+   * Omit it and the card still shows an animated line, but a faint decorative
+   * one with no badge (see decorativeCurve above), since most metrics have no
+   * genuine series stored behind them. Needs at least 2 points. */
   sparkline?: number[];
 }) {
   const { data: account } = useCurrentAccount();
@@ -84,13 +125,26 @@ export function MetricCard({
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const gradientId = useId();
 
-  const hasTrend = !!sparkline && sparkline.length > 1;
-  const first = hasTrend ? sparkline[0]! : 0;
-  const last = hasTrend ? sparkline[sparkline.length - 1]! : 0;
-  const changePercent = hasTrend && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
+  // Built conditionally (rather than passing `undefined` props) so it type-
+  // checks under exactOptionalPropertyTypes, and so nothing animates at all
+  // when the account has turned animations off.
+  const iconMotion = animationsEnabled
+    ? {
+        animate: { y: [0, -2.5, 0] },
+        transition: { duration: 3, repeat: Infinity, ease: "easeInOut" as const },
+        whileHover: { scale: 1.18, rotate: -8 },
+        whileTap: { scale: 0.92 },
+      }
+    : {};
+
+  const isReal = !!sparkline && sparkline.length > 1;
+  const series = isReal ? sparkline : decorativeCurve(title);
+  const first = series[0]!;
+  const last = series[series.length - 1]!;
+  const changePercent = isReal && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
   const trendUp = (changePercent ?? 0) >= 0;
-  const trendColor = trendUp ? "var(--chart-1)" : "var(--destructive)";
-  const chartData = hasTrend ? sparkline.map((v, i) => ({ i, v })) : [];
+  const lineColor = isReal ? (trendUp ? "var(--chart-1)" : "var(--destructive)") : "var(--primary)";
+  const chartData = series.map((v, i) => ({ i, v }));
 
   return (
     <Card
@@ -107,17 +161,19 @@ export function MetricCard({
             }
           : undefined
       }
-      className={
-        onClick
-          ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40"
-          : undefined
-      }
+      className={cn(
+        "group overflow-hidden",
+        onClick && "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40",
+      )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <motion.span
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary"
+          {...iconMotion}
+        >
           <Icon className="h-4 w-4" />
-        </span>
+        </motion.span>
       </CardHeader>
       <CardContent>
         <div className="flex items-end justify-between gap-2">
@@ -143,34 +199,33 @@ export function MetricCard({
           )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-        {hasTrend && (
-          <div
-            key={`${pathname}-${animationsEnabled}`}
-            className="-mx-1 mt-3 h-12 w-[calc(100%+0.5rem)]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                <defs>
-                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={trendColor} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={trendColor} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area
-                  type="monotone"
-                  dataKey="v"
-                  stroke={trendColor}
-                  strokeWidth={2}
-                  fill={`url(#${gradientId})`}
-                  isAnimationActive={animationsEnabled}
-                  animationDuration={900}
-                  animationEasing="ease-out"
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        <div
+          key={`${pathname}-${animationsEnabled}`}
+          className={cn("-mx-1 mt-3 h-12 w-[calc(100%+0.5rem)]", !isReal && "opacity-50")}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lineColor} stopOpacity={isReal ? 0.35 : 0.18} />
+                  <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="v"
+                stroke={lineColor}
+                strokeWidth={isReal ? 2 : 1.5}
+                strokeOpacity={isReal ? 1 : 0.55}
+                fill={`url(#${gradientId})`}
+                isAnimationActive={animationsEnabled}
+                animationDuration={900}
+                animationEasing="ease-out"
+                dot={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );
