@@ -571,7 +571,9 @@ function Dashboard() {
                               <p className="font-medium">
                                 <EmployeeNameLink employee={e} />
                               </p>
-                              <p className="text-xs text-muted-foreground">{e.department}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {[e.department, e.office].filter(Boolean).join(" · ")}
+                              </p>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {e.monthName} {e.day}
