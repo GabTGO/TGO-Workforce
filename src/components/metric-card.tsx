@@ -3,6 +3,7 @@ import { useRouterState } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentAccount } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 const COUNT_UP_MS = 700;
 
@@ -86,15 +87,16 @@ export function MetricCard({
             }
           : undefined
       }
-      className={
-        onClick
-          ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40"
-          : undefined
-      }
+      className={cn(
+        "border-l-4 border-l-brand-navy",
+        onClick && "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40",
+      )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-navy/10 text-brand-navy dark:bg-brand-navy/25 dark:text-white">
+          <Icon className="h-4 w-4" />
+        </span>
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-semibold tracking-tight">
