@@ -62,8 +62,10 @@ import {
   daysUntilNextOccurrence,
   formatDate,
   formatYears,
+  headcountTrend,
   MILESTONE_TIME_FILTER_LABELS,
   metrics,
+  monthlyHiringTrend,
   officeDistribution,
   parseCalendarDate,
   tenureDays,
@@ -144,6 +146,11 @@ function Dashboard() {
   const total = dist.reduce((sum, d) => sum + d.active + d.inactive, 0);
   const resignedCount = employees.filter((e) => e.status === "Resigned").length;
   const terminatedCount = employees.filter((e) => e.status === "Terminated").length;
+  // Real recent-history series (not fabricated) for the two KPI cards below
+  // that have a genuine trend behind their number — see MetricCard's own
+  // `sparkline` prop doc for why this stays opt-in per card.
+  const headcountSparkline = headcountTrend(employees).map((d) => d.headcount);
+  const hiringSparkline = monthlyHiringTrend(employees).map((d) => d.hires);
   const [milestoneWindow, setMilestoneWindow] = useState<DashboardMilestoneWindow>("next-30");
   const isUpcomingMilestoneWindow = milestoneWindow === "next-30";
   const milestoneWindowLabel = MILESTONE_TIME_FILTER_LABELS[milestoneWindow];
@@ -793,6 +800,7 @@ function Dashboard() {
             hint="Currently employed"
             icon={Users}
             onClick={() => setOpenMetric("active")}
+            sparkline={headcountSparkline}
           />
           <MetricCard
             title="New Hires"
@@ -800,6 +808,7 @@ function Dashboard() {
             hint={`Started in last ${RECENT_HIRE_DAYS} days`}
             icon={UserPlus}
             onClick={() => setOpenMetric("newHires")}
+            sparkline={hiringSparkline}
           />
           <MetricCard
             title="Exits"

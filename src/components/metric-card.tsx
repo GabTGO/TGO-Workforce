@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentAccount } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -51,6 +53,7 @@ export function MetricCard({
   hint,
   icon: Icon,
   onClick,
+  sparkline,
 }: {
   title: string;
   value: number | string;
@@ -62,6 +65,14 @@ export function MetricCard({
    * and src/routes/index.tsx). Omit for a plain, non-interactive card, same
    * as every existing usage before this prop existed. */
   onClick?: () => void;
+  /** Optional recent-history series, oldest → newest (e.g. the last 6
+   * months' headcount) — renders as a small animated trend line + a
+   * gain/loss badge under the value, matching the "metric card with a graph
+   * inside" reference look. Most metric cards across the app have no real
+   * day-by-day series behind their number, so this stays opt-in rather than
+   * ever faking one — omit it for the plain KPI layout. Needs at least 2
+   * points to draw a line. */
+  sparkline?: number[];
 }) {
   const { data: account } = useCurrentAccount();
   const animationsEnabled = account?.animations_enabled ?? true;
@@ -71,6 +82,15 @@ export function MetricCard({
   // remount on its own — this card doesn't rely on a parent remounting
   // correctly to animate.
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const gradientId = useId();
+
+  const hasTrend = !!sparkline && sparkline.length > 1;
+  const first = hasTrend ? sparkline[0]! : 0;
+  const last = hasTrend ? sparkline[sparkline.length - 1]! : 0;
+  const changePercent = hasTrend && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
+  const trendUp = (changePercent ?? 0) >= 0;
+  const trendColor = trendUp ? "var(--chart-1)" : "var(--destructive)";
+  const chartData = hasTrend ? sparkline.map((v, i) => ({ i, v })) : [];
 
   return (
     <Card
@@ -87,26 +107,70 @@ export function MetricCard({
             }
           : undefined
       }
-      className={cn(
-        onClick &&
-          "cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/40 hover:shadow-lg",
-      )}
+      className={
+        onClick
+          ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40"
+          : undefined
+      }
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-navy/10 text-brand-navy dark:bg-brand-navy/25 dark:text-white">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Icon className="h-4 w-4" />
         </span>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-semibold tracking-tight">
-          {typeof value === "number" ? (
-            <AnimatedNumber key={pathname} value={value} enabled={animationsEnabled} />
-          ) : (
-            value
+        <div className="flex items-end justify-between gap-2">
+          <div className="text-3xl font-semibold tracking-tight">
+            {typeof value === "number" ? (
+              <AnimatedNumber key={pathname} value={value} enabled={animationsEnabled} />
+            ) : (
+              value
+            )}
+          </div>
+          {changePercent !== null && (
+            <span
+              className={cn(
+                "mb-0.5 flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium",
+                trendUp
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "bg-destructive/10 text-destructive",
+              )}
+            >
+              {trendUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {Math.abs(changePercent).toFixed(1)}%
+            </span>
           )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+        {hasTrend && (
+          <div
+            key={`${pathname}-${animationsEnabled}`}
+            className="-mx-1 mt-3 h-12 w-[calc(100%+0.5rem)]"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={trendColor} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={trendColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="v"
+                  stroke={trendColor}
+                  strokeWidth={2}
+                  fill={`url(#${gradientId})`}
+                  isAnimationActive={animationsEnabled}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
