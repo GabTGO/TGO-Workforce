@@ -421,6 +421,13 @@ export type HmoMemberInput = {
   ape?: string;
   monthlyPremium?: number;
   biweeklyDeduction?: number;
+  /** Both default server-side (Not Eligible / Not Yet Active) when omitted —
+   * the Add HMO Member form sets them explicitly so a member can be booked
+   * in at whatever stage they're actually at. Kept as two separate fields
+   * per the SOP's rule that enrollment stage and membership usability never
+   * collapse into one status. */
+  enrollmentStatus?: HmoEnrollmentStatus;
+  memberStatus?: HmoMemberStatus;
 };
 
 export type HmoMemberPatch = Partial<

@@ -43,12 +43,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  HMO_ENROLLMENT_STATUSES,
   HMO_INCLUSION_OPTIONS,
   HMO_MBL_OPTIONS,
+  HMO_MEMBER_STATUSES,
   HMO_RANK_OPTIONS,
   HMO_RELATIONSHIPS,
   HMO_ROOM_AND_BOARD_OPTIONS,
+  type HmoEnrollmentStatus,
   type HmoMember,
+  type HmoMemberStatus,
   type HmoMemberType,
   type HmoRelationship,
 } from "@/data/hmo-api";
@@ -113,6 +117,10 @@ export function HmoMemberFormDialog({
   const [ape, setApe] = useState("");
   const [monthlyPremium, setMonthlyPremium] = useState("");
   const [biweeklyDeduction, setBiweeklyDeduction] = useState("");
+  // Default to the same values the backend would apply on its own, so leaving
+  // them untouched books the member in at the very start of the workflow.
+  const [enrollmentStatus, setEnrollmentStatus] = useState<HmoEnrollmentStatus>("Not Eligible");
+  const [memberStatus, setMemberStatus] = useState<HmoMemberStatus>("Not Yet Active");
 
   const createMutation = useCreateHmoMember();
 
@@ -136,6 +144,8 @@ export function HmoMemberFormDialog({
     setApe("");
     setMonthlyPremium("");
     setBiweeklyDeduction("");
+    setEnrollmentStatus("Not Eligible");
+    setMemberStatus("Not Yet Active");
   }, [open]);
 
   useEffect(() => {
@@ -180,6 +190,8 @@ export function HmoMemberFormDialog({
         ...(ape ? { ape } : {}),
         ...(monthlyPremium ? { monthlyPremium: Number(monthlyPremium) } : {}),
         ...(biweeklyDeduction ? { biweeklyDeduction: Number(biweeklyDeduction) } : {}),
+        enrollmentStatus,
+        memberStatus,
       });
       toast.success("HMO member added");
       onOpenChange(false);
@@ -531,6 +543,51 @@ export function HmoMemberFormDialog({
                   value={biweeklyDeduction}
                   onChange={(e) => setBiweeklyDeduction(e.target.value)}
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Two separate fields on purpose, per the SOP: Enrollment Status is
+              where they are in the workflow, Member Status is whether the
+              membership is usable right now. */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-primary">Enrollment & Status</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Enrollment Status</Label>
+                <Select
+                  value={enrollmentStatus}
+                  onValueChange={(v) => setEnrollmentStatus(v as HmoEnrollmentStatus)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HMO_ENROLLMENT_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Member Status</Label>
+                <Select
+                  value={memberStatus}
+                  onValueChange={(v) => setMemberStatus(v as HmoMemberStatus)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HMO_MEMBER_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
