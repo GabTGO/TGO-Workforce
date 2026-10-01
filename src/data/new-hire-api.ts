@@ -53,26 +53,34 @@ export function computeStatus(hire: NewHire): OnboardingStatus {
 // startDate is free text (see the field's own comment above), so entries
 // typed by hand at different times end up in a mix of formats — "Sep 30,
 // 2026 / 9PM", "09/29/26 , 9:00 PM", "Sep 23,2026 / 9PM" all show up in the
-// same table. This normalizes the DATE portion to MM/DD/YYYY for display,
-// keeping whatever time/timezone suffix was typed (the SOP's format always
-// needs that alongside the date) and falling back to the original raw text
-// untouched whenever the leading date can't be confidently parsed, rather
-// than risk silently mangling someone's entry.
+// same table. The three helpers below all build on splitting the raw text
+// into its date and time portions: splitOnboardingStartDate for the actual
+// split, formatOnboardingStartDate for display (normalizes the date to
+// MM/DD/YYYY, keeps the time as typed), and parseOnboardingStartDateForForm/
+// combineOnboardingStartDate for the Add/Edit form's two separate inputs.
 const TIME_SUFFIX_RE = /\s*[/,]?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?\s*[A-Za-z]{0,4})\s*$/;
+
+/** Splits "Sep 30, 2026 / 9PM" into { datePart: "Sep 30, 2026", timePart:
+ * "9PM" } — datePart is still raw text, not reformatted. Only treats the
+ * trailing match as a time if it actually contains a colon or am/pm,
+ * otherwise a plain trailing year ("2026") would get stripped off as if it
+ * were a time. timePart is "" when there's no detected time suffix. */
+function splitOnboardingStartDate(raw: string): { datePart: string; timePart: string } {
+  const trimmed = raw.trim();
+  const timeMatch = trimmed.match(TIME_SUFFIX_RE);
+  const hasTimeSuffix =
+    !!timeMatch && /(:|am|pm)/i.test(timeMatch[1] ?? "") && timeMatch[1] !== trimmed;
+  return {
+    datePart: hasTimeSuffix ? trimmed.slice(0, timeMatch.index).trim() : trimmed,
+    timePart: hasTimeSuffix ? timeMatch![1]!.trim() : "",
+  };
+}
 
 export function formatOnboardingStartDate(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return raw;
 
-  const timeMatch = trimmed.match(TIME_SUFFIX_RE);
-  // Only treat the suffix as a time if it actually contains a colon or
-  // am/pm — otherwise a plain trailing year ("2026") would get stripped off
-  // as if it were a time.
-  const hasTimeSuffix =
-    !!timeMatch && /(:|am|pm)/i.test(timeMatch[1] ?? "") && timeMatch[1] !== trimmed;
-  const datePart = hasTimeSuffix ? trimmed.slice(0, timeMatch.index).trim() : trimmed;
-  const timePart = hasTimeSuffix ? timeMatch![1]!.trim() : "";
-
+  const { datePart, timePart } = splitOnboardingStartDate(trimmed);
   const parsed = new Date(datePart.replace(/,\s*$/, ""));
   if (Number.isNaN(parsed.getTime())) return raw;
 
@@ -81,6 +89,36 @@ export function formatOnboardingStartDate(raw: string): string {
   const yyyy = parsed.getFullYear();
   const formattedDate = `${mm}/${dd}/${yyyy}`;
   return timePart ? `${formattedDate} / ${timePart}` : formattedDate;
+}
+
+/** For the Add/Edit form's two separate inputs — splits a stored startDate
+ * string into an ISO "YYYY-MM-DD" (what `<input type="date">` needs) plus
+ * whatever time text was typed alongside it. Falls back to an empty date
+ * (leaving the raw text as-is isn't possible in a date input) when the date
+ * portion can't be parsed — the person just re-picks it. */
+export function parseOnboardingStartDateForForm(raw: string): { date: string; time: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { date: "", time: "" };
+
+  const { datePart, timePart } = splitOnboardingStartDate(trimmed);
+  const parsed = new Date(datePart.replace(/,\s*$/, ""));
+  if (Number.isNaN(parsed.getTime())) return { date: "", time: timePart };
+
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  return { date: `${parsed.getFullYear()}-${mm}-${dd}`, time: timePart };
+}
+
+/** The inverse of parseOnboardingStartDateForForm — combines the form's ISO
+ * date (from `<input type="date">`) and free-text time back into the single
+ * stored string, already in the canonical MM/DD/YYYY display format so
+ * formatOnboardingStartDate is a no-op on it afterward. */
+export function combineOnboardingStartDate(isoDate: string, time: string): string {
+  if (!isoDate) return time.trim();
+  const [yyyy, mm, dd] = isoDate.split("-");
+  const formattedDate = `${mm}/${dd}/${yyyy}`;
+  const trimmedTime = time.trim();
+  return trimmedTime ? `${formattedDate} / ${trimmedTime}` : formattedDate;
 }
 
 type BackendNewHire = {
