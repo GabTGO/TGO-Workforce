@@ -49,7 +49,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { computeStatus, type NewHire, type NewHirePatch } from "@/data/new-hire-api";
+import {
+  computeStatus,
+  formatOnboardingStartDate,
+  type NewHire,
+  type NewHirePatch,
+} from "@/data/new-hire-api";
 import { useDeleteNewHire, useNewHires, useUpdateNewHire } from "@/data/new-hire-store";
 import { canEditOnboardingField, canManageOnboarding, canViewOnboarding } from "@/lib/permissions";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -381,7 +386,9 @@ function OnboardingPage() {
                   <TableRow key={hire.id}>
                     <TableCell className="font-medium">{hire.name}</TableCell>
                     <TableCell className="text-muted-foreground">{hire.roleTitle}</TableCell>
-                    <TableCell className="text-muted-foreground">{hire.startDate}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatOnboardingStartDate(hire.startDate)}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {hire.recruitmentLead || (
                         <span className="italic text-muted-foreground/60">—</span>

@@ -50,6 +50,39 @@ export function computeStatus(hire: NewHire): OnboardingStatus {
   return "In Progress";
 }
 
+// startDate is free text (see the field's own comment above), so entries
+// typed by hand at different times end up in a mix of formats — "Sep 30,
+// 2026 / 9PM", "09/29/26 , 9:00 PM", "Sep 23,2026 / 9PM" all show up in the
+// same table. This normalizes the DATE portion to MM/DD/YYYY for display,
+// keeping whatever time/timezone suffix was typed (the SOP's format always
+// needs that alongside the date) and falling back to the original raw text
+// untouched whenever the leading date can't be confidently parsed, rather
+// than risk silently mangling someone's entry.
+const TIME_SUFFIX_RE = /\s*[/,]?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?\s*[A-Za-z]{0,4})\s*$/;
+
+export function formatOnboardingStartDate(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return raw;
+
+  const timeMatch = trimmed.match(TIME_SUFFIX_RE);
+  // Only treat the suffix as a time if it actually contains a colon or
+  // am/pm — otherwise a plain trailing year ("2026") would get stripped off
+  // as if it were a time.
+  const hasTimeSuffix =
+    !!timeMatch && /(:|am|pm)/i.test(timeMatch[1] ?? "") && timeMatch[1] !== trimmed;
+  const datePart = hasTimeSuffix ? trimmed.slice(0, timeMatch.index).trim() : trimmed;
+  const timePart = hasTimeSuffix ? timeMatch![1]!.trim() : "";
+
+  const parsed = new Date(datePart.replace(/,\s*$/, ""));
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  const formattedDate = `${mm}/${dd}/${yyyy}`;
+  return timePart ? `${formattedDate} / ${timePart}` : formattedDate;
+}
+
 type BackendNewHire = {
   id: string;
   name: string;
@@ -108,10 +141,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * for a Pydantic validation error (422). Surface the human-readable message
  * either way instead of dumping raw JSON into a toast. Same helper as
  * employee-api.ts's readErrorMessage. */
-async function readErrorMessage(
-  response: Response,
-  path: string,
-): Promise<string> {
+async function readErrorMessage(response: Response, path: string): Promise<string> {
   const fallback = `Request to ${path} failed (${response.status})`;
   const body = await response.text();
   if (!body) return fallback;
@@ -121,9 +151,7 @@ async function readErrorMessage(
     if (Array.isArray(parsed.detail)) {
       const messages = parsed.detail
         .map((item) =>
-          item && typeof item === "object" && "msg" in item
-            ? String(item.msg)
-            : null,
+          item && typeof item === "object" && "msg" in item ? String(item.msg) : null,
         )
         .filter((msg): msg is string => Boolean(msg));
       if (messages.length > 0) return messages.join("; ");
@@ -191,10 +219,7 @@ export async function createNewHire(input: NewHireInput): Promise<NewHire> {
 /** PATCH — only the fields present in `patch` are sent/changed server-side,
  * which is what makes a single checklist checkbox toggle a one-field call
  * instead of resending the whole row. */
-export async function updateNewHire(
-  id: string,
-  patch: NewHirePatch,
-): Promise<NewHire> {
+export async function updateNewHire(id: string, patch: NewHirePatch): Promise<NewHire> {
   const row = await request<BackendNewHire>(`/onboarding/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(toBackendPayload(patch)),
